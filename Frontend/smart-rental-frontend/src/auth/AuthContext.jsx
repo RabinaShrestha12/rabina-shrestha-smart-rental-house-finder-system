@@ -1,105 +1,147 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import api from "../api/axios";
+import React, { createContext, useContext, useMemo, useState } from "react";
+import axios from "axios";
 
 const AuthContext = createContext(null);
 
-function normalizeError(err) {
-  // shows your backend message (err) if present
-  const backendMsg =
-    err?.response?.data?.err ||
-    err?.response?.data?.detail ||
-    err?.response?.data?.message;
+const API_BASE = "http://127.0.0.1:8000/api";
 
+// Convert any form shape into backend login payload
+// Accepts {email,password} OR {username,password}
+const toLoginPayload = (form) => ({
+  username: (form?.username ?? form?.email ?? "").trim(),
+  password: form?.password ?? "",
+});
+
+// Normalize axios / fetch errors into a friendly Error(message)
+const normalizeError = (err) => {
+  // axios response error
   const status = err?.response?.status;
+  const data = err?.response?.data;
 
-  if (backendMsg) return `${backendMsg}`;
-  if (status) return `Request failed (status ${status}).`;
-  if (err?.message) return err.message;
-  return "Something went wrong.";
-}
+  // your backend uses {"error":"..."} sometimes
+  const backendMsg =
+    data?.error ||
+    data?.detail ||
+    (typeof data === "string" ? data : "") ||
+    "";
+
+  if (backendMsg) return new Error(backendMsg);
+
+  if (status) return new Error(`Request failed (status ${status}).`);
+
+  // network error (server down, CORS etc.)
+  if (err?.message) return new Error(err.message);
+
+  return new Error("Something went wrong.");
+};
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(() => {
-    const saved = localStorage.getItem("user");
-    return saved ? JSON.parse(saved) : null;
+  const [auth, setAuth] = useState(() => {
+    const access = localStorage.getItem("access") || "";
+    const refresh = localStorage.getItem("refresh") || "";
+    const role = localStorage.getItem("role") || "";
+    const user_id = localStorage.getItem("user_id") || "";
+    const username = localStorage.getItem("username") || "";
+    return { access, refresh, role, user_id, username };
   });
 
-  const [accessToken, setAccessToken] = useState(() => localStorage.getItem("accessToken") || null);
-  const [refreshToken, setRefreshToken] = useState(() => localStorage.getItem("refreshToken") || null);
+  const setSession = (data) => {
+    // expected: { tokens: {access,refresh}, role, user_id, username }
+    const access = data?.tokens?.access || "";
+    const refresh = data?.tokens?.refresh || "";
+    const role = data?.role || "";
+    const user_id = String(data?.user_id ?? "");
+    const username = data?.username || "";
 
-  // Persist
-  useEffect(() => {
-    if (user) localStorage.setItem("user", JSON.stringify(user));
-    else localStorage.removeItem("user");
-  }, [user]);
+    localStorage.setItem("access", access);
+    localStorage.setItem("refresh", refresh);
+    localStorage.setItem("role", role);
+    localStorage.setItem("user_id", user_id);
+    localStorage.setItem("username", username);
 
-  useEffect(() => {
-    if (accessToken) localStorage.setItem("accessToken", accessToken);
-    else localStorage.removeItem("accessToken");
-  }, [accessToken]);
+    setAuth({ access, refresh, role, user_id, username });
+  };
 
-  useEffect(() => {
-    if (refreshToken) localStorage.setItem("refreshToken", refreshToken);
-    else localStorage.removeItem("refreshToken");
-  }, [refreshToken]);
+  const clearSession = () => {
+    localStorage.removeItem("access");
+    localStorage.removeItem("refresh");
+    localStorage.removeItem("role");
+    localStorage.removeItem("user_id");
+    localStorage.removeItem("username");
+    setAuth({ access: "", refresh: "", role: "", user_id: "", username: "" });
+  };
+
+  // ----- LOGIN ADMIN -----
+  const loginAdmin = async (form) => {
+    try {
+      const payload = toLoginPayload(form);
+
+      if (!payload.username || !payload.password) {
+        throw new Error("Username and password are required.");
+      }
+
+      // DEBUG: remove later if you want
+      console.log("ADMIN LOGIN payload:", payload);
+
+      const res = await axios.post(`${API_BASE}/login/`, payload, {
+        headers: { "Content-Type": "application/json" },
+      });
+
+      setSession(res.data);
+      return res.data;
+    } catch (err) {
+      throw normalizeError(err);
+    }
+  };
+
+  // ----- LOGIN USER (OWNER/TENANT) -----
+  const loginUser = async (form) => {
+    try {
+      const payload = toLoginPayload(form);
+
+      if (!payload.username || !payload.password) {
+        throw new Error("Username and password are required.");
+      }
+
+      // DEBUG: remove later if you want
+      console.log("USER LOGIN payload:", payload);
+
+      const res = await axios.post(`${API_BASE}/login-user/`, payload, {
+        headers: { "Content-Type": "application/json" },
+      });
+
+      setSession(res.data);
+      return res.data;
+    } catch (err) {
+      throw normalizeError(err);
+    }
+  };
 
   const logout = () => {
-    setUser(null);
-    setAccessToken(null);
-    setRefreshToken(null);
-    localStorage.removeItem("user");
-    localStorage.removeItem("accessToken");
-    localStorage.removeItem("refreshToken");
+    clearSession();
   };
 
-  // Admin login
-  const loginAdmin = async ({ email, password }) => {
-    try {
-      const res = await api.post("login/", { email, password });
-      const { tokens, user } = res.data;
+  // Add axios interceptor to attach access token automatically
+  // (optional but useful for admin-only pages)
+  useMemo(() => {
+    axios.defaults.baseURL = API_BASE;
+    axios.interceptors.request.use((config) => {
+      const token = localStorage.getItem("access");
+      if (token) config.headers.Authorization = `Bearer ${token}`;
+      return config;
+    });
+  }, []);
 
-      setAccessToken(tokens?.access);
-      setRefreshToken(tokens?.refresh);
-      setUser(user);
-
-      return user;
-    } catch (err) {
-      throw new Error(normalizeError(err));
-    }
+  const value = {
+    auth,
+    loginAdmin,
+    loginUser,
+    logout,
+    setSession,
+    clearSession,
   };
-
-  // Owner/Tenant login
-  const loginUser = async ({ email, password }) => {
-    try {
-      const res = await api.post("auth/login/", { email, password });
-      const { tokens, user } = res.data;
-
-      setAccessToken(tokens?.access);
-      setRefreshToken(tokens?.refresh);
-      setUser(user);
-
-      return user;
-    } catch (err) {
-      throw new Error(normalizeError(err));
-    }
-  };
-
-  const value = useMemo(
-    () => ({
-      user,
-      accessToken,
-      refreshToken,
-      loginAdmin,
-      loginUser,
-      logout,
-      isLoggedIn: !!user && !!accessToken,
-    }),
-    [user, accessToken, refreshToken]
-  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-export function useAuth() {
-  return useContext(AuthContext);
-}
+export const useAuth = () => useContext(AuthContext);

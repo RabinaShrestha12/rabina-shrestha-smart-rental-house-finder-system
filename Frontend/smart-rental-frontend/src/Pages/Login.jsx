@@ -7,14 +7,25 @@ import { useAuth } from "../auth/AuthContext";
 
 export default function Login() {
   const [mode, setMode] = useState("admin"); // admin | user
-  const [form, setForm] = useState({ email: "", password: "" });
+  const [form, setForm] = useState({ username: "", password: "" });
   const [toast, setToast] = useState({ type: "info", msg: "" });
   const [loading, setLoading] = useState(false);
 
   const { loginAdmin, loginUser } = useAuth();
   const nav = useNavigate();
 
-  const onChange = (e) => setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
+  const onChange = (e) =>
+    setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
+
+  const goByRole = (role) => {
+    const r = (role || "").toLowerCase();
+
+    if (r === "admin") return nav("/admin-dashboard", { replace: true });
+    if (r === "owner") return nav("/owner-dashboard", { replace: true });
+    if (r === "tenant") return nav("/tenant-dashboard", { replace: true });
+
+    return nav("/unauthorized", { replace: true });
+  };
 
   const submit = async (e) => {
     e.preventDefault();
@@ -22,18 +33,9 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const user =
-        mode === "admin"
-          ? await loginAdmin(form)
-          : await loginUser(form);
-
-      // redirect by role
-      if (user.role === "admin") nav("/admin");
-      else if (user.role === "owner") nav("/owner");
-      else if (user.role === "tenant") nav("/tenant");
-      else nav("/unauthorized");
+      const data = mode === "admin" ? await loginAdmin(form) : await loginUser(form);
+      goByRole(data.role);
     } catch (err) {
-      // err is Error(normalizeError)
       setToast({ type: "error", msg: err.message || "Login failed." });
     } finally {
       setLoading(false);
@@ -53,7 +55,11 @@ export default function Login() {
         </Link>
       }
     >
-      <Toast type={toast.type} message={toast.msg} onClose={() => setToast({ type: "info", msg: "" })} />
+      <Toast
+        type={toast.type}
+        message={toast.msg}
+        onClose={() => setToast({ type: "info", msg: "" })}
+      />
 
       <div className="flex gap-2">
         <button
@@ -67,6 +73,7 @@ export default function Login() {
         >
           Admin Login
         </button>
+
         <button
           type="button"
           onClick={() => setMode("user")}
@@ -76,13 +83,27 @@ export default function Login() {
               : "bg-black/30 border-white/10 hover:bg-white/5"
           }`}
         >
-          Owner/Tenant Login
+          Owner / Tenant Login
         </button>
       </div>
 
       <form onSubmit={submit} className="mt-6 grid gap-4">
-        <TextField label="Email (or Username)" name="email" value={form.email} onChange={onChange} required />
-        <TextField label="Password" name="password" type="password" value={form.password} onChange={onChange} required />
+        <TextField
+          label="Username"
+          name="username"
+          value={form.username}
+          onChange={onChange}
+          required
+        />
+
+        <TextField
+          label="Password"
+          name="password"
+          type="password"
+          value={form.password}
+          onChange={onChange}
+          required
+        />
 
         <button
           disabled={loading}
