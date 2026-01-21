@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 from django.contrib.auth import get_user_model
+=======
+from django.contrib.auth import authenticate, get_user_model
+>>>>>>> 5cb67aff8d4d7675492669dcf029e2b6a7f92276
 from django.db import IntegrityError, transaction
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated, BasePermission
@@ -8,6 +12,10 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 User = get_user_model()
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> 5cb67aff8d4d7675492669dcf029e2b6a7f92276
 # JWT TOKENS
 def get_tokens_for_user(user):
     refresh = RefreshToken.for_user(user)
@@ -23,6 +31,7 @@ class IsAdminRole(BasePermission):
         return bool(
             request.user
             and request.user.is_authenticated
+<<<<<<< HEAD
             and (getattr(request.user, "role", None) == "admin" or request.user.is_staff or request.user.is_superuser)
         )
 
@@ -37,17 +46,30 @@ def get_user_by_email(email):
 
 
 # OWNER/TENANT REGISTER  (PUBLIC)
+=======
+            and getattr(request.user, "role", None) == "admin"
+        )
+
+
+# OWNER/TENANT REGISTER 
+>>>>>>> 5cb67aff8d4d7675492669dcf029e2b6a7f92276
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def register_user(request):
     data = request.data
 
+<<<<<<< HEAD
     email = (data.get("email") or "").strip().lower()
+=======
+    username = data.get("username")
+    email = data.get("email")
+>>>>>>> 5cb67aff8d4d7675492669dcf029e2b6a7f92276
     password = data.get("password")
     role = data.get("role")  # owner/tenant ONLY
     address = data.get("address", "")
     phone = data.get("phone", "")
 
+<<<<<<< HEAD
     # optional username (auto-generate if not given)
     username = (data.get("username") or "").strip()
 
@@ -72,6 +94,14 @@ def register_user(request):
     while User.objects.filter(username=username).exists():
         username = f"{base_username}{i}"
         i += 1
+=======
+    if not username or not password:
+        return Response({"error": "username and password are required"}, status=400)
+
+    # ✅ admin is NOT allowed here
+    if role not in ["owner", "tenant"]:
+        return Response({"error": "role must be owner/tenant"}, status=400)
+>>>>>>> 5cb67aff8d4d7675492669dcf029e2b6a7f92276
 
     try:
         user = User.objects.create_user(username=username, email=email, password=password)
@@ -88,13 +118,17 @@ def register_user(request):
                 "tokens": tokens,
                 "role": user.role,
                 "user_id": user.id,
+<<<<<<< HEAD
                 "email": user.email,
+=======
+>>>>>>> 5cb67aff8d4d7675492669dcf029e2b6a7f92276
                 "username": user.username,
             },
             status=status.HTTP_201_CREATED,
         )
 
     except IntegrityError:
+<<<<<<< HEAD
         return Response({"error": "Username or email already exists"}, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -116,6 +150,29 @@ def login_user(request):
     # prevent admin login from user login endpoint
     if getattr(user, "role", None) == "admin" or user.is_staff or user.is_superuser:
         return Response({"error": "Use admin login endpoint"}, status=status.HTTP_403_FORBIDDEN)
+=======
+        return Response({"error": "Username or email already exists"}, status=400)
+
+
+# OWNER/TENANT LOGIN
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def login_user(request):
+    username = request.data.get("username")
+    password = request.data.get("password")
+
+    if not username or not password:
+        return Response({"error": "username and password are required"}, status=400)
+
+    user = authenticate(username=username, password=password)
+
+    if not user:
+        return Response({"error": "Invalid credentials"}, status=401)
+
+    # Optional: prevent admin login from user login endpoint
+    if getattr(user, "role", None) == "admin":
+        return Response({"error": "Use admin login endpoint"}, status=403)
+>>>>>>> 5cb67aff8d4d7675492669dcf029e2b6a7f92276
 
     tokens = get_tokens_for_user(user)
 
@@ -125,6 +182,7 @@ def login_user(request):
             "tokens": tokens,
             "role": user.role,
             "user_id": user.id,
+<<<<<<< HEAD
             "email": user.email,
             "username": user.username,
         },
@@ -133,16 +191,31 @@ def login_user(request):
 
 
 #  ADMIN REGISTER (ONLY ONCE)  (OPTIONAL)
+=======
+            "username": user.username,
+        },
+        status=200,
+    )
+
+
+#  ADMIN REGISTER (ONLY ONCE)
+>>>>>>> 5cb67aff8d4d7675492669dcf029e2b6a7f92276
 @api_view(["POST"])
 @permission_classes([AllowAny])  # so first admin can be created without token
 def register_admin(request):
     data = request.data
 
+<<<<<<< HEAD
     email = (data.get("email") or "").strip().lower()
+=======
+    username = data.get("username")
+    email = data.get("email")
+>>>>>>> 5cb67aff8d4d7675492669dcf029e2b6a7f92276
     password = data.get("password")
     address = data.get("address", "")
     phone = data.get("phone", "")
 
+<<<<<<< HEAD
     # optional username
     username = (data.get("username") or "").strip()
 
@@ -162,12 +235,20 @@ def register_admin(request):
     while User.objects.filter(username=username).exists():
         username = f"{base_username}{i}"
         i += 1
+=======
+    if not username or not password:
+        return Response({"error": "username and password are required"}, status=400)
+>>>>>>> 5cb67aff8d4d7675492669dcf029e2b6a7f92276
 
     try:
         # ✅ Prevent two admins if requests come together
         with transaction.atomic():
             if User.objects.select_for_update().filter(role="admin").exists():
+<<<<<<< HEAD
                 return Response({"error": "Admin already exists"}, status=status.HTTP_400_BAD_REQUEST)
+=======
+                return Response({"error": "Admin already exists"}, status=400)
+>>>>>>> 5cb67aff8d4d7675492669dcf029e2b6a7f92276
 
             admin = User.objects.create_user(username=username, email=email, password=password)
             admin.role = "admin"
@@ -183,6 +264,7 @@ def register_admin(request):
         tokens = get_tokens_for_user(admin)
 
         return Response(
+<<<<<<< HEAD
             {
                 "message": "Admin registered",
                 "tokens": tokens,
@@ -215,6 +297,33 @@ def login_admin(request):
 
     if getattr(user, "role", None) != "admin" and not user.is_staff and not user.is_superuser:
         return Response({"error": "Not an admin account"}, status=status.HTTP_403_FORBIDDEN)
+=======
+            {"message": "Admin registered", "tokens": tokens, "user_id": admin.id, "role": admin.role},
+            status=201,
+        )
+
+    except IntegrityError:
+        return Response({"error": "Username or email already exists"}, status=400)
+
+
+# ADMIN LOGIN
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def login_admin(request):
+    username = request.data.get("username")
+    password = request.data.get("password")
+
+    if not username or not password:
+        return Response({"error": "username and password are required"}, status=400)
+
+    user = authenticate(username=username, password=password)
+
+    if not user:
+        return Response({"error": "Invalid credentials"}, status=401)
+
+    if getattr(user, "role", None) != "admin":
+        return Response({"error": "Not an admin account"}, status=403)
+>>>>>>> 5cb67aff8d4d7675492669dcf029e2b6a7f92276
 
     tokens = get_tokens_for_user(user)
 
@@ -224,6 +333,7 @@ def login_admin(request):
             "tokens": tokens,
             "role": user.role,
             "user_id": user.id,
+<<<<<<< HEAD
             "email": user.email,
             "username": user.username,
         },
@@ -233,13 +343,26 @@ def login_admin(request):
 
 # ADMIN: LIST ALL USERS (FIXED: add @api_view)
 @api_view(["GET"])
+=======
+            "username": user.username,
+        },
+        status=200,
+    )
+
+
+#  ADMIN: LIST ALL USERS @api_view(["GET"])
+>>>>>>> 5cb67aff8d4d7675492669dcf029e2b6a7f92276
 @permission_classes([IsAdminRole])
 def list_all_users(request):
     users = (
         User.objects.all()
         .values("id", "username", "email", "role", "address", "phone", "created_at")
     )
+<<<<<<< HEAD
     return Response(list(users), status=status.HTTP_200_OK)
+=======
+    return Response(list(users), status=200)
+>>>>>>> 5cb67aff8d4d7675492669dcf029e2b6a7f92276
 
 
 # ADMIN: LIST OWNERS
@@ -250,18 +373,29 @@ def list_owners(request):
         User.objects.filter(role="owner")
         .values("id", "username", "email", "role", "address", "phone", "created_at")
     )
+<<<<<<< HEAD
     return Response(list(owners), status=status.HTTP_200_OK)
 
 
 # ADMIN: LIST TENANTS (FIXED: add @api_view)
 @api_view(["GET"])
+=======
+    return Response(list(owners), status=200)
+
+
+# ADMIN: LIST TENANTS @api_view(["GET"])
+>>>>>>> 5cb67aff8d4d7675492669dcf029e2b6a7f92276
 @permission_classes([IsAdminRole])
 def list_tenants(request):
     tenants = (
         User.objects.filter(role="tenant")
         .values("id", "username", "email", "role", "address", "phone", "created_at")
     )
+<<<<<<< HEAD
     return Response(list(tenants), status=status.HTTP_200_OK)
+=======
+    return Response(list(tenants), status=200)
+>>>>>>> 5cb67aff8d4d7675492669dcf029e2b6a7f92276
 
 
 # ADMIN: USER DETAIL CRUD
@@ -271,7 +405,11 @@ def user_detail_crud(request, user_id):
     try:
         user = User.objects.get(id=user_id)
     except User.DoesNotExist:
+<<<<<<< HEAD
         return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+=======
+        return Response({"error": "User not found"}, status=404)
+>>>>>>> 5cb67aff8d4d7675492669dcf029e2b6a7f92276
 
     if request.method == "GET":
         return Response(
@@ -284,13 +422,18 @@ def user_detail_crud(request, user_id):
                 "phone": user.phone,
                 "created_at": user.created_at,
             },
+<<<<<<< HEAD
             status=status.HTTP_200_OK,
+=======
+            status=200,
+>>>>>>> 5cb67aff8d4d7675492669dcf029e2b6a7f92276
         )
 
     if request.method == "PUT":
         data = request.data
 
         # allow update basic fields
+<<<<<<< HEAD
         if "email" in data:
             new_email = (data.get("email") or "").strip().lower()
             if new_email and User.objects.filter(email__iexact=new_email).exclude(id=user.id).exists():
@@ -305,12 +448,23 @@ def user_detail_crud(request, user_id):
             new_role = data.get("role")
             if new_role not in ["owner", "tenant", "admin"]:
                 return Response({"error": "role must be owner/tenant/admin"}, status=status.HTTP_400_BAD_REQUEST)
+=======
+        user.email = data.get("email", user.email)
+        user.address = data.get("address", user.address)
+
+        # optional update role (block changing admin role unless you want it)
+        if "role" in data:
+            new_role = data.get("role")
+            if new_role not in ["owner", "tenant", "admin"]:
+                return Response({"error": "role must be owner/tenant/admin"}, status=400)
+>>>>>>> 5cb67aff8d4d7675492669dcf029e2b6a7f92276
             user.role = new_role
 
         if "phone" in data:
             user.phone = str(data.get("phone", user.phone))
 
         user.save()
+<<<<<<< HEAD
         return Response({"message": "User updated"}, status=status.HTTP_200_OK)
 
     # DELETE
@@ -319,3 +473,14 @@ def user_detail_crud(request, user_id):
 
     user.delete()
     return Response({"message": "User deleted"}, status=status.HTTP_200_OK)
+=======
+        return Response({"message": "User updated"}, status=200)
+
+    # DELETE
+    # Optional: prevent deleting the only admin
+    if user.role == "admin":
+        return Response({"error": "Admin user cannot be deleted"}, status=403)
+
+    user.delete()
+    return Response({"message": "User deleted"}, status=200)
+>>>>>>> 5cb67aff8d4d7675492669dcf029e2b6a7f92276

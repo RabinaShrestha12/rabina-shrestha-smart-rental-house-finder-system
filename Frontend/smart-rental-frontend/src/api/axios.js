@@ -1,11 +1,16 @@
 import axios from "axios";
 
 const api = axios.create({
+<<<<<<< HEAD
   baseURL: "http://127.0.0.1:8000",
+=======
+  baseURL: process.env.REACT_APP_API_BASE_URL || "http://127.0.0.1:8000/api/",
+>>>>>>> 5cb67aff8d4d7675492669dcf029e2b6a7f92276
   headers: { "Content-Type": "application/json" },
 });
 
 api.interceptors.request.use((config) => {
+<<<<<<< HEAD
   const token = localStorage.getItem("access");
 
   // ✅ Only attach token if it is valid-looking and endpoint needs auth
@@ -37,4 +42,11 @@ api.interceptors.response.use(
   }
 );
 
+=======
+  const token = localStorage.getItem("accessToken");
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+
+>>>>>>> 5cb67aff8d4d7675492669dcf029e2b6a7f92276
 export default api;
