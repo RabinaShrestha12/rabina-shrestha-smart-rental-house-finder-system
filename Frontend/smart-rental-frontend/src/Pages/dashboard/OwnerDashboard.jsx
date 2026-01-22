@@ -1,53 +1,58 @@
-import React, { useEffect, useState } from "react";
-import axios from "axios";
-import Shell from "../components/Shell";
-import Toast from "../components/Toast";
-import { useAuth } from "../auth/AuthContext";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import api from "../../api/axios";
+import { useAuth } from "../../auth/AuthContext";
+import Shell from "../../components/Shell";
+import Toast from "../../components/Toast";
 
 export default function OwnerDashboard() {
-  const { logout } = useAuth();
+  const { role, email, logout } = useAuth();
   const nav = useNavigate();
 
   const [toast, setToast] = useState({ type: "info", msg: "" });
   const [profile, setProfile] = useState(null);
 
-  const username = localStorage.getItem("username");
-  const role = localStorage.getItem("role");
-  const token = localStorage.getItem("access");
-
   useEffect(() => {
-    // block if not logged in or not owner
-    if (!token) return nav("/login", { replace: true });
-    if (role !== "owner") return nav("/unauthorized", { replace: true });
+    // If not logged in
+    const token = localStorage.getItem("access");
+    if (!token) {
+      nav("/auth", { replace: true });
+      return;
+    }
+
+    // If not owner
+    if (role !== "owner") {
+      nav("/unauthorized", { replace: true });
+      return;
+    }
 
     const loadProfile = async () => {
       try {
-        // ✅ change this endpoint to your real owner profile API if different
-        const res = await axios.get("http://127.0.0.1:8000/api/owner-profile/", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        // ✅ Use your api instance (baseURL already has /api)
+        // Change endpoint if your backend uses a different one
+        const res = await api.get("/owner-profile/");
         setProfile(res.data);
       } catch (err) {
-        setToast({
-          type: "error",
-          msg: err.response?.data?.error || "Failed to load owner profile.",
-        });
+        const msg =
+          err?.response?.data?.detail ||
+          err?.response?.data?.error ||
+          "Failed to load owner profile.";
+        setToast({ type: "error", msg });
       }
     };
 
     loadProfile();
-  }, [token, role, nav]);
+  }, [role, nav]);
 
   const handleLogout = () => {
     logout();
-    nav("/login", { replace: true });
+    nav("/auth", { replace: true });
   };
 
   return (
     <Shell
       title="Owner Dashboard"
-      subtitle={`Welcome ${username || ""}. Manage your profile and properties.`}
+      subtitle={`Welcome ${email || "Owner"}. Manage your profile and properties.`}
       right={
         <button
           onClick={handleLogout}
@@ -71,8 +76,8 @@ export default function OwnerDashboard() {
         ) : (
           <div className="mt-4 text-sm text-slate-200 grid gap-2">
             <div><b>Owner ID:</b> {profile.id ?? "-"}</div>
-            <div><b>Username:</b> {profile.username ?? username ?? "-"}</div>
-            <div><b>Email:</b> {profile.email ?? "-"}</div>
+            <div><b>Username:</b> {profile.username ?? "-"}</div>
+            <div><b>Email:</b> {profile.email ?? email ?? "-"}</div>
             <div><b>Phone:</b> {profile.phone ?? "-"}</div>
             <div><b>Address:</b> {profile.address ?? "-"}</div>
           </div>

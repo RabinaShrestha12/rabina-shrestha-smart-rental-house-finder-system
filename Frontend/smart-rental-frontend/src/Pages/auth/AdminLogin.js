@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { useAuth } from "../auth/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../auth/AuthContext";
 
 export default function AdminLogin() {
   const { loginAdmin } = useAuth();
@@ -13,12 +13,20 @@ export default function AdminLogin() {
   const onSubmit = async (e) => {
     e.preventDefault();
     setError("");
+
     try {
       const data = await loginAdmin(email, password);
-      if ((data.role || "").toLowerCase() === "admin") nav("/admin");
-      else setError("Not an admin account");
+      if ((data.role || "").toLowerCase() === "admin") {
+        nav("/admin");
+      } else {
+        setError("Not an admin account");
+      }
     } catch (err) {
-      setError(err?.response?.data?.error || err?.response?.data?.detail || "Admin login failed");
+      setError(
+        err?.response?.data?.error ||
+        err?.response?.data?.detail ||
+        "Admin login failed"
+      );
     }
   };
 
@@ -28,12 +36,18 @@ export default function AdminLogin() {
       <p style={{ color: "#666" }}>Authorized personnel only.</p>
 
       <form onSubmit={onSubmit} style={{ display: "grid", gap: 10 }}>
-        <input placeholder="Admin Email" value={email} onChange={(e) => setEmail(e.target.value)} />
+        <input
+          placeholder="Admin Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+        />
         <input
           placeholder="Admin Password"
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          required
         />
         {error && <div style={{ color: "red" }}>{error}</div>}
         <button type="submit">Enter</button>

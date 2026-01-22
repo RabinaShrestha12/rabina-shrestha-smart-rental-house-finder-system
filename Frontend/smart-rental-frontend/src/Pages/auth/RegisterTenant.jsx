@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import api from "../api/axios";
-import Shell from "../components/Shell";
-import TextField from "../components/TextField";
-import Toast from "../components/Toast";
+import api from "../../api/axios";
+import Shell from "../../components/Shell";
+import TextField from "../../components/TextField";
+import Toast from "../../components/Toast";
 
 export default function RegisterTenant() {
   const [form, setForm] = useState({

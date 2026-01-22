@@ -11,12 +11,8 @@ https://docs.djangoproject.com/en/5.0/ref/settings/
 """
 
 from pathlib import Path
-<<<<<<< HEAD
-=======
 from datetime import timedelta
 import os
-from corsheaders.defaults import default_headers
->>>>>>> 5cb67aff8d4d7675492669dcf029e2b6a7f92276
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -26,11 +22,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-<<<<<<< HEAD
-SECRET_KEY = 'django-insecure-cn6m)stkkp7gw9mt9jq%e!br3yf9e85wzpr_5^7sk58(ax=s+n'
-=======
-SECRET_KEY = 'django-insecure-v29@=8b4x#cz2#-7328&1fbc)1=hh+&!q55sc@s6*apegn7m0$'
->>>>>>> 5cb67aff8d4d7675492669dcf029e2b6a7f92276
+# (Keep ONE secret key only)
+SECRET_KEY = "django-insecure-v29@=8b4x#cz2#-7328&1fbc)1=hh+&!q55sc@s6*apegn7m0$"
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -39,39 +32,75 @@ ALLOWED_HOSTS = []
 
 
 # Application definition
-
 INSTALLED_APPS = [
-<<<<<<< HEAD
-    'django.contrib.admin',
-    'django.contrib.auth',
-    'django.contrib.contenttypes',
-    'django.contrib.sessions',
-    'django.contrib.messages',
-    'django.contrib.staticfiles',
-    'myapp',
-    "rest_framework",
-    "rest_framework_simplejwt",
-    "corsheaders",
-]
-
-=======
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+
+    # Third-party apps
     "rest_framework",
+    "rest_framework_simplejwt",
     "corsheaders",
-    "myapp",  # your app name
-    
+
+    # Local apps
+    "myapp",
 ]
 
-SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(hours=7),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=7)
+# Custom user model (only if you created myapp/models.py User)
+AUTH_USER_MODEL = "myapp.User"
+
+
+MIDDLEWARE = [
+    "corsheaders.middleware.CorsMiddleware",  # keep near top
+    "django.middleware.security.SecurityMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
+]
+
+ROOT_URLCONF = "myproject.urls"
+
+
+TEMPLATES = [
+    {
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [],
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.debug",
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
+            ],
+        },
+    },
+]
+
+WSGI_APPLICATION = "myproject.wsgi.application"
+
+
+# Database (MySQL)
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.mysql",
+        "NAME": "project_db",   # change if your DB name is different
+        "USER": "root",
+        "PASSWORD": "",                 # put your MySQL password here if set
+        "HOST": "localhost",
+        "PORT": "3306",
+      
+    }
 }
->>>>>>> 5cb67aff8d4d7675492669dcf029e2b6a7f92276
+
+
+# DRF + JWT
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework_simplejwt.authentication.JWTAuthentication",
@@ -81,165 +110,47 @@ REST_FRAMEWORK = {
     ),
 }
 
-<<<<<<< HEAD
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(hours=7),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+}
 
-MIDDLEWARE = [
-     "corsheaders.middleware.CorsMiddleware",
-=======
-AUTH_USER_MODEL = 'myapp.User'
 
-MIDDLEWARE = [
-    "corsheaders.middleware.CorsMiddleware",  # must be near top
->>>>>>> 5cb67aff8d4d7675492669dcf029e2b6a7f92276
-    "django.middleware.security.SecurityMiddleware",
-    "django.contrib.sessions.middleware.SessionMiddleware",
-    "django.middleware.common.CommonMiddleware",
-    "django.middleware.csrf.CsrfViewMiddleware",
-    "django.contrib.auth.middleware.AuthenticationMiddleware",
-    "django.contrib.messages.middleware.MessageMiddleware",
-    "django.middleware.clickjacking.XFrameOptionsMiddleware",
-<<<<<<< HEAD
-]
-
-ROOT_URLCONF = 'myproject.urls'
-
+# CORS
+# (Use ONE approach. For development, allow all OR set allowed origins.)
 CORS_ALLOW_ALL_ORIGINS = True
-AUTH_USER_MODEL = "myapp.User"
 
-TEMPLATES = [
-    {
-        'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
-        'APP_DIRS': True,
-        'OPTIONS': {
-            'context_processors': [
-                'django.template.context_processors.debug',
-                'django.template.context_processors.request',
-                'django.contrib.auth.context_processors.auth',
-                'django.contrib.messages.context_processors.messages',
-=======
-    "corsheaders.middleware.CorsMiddleware",
-    "django.middleware.common.CommonMiddleware",
-]
-
-ROOT_URLCONF = "myproject.urls"
-
-TEMPLATES = [
-    {
-        "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
-        "APP_DIRS": True,
-        "OPTIONS": {
-            "context_processors": [
-                "django.template.context_processors.request",
-                "django.contrib.auth.context_processors.auth",
-                "django.contrib.messages.context_processors.messages",
->>>>>>> 5cb67aff8d4d7675492669dcf029e2b6a7f92276
-            ],
-        },
-    },
-]
-
-<<<<<<< HEAD
-WSGI_APPLICATION = 'myproject.wsgi.application'
-
-# Database
-# https://docs.djangoproject.com/en/5.0/ref/settings/#databases
-=======
-WSGI_APPLICATION = "myproject.wsgi.application"
-
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
-    }
-}
-#Database
-#https://docs.djangoproject.com/en/5.0/ref/settings/#databases
->>>>>>> 5cb67aff8d4d7675492669dcf029e2b6a7f92276
-
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.mysql',
-<<<<<<< HEAD
-        'NAME': 'project_db',
-        'USER': 'root',        # ✅ MUST be uppercase
-        'PASSWORD': '',    # ⚠️ use your real MySQL password
-        'HOST': 'localhost',
-        'PORT': '3306',
-    }
-}
+# If you prefer strict CORS instead of allowing all, comment the above line
+# and use this:
+# CORS_ALLOWED_ORIGINS = [
+#     "http://localhost:3000",
+#     "http://127.0.0.1:3000",
+# ]
 
 
-
-=======
-        'NAME': 'college_project_db',
-        'USER': 'root',
-        'PASSWORD': "",
-        'HOST': 'localhost',
-        'PORT':"3306",
-        'OPTIONS': {
-            'charset': 'utf8mb4',
-        }
-    }
-}
-
->>>>>>> 5cb67aff8d4d7675492669dcf029e2b6a7f92276
 # Password validation
-# https://docs.djangoproject.com/en/5.0/ref/settings/#auth-password-validators
-
 AUTH_PASSWORD_VALIDATORS = [
-    {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
-    },
+    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
+    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
+    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
 
 
 # Internationalization
-# https://docs.djangoproject.com/en/5.0/topics/i18n/
-
-<<<<<<< HEAD
-LANGUAGE_CODE = 'en-us'
-
-TIME_ZONE = 'UTC'
-
-USE_I18N = True
-
-=======
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"
 USE_I18N = True
->>>>>>> 5cb67aff8d4d7675492669dcf029e2b6a7f92276
 USE_TZ = True
 
 
 # Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/5.0/howto/static-files/
+STATIC_URL = "static/"
 
-STATIC_URL = 'static/'
-<<<<<<< HEAD
+# Media (uploads)
+MEDIA_URL = "/media/"
+MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 
-=======
-MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
->>>>>>> 5cb67aff8d4d7675492669dcf029e2b6a7f92276
+
 # Default primary key field type
-# https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field
-
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-<<<<<<< HEAD
-=======
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-]
->>>>>>> 5cb67aff8d4d7675492669dcf029e2b6a7f92276
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

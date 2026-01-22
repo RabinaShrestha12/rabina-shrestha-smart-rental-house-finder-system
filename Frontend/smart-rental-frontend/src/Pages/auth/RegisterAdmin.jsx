@@ -1,8 +1,8 @@
 import React, { useState } from "react";
-import Shell from "../components/Shell";
-import TextField from "../components/TextField";
-import Toast from "../components/Toast";
-import api from "../api/axios";
+import Shell from "../../components/Shell";
+import TextField from "../../components/TextField";
+import Toast from "../../components/Toast";
+import api from "../../api/axios";
 import { Link, useNavigate } from "react-router-dom";
 
 

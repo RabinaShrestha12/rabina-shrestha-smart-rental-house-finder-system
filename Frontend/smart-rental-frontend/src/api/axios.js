@@ -1,27 +1,26 @@
 import axios from "axios";
 
 const api = axios.create({
-<<<<<<< HEAD
-  baseURL: "http://127.0.0.1:8000",
-=======
-  baseURL: process.env.REACT_APP_API_BASE_URL || "http://127.0.0.1:8000/api/",
->>>>>>> 5cb67aff8d4d7675492669dcf029e2b6a7f92276
+  // baseURL already includes /api
+  baseURL: process.env.REACT_APP_API_BASE_URL || "http://127.0.0.1:8000/api",
   headers: { "Content-Type": "application/json" },
 });
 
 api.interceptors.request.use((config) => {
-<<<<<<< HEAD
   const token = localStorage.getItem("access");
 
-  // ✅ Only attach token if it is valid-looking and endpoint needs auth
+  // Public auth endpoints (no token)
   const isPublicAuthEndpoint =
-    config.url?.includes("/api/register") ||
-    config.url?.includes("/api/login");
+    config.url?.includes("/register") ||
+    config.url?.includes("/login") ||
+    config.url?.includes("/register_user") ||
+    config.url?.includes("/login_user") ||
+    config.url?.includes("/register_admin") ||
+    config.url?.includes("/login_admin");
 
   if (!isPublicAuthEndpoint && token && token !== "undefined" && token !== "null") {
     config.headers.Authorization = `Bearer ${token}`;
   } else {
-    // ✅ ensure no Authorization header for register/login
     delete config.headers.Authorization;
   }
 
@@ -31,7 +30,6 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (res) => res,
   (err) => {
-    // ✅ 401/403 are common for invalid/expired token
     if (err?.response?.status === 401 || err?.response?.status === 403) {
       localStorage.removeItem("access");
       localStorage.removeItem("refresh");
@@ -42,11 +40,4 @@ api.interceptors.response.use(
   }
 );
 
-=======
-  const token = localStorage.getItem("accessToken");
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  return config;
-});
-
->>>>>>> 5cb67aff8d4d7675492669dcf029e2b6a7f92276
 export default api;

@@ -12,9 +12,11 @@ export function AuthProvider({ children }) {
 
   const saveAuth = ({ tokens, role, email }) => {
     const a = tokens?.access || "";
+
     localStorage.setItem("access", a);
     localStorage.setItem("role", role || "");
     localStorage.setItem("email", email || "");
+
     setAccess(a);
     setRole(role || "");
     setEmail(email || "");
@@ -27,28 +29,39 @@ export function AuthProvider({ children }) {
     setEmail("");
   };
 
+  // ✅ Register (Owner/Tenant)
   const registerUser = async (payload) => {
-    const res = await api.post("/api/register_user/", payload);
+    // baseURL already has /api, so DO NOT add /api here
+    const res = await api.post("/register_user/", payload);
     saveAuth(res.data);
     return res.data;
   };
 
-  // ✅ Owner/Tenant login endpoint
+  // ✅ Owner/Tenant login
   const loginUser = async (email, password) => {
-    const res = await api.post("/api/login_user/", { email, password });
+    const res = await api.post("/login_user/", { email, password });
     saveAuth(res.data);
     return res.data;
   };
 
-  // ✅ Admin login endpoint
+  // ✅ Admin login
+  // Your Django shows you have /api/login/ available
   const loginAdmin = async (email, password) => {
-    const res = await api.post("/api/login/", { email, password });
+    const res = await api.post("/login/", { email, password });
     saveAuth(res.data);
     return res.data;
   };
 
   const value = useMemo(
-    () => ({ isAuthed, role, email, registerUser, loginUser, loginAdmin, logout }),
+    () => ({
+      isAuthed,
+      role,
+      email,
+      registerUser,
+      loginUser,
+      loginAdmin,
+      logout,
+    }),
     [isAuthed, role, email]
   );
 
