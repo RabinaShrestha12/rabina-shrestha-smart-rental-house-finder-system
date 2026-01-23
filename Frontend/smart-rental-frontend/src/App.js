@@ -1,31 +1,42 @@
-import { Route, Routes } from "react-router-dom";
+import React from "react";
+import { Routes, Route } from "react-router-dom";
 
-import PublicHome from "./pages/PublicHome";
+// ✅ PUBLIC HOMEPAGE
+import HomePublic from "./pages/home/HomePublic";
+
+// ✅ AUTH
 import UserAuth from "./pages/auth/UserAuth";
 import AdminLogin from "./pages/auth/AdminLogin";
 
+// ✅ DASHBOARDS
 import AdminDashboard from "./pages/dashboard/AdminDashboard";
 import OwnerDashboard from "./pages/dashboard/OwnerDashboard";
 import TenantDashboard from "./pages/dashboard/TenantDashboard";
 
+// ✅ OWNER / TENANT PAGES (same folder: pages/home)
+import OwnerAddListing from "./pages/home/OwnerAddListing";
+import TenantBookPage from "./pages/home/TenantBookPage";
+
+// ✅ COMMON
 import Unauthorized from "./pages/Unauthorized";
 import NotFound from "./pages/NotFound";
 
+// ✅ PROTECTED ROUTE
 import ProtectedRoute from "./auth/ProtectedRoute";
 
 export default function App() {
   return (
     <Routes>
-      {/* Public */}
-      <Route path="/" element={<PublicHome />} />
+      {/* PUBLIC (NO LOGIN) */}
+      <Route path="/" element={<HomePublic />} />
 
-      {/* Owner/Tenant Auth */}
+      {/* AUTH */}
       <Route path="/auth" element={<UserAuth />} />
 
-      {/* Admin (hidden URL) */}
+      {/* ADMIN LOGIN (hidden) */}
       <Route path="/super-admin-login-9382" element={<AdminLogin />} />
 
-      {/* Protected dashboards */}
+      {/* OWNER */}
       <Route
         path="/owner"
         element={
@@ -34,7 +45,16 @@ export default function App() {
           </ProtectedRoute>
         }
       />
+      <Route
+        path="/owner/listings/create"
+        element={
+          <ProtectedRoute allowRoles={["owner"]}>
+            <OwnerAddListing />
+          </ProtectedRoute>
+        }
+      />
 
+      {/* TENANT */}
       <Route
         path="/tenant"
         element={
@@ -43,7 +63,16 @@ export default function App() {
           </ProtectedRoute>
         }
       />
+      <Route
+        path="/tenant/book/:listing_id"
+        element={
+          <ProtectedRoute allowRoles={["tenant"]}>
+            <TenantBookPage />
+          </ProtectedRoute>
+        }
+      />
 
+      {/* ADMIN */}
       <Route
         path="/admin"
         element={
@@ -53,7 +82,7 @@ export default function App() {
         }
       />
 
-      {/* Common */}
+      {/* COMMON */}
       <Route path="/unauthorized" element={<Unauthorized />} />
       <Route path="*" element={<NotFound />} />
     </Routes>

@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import Owner,Tenant
+from .models import Owner,Tenant,Listing
 
 User = get_user_model()
 class UserSerializer(serializers.ModelSerializer):
@@ -21,3 +21,17 @@ class TenantSerializer(serializers.ModelSerializer):
         model = Tenant
         fields = '_all__'
         
+
+# Listing Serializer
+class ListingSerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Listing
+        fields = '__all__'
+
+    def get_image_url(self, obj):
+        request = self.context.get("request")
+        if obj.image and request:
+            return request.build_absolute_uri(obj.image.url)
+        return None
