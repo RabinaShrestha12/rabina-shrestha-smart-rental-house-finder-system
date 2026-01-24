@@ -58,7 +58,6 @@ MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
-    "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
@@ -120,6 +119,14 @@ SIMPLE_JWT = {
 # (Use ONE approach. For development, allow all OR set allowed origins.)
 CORS_ALLOW_ALL_ORIGINS = True
 
+# CSRF (VERY IMPORTANT for POST from React)
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+
 # If you prefer strict CORS instead of allowing all, comment the above line
 # and use this:
 # CORS_ALLOWED_ORIGINS = [
@@ -154,3 +161,4 @@ MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+

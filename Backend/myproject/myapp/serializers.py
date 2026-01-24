@@ -10,6 +10,11 @@ class UserSerializer(serializers.ModelSerializer):
             'id', 'username', 'first_name', 'last_name', 'email',
             'role', 'address', 'phone', 'created_at', 'updated_at'
         ]
+class OwnerProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ["id", "username", "email", "phone", "address", "role"]
+
 
 class OwnerSerializer(serializers.ModelSerializer):
     class Meta:
@@ -19,19 +24,19 @@ class OwnerSerializer(serializers.ModelSerializer):
 class TenantSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tenant
-        fields = '_all__'
+        fields = "__all__"
+
         
 
-# Listing Serializer
 class ListingSerializer(serializers.ModelSerializer):
-    image_url = serializers.SerializerMethodField()
-
     class Meta:
         model = Listing
-        fields = '__all__'
-
-    def get_image_url(self, obj):
-        request = self.context.get("request")
-        if obj.image and request:
-            return request.build_absolute_uri(obj.image.url)
-        return None
+        fields = [
+            "id", "owner", "title", "description", "property_type",
+            "price_per_week", "location", "electricity_bill",
+            "owner_contact_number", "owner_contact_email",
+            "image",
+            "pano_front", "pano_back", "pano_left", "pano_right", "pano_up", "pano_down",
+            "is_available", "created_at"
+        ]
+        read_only_fields = ["id", "owner", "created_at"]

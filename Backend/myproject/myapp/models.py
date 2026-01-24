@@ -38,12 +38,28 @@ class Tenant(models.Model):
 
     def __str__(self):
         return f"Tenant {self.id}"
-    
+
+class OwnerProfile(models.Model):
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="owner_profile")
+    address = models.CharField(max_length=100, blank=True, default="")
+    phone = models.CharField(max_length=30, blank=True, default="")
+    location = models.CharField(max_length=200, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"OwnerProfile({self.user.username})"
+
+class TenantProfile(models.Model):
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="tenant_profile")
+    location = models.CharField(max_length=200, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"TenantProfile({self.user.username})"
 
 
-
-
-# Listing Model (Public Homepage)
 class Listing(models.Model):
     PROPERTY_TYPE_CHOICES = [
         ("room", "Room"),
@@ -69,10 +85,22 @@ class Listing(models.Model):
     price_per_week = models.DecimalField(max_digits=10, decimal_places=2)
     location = models.CharField(max_length=255)
 
-    owner_contact_number = models.CharField(max_length=30, blank=True)
-    owner_contact_email = models.EmailField(blank=True)
+    # ✅ extra fields you asked
+    electricity_bill = models.CharField(max_length=100, blank=True, default="")
 
+    owner_contact_number = models.CharField(max_length=30, blank=True, default="")
+    owner_contact_email = models.EmailField(blank=True, default="")
+
+    # ✅ cover image
     image = models.ImageField(upload_to="listings/", blank=True, null=True)
+
+    # ✅ 360 images (6 sides)
+    pano_front = models.ImageField(upload_to="listings/360/", blank=True, null=True)
+    pano_back  = models.ImageField(upload_to="listings/360/", blank=True, null=True)
+    pano_left  = models.ImageField(upload_to="listings/360/", blank=True, null=True)
+    pano_right = models.ImageField(upload_to="listings/360/", blank=True, null=True)
+    pano_up    = models.ImageField(upload_to="listings/360/", blank=True, null=True)
+    pano_down  = models.ImageField(upload_to="listings/360/", blank=True, null=True)
 
     is_available = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)

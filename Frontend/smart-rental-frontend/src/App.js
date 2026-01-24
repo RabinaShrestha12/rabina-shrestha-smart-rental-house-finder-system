@@ -1,8 +1,9 @@
 import React from "react";
 import { Routes, Route } from "react-router-dom";
 
-// ✅ PUBLIC HOMEPAGE
+// ✅ PUBLIC
 import HomePublic from "./pages/home/HomePublic";
+import PublicListings from "./pages/home/PublicListings";
 
 // ✅ AUTH
 import UserAuth from "./pages/auth/UserAuth";
@@ -13,7 +14,7 @@ import AdminDashboard from "./pages/dashboard/AdminDashboard";
 import OwnerDashboard from "./pages/dashboard/OwnerDashboard";
 import TenantDashboard from "./pages/dashboard/TenantDashboard";
 
-// ✅ OWNER / TENANT PAGES (same folder: pages/home)
+// ✅ OWNER / TENANT
 import OwnerAddListing from "./pages/home/OwnerAddListing";
 import TenantBookPage from "./pages/home/TenantBookPage";
 
@@ -27,13 +28,12 @@ import ProtectedRoute from "./auth/ProtectedRoute";
 export default function App() {
   return (
     <Routes>
-      {/* PUBLIC (NO LOGIN) */}
+      {/* PUBLIC */}
       <Route path="/" element={<HomePublic />} />
+      <Route path="/listings" element={<PublicListings />} />
 
       {/* AUTH */}
       <Route path="/auth" element={<UserAuth />} />
-
-      {/* ADMIN LOGIN (hidden) */}
       <Route path="/super-admin-login-9382" element={<AdminLogin />} />
 
       {/* OWNER */}

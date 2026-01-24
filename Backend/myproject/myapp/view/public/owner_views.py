@@ -1,27 +1,34 @@
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
+
 from rest_framework import generics
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import BasePermission, IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from ...models import Listing
 from ...serializers import ListingSerializer
 
 
-class IsOwnerRole(IsAuthenticated):
-    """
-    Only logged-in user with role='owner'
-    """
+class IsOwnerRole(BasePermission):
     def has_permission(self, request, view):
-        ok = super().has_permission(request, view)
-        return bool(ok and getattr(request.user, "role", "") == "owner")
+        return bool(
+            request.user and request.user.is_authenticated
+            and getattr(request.user, "role", "") == "owner"
+        )
 
 
+@method_decorator(csrf_exempt, name="dispatch")   # ✅ add this
 class OwnerCreateListingView(generics.CreateAPIView):
-    """
-    OWNER: create listing (with image upload)
-    """
-    permission_classes = [IsOwnerRole]
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated, IsOwnerRole]
     serializer_class = ListingSerializer
     parser_classes = [MultiPartParser, FormParser]
+    queryset = Listing.objects.all()
 
+    
     def perform_create(self, serializer):
-        serializer.save(owner=self.request.user)
+        serializer.save(
+            owner=self.request.user,
+            is_available=True   # ✅ FORCE AVAILABLE
+        )
