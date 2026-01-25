@@ -1,6 +1,3 @@
-from django.utils.decorators import method_decorator
-from django.views.decorators.csrf import csrf_exempt
-
 from rest_framework import generics
 from rest_framework.permissions import BasePermission, IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
@@ -18,7 +15,6 @@ class IsOwnerRole(BasePermission):
         )
 
 
-@method_decorator(csrf_exempt, name="dispatch")   # ✅ add this
 class OwnerCreateListingView(generics.CreateAPIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated, IsOwnerRole]
@@ -26,9 +22,10 @@ class OwnerCreateListingView(generics.CreateAPIView):
     parser_classes = [MultiPartParser, FormParser]
     queryset = Listing.objects.all()
 
-    
+    def get_serializer_context(self):
+        ctx = super().get_serializer_context()
+        ctx["request"] = self.request
+        return ctx
+
     def perform_create(self, serializer):
-        serializer.save(
-            owner=self.request.user,
-            is_available=True   # ✅ FORCE AVAILABLE
-        )
+        serializer.save(owner=self.request.user, is_available=True)

@@ -94,6 +94,10 @@ class Listing(models.Model):
     # ✅ cover image
     image = models.ImageField(upload_to="listings/", blank=True, null=True)
 
+    # ✅ 360 panorama (ONE image - recommended)
+    pano_360 = models.ImageField(upload_to="listings/pano360/", blank=True, null=True)
+
+
     # ✅ 360 images (6 sides)
     pano_front = models.ImageField(upload_to="listings/360/", blank=True, null=True)
     pano_back  = models.ImageField(upload_to="listings/360/", blank=True, null=True)

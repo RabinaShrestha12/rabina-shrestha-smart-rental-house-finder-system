@@ -39,13 +39,11 @@ class PublicListingListView(generics.ListAPIView):
 
 
 class PublicListingDetailView(generics.RetrieveAPIView):
-    """
-    ✅ PUBLIC LISTING DETAILS PAGE (optional)
-    Anyone can view a single listing without login.
-    """
     permission_classes = [permissions.AllowAny]
     serializer_class = ListingSerializer
-    queryset = Listing.objects.all()
+
+    def get_queryset(self):
+        return Listing.objects.filter(is_available=True)
 
     def get_serializer_context(self):
         ctx = super().get_serializer_context()

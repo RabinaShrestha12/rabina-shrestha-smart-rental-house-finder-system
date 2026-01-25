@@ -1,7 +1,8 @@
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, parser_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated, BasePermission
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 
 from django.contrib.auth import get_user_model
 from myapp.models import Listing
@@ -25,12 +26,16 @@ class IsOwnerRole(BasePermission):
 def owner_profile(request):
     if getattr(request.user, "role", "") != "owner":
         return Response({"detail": "Only owners can access this."}, status=status.HTTP_403_FORBIDDEN)
-    return Response(OwnerProfileSerializer(request.user).data, status=status.HTTP_200_OK)
+    return Response(
+        OwnerProfileSerializer(request.user, context={"request": request}).data,
+        status=status.HTTP_200_OK
+    )
 
 
-# ✅ POST /api/owner/listings/create/
+# ✅ POST /api/owner/listings/create/  (supports image upload)
 @api_view(["POST"])
 @permission_classes([IsAuthenticated, IsOwnerRole])
+@parser_classes([MultiPartParser, FormParser])
 def owner_create_listing(request):
     serializer = ListingSerializer(data=request.data, context={"request": request})
     if serializer.is_valid():
@@ -39,11 +44,10 @@ def owner_create_listing(request):
             ListingSerializer(listing, context={"request": request}).data,
             status=status.HTTP_201_CREATED
         )
-
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-# ✅ GET /api/listings/
+# ✅ GET /api/public/listings/
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def public_listings(request):
