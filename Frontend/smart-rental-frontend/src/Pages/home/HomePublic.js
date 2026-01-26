@@ -25,24 +25,69 @@ export default function HomePublic() {
     }
   };
 
-  useEffect(() => { loadListings(); }, []);
+  useEffect(() => {
+    loadListings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const topBtn = {
+    padding: "10px 16px",
+    borderRadius: 8,
+    border: "1px solid #ccc",
+    background: "#fff",
+    cursor: "pointer",
+    fontWeight: 600,
+  };
 
   return (
     <div style={{ maxWidth: 1100, margin: "0 auto", padding: 20 }}>
-      <h2>Smart Rental House Finder System</h2>
+      {/* ✅ Header row with Login button on right */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: 12,
+        }}
+      >
+        <h2 style={{ margin: 0 }}>Smart Rental House Finder System</h2>
+
+        <button onClick={() => navigate("/auth")} style={topBtn}>
+          Login
+        </button>
+      </div>
 
       <div style={{ border: "1px solid #ddd", padding: 12, borderRadius: 10, marginBottom: 20 }}>
-        <h3>Search</h3>
+        <h3 style={{ marginTop: 0 }}>Search</h3>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <input placeholder="Search title" value={q} onChange={(e) => setQ(e.target.value)} />
-          <input placeholder="Location" value={location} onChange={(e) => setLocation(e.target.value)} />
-          <select value={type} onChange={(e) => setType(e.target.value)}>
+          <input
+            placeholder="Search title"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            style={{ padding: 10, borderRadius: 8, border: "1px solid #ccc" }}
+          />
+
+          <input
+            placeholder="Location"
+            value={location}
+            onChange={(e) => setLocation(e.target.value)}
+            style={{ padding: 10, borderRadius: 8, border: "1px solid #ccc" }}
+          />
+
+          <select
+            value={type}
+            onChange={(e) => setType(e.target.value)}
+            style={{ padding: 10, borderRadius: 8, border: "1px solid #ccc" }}
+          >
             <option value="">All</option>
             <option value="room">Room</option>
             <option value="house">House</option>
             <option value="apartment">Apartment</option>
           </select>
-          <button onClick={loadListings}>Search</button>
+
+          <button onClick={loadListings} style={{ padding: "10px 16px", borderRadius: 8, cursor: "pointer" }}>
+            Search
+          </button>
         </div>
       </div>
 
@@ -54,10 +99,13 @@ export default function HomePublic() {
       {!loading &&
         listings.map((item) => {
           const has360 =
-            item.pano_front_url && item.pano_back_url && item.pano_left_url &&
-            item.pano_right_url && item.pano_up_url && item.pano_down_url;
+            item.pano_front_url &&
+            item.pano_back_url &&
+            item.pano_left_url &&
+            item.pano_right_url &&
+            item.pano_up_url &&
+            item.pano_down_url;
 
-          // ✅ thumbnail = front pano (no cover image needed)
           const thumb = item.pano_front_url || item.image_url || "/no-image.png";
 
           return (
@@ -112,9 +160,15 @@ export default function HomePublic() {
 
               <div style={{ flex: 1 }}>
                 <h4 style={{ marginTop: 0 }}>{item.title}</h4>
-                <p><b>Type:</b> {item.property_type}</p>
-                <p><b>Location:</b> {item.location}</p>
-                <p><b>Price:</b> ${item.price_per_week}/week</p>
+                <p>
+                  <b>Type:</b> {item.property_type}
+                </p>
+                <p>
+                  <b>Location:</b> {item.location}
+                </p>
+                <p>
+                  <b>Price:</b> ${item.price_per_week}/week
+                </p>
                 <p>{item.description}</p>
               </div>
             </div>
