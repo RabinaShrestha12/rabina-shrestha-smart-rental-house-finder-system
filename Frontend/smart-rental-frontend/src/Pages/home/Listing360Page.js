@@ -28,7 +28,7 @@ export default function Listing360Page() {
   if (loading) return <div style={{ padding: 20 }}>Loading 360...</div>;
   if (!listing) return null;
 
-  const pano = listing.pano_url; // one panorama
+  const pano = listing.pano_url;
 
   const hasCube =
     listing.pano_front_url &&
@@ -47,10 +47,15 @@ export default function Listing360Page() {
       <h2 style={{ marginTop: 0 }}>{listing.title}</h2>
       <p style={{ marginTop: 0, opacity: 0.8 }}>{listing.location}</p>
 
-      <div style={{ width: "100%", height: "70vh", borderRadius: 12, overflow: "hidden" }}>
-        {pano ? (
-          <Panorama360 src={pano} width="100%" height="70vh" />
-        ) : hasCube ? (
+      <div
+        style={{
+          width: "100%",
+          height: "70vh",
+          borderRadius: 12,
+          overflow: "hidden",
+        }}
+      >
+        {hasCube ? (
           <Cubemap360
             width="100%"
             height="70vh"
@@ -61,6 +66,8 @@ export default function Listing360Page() {
             up={listing.pano_up_url}
             down={listing.pano_down_url}
           />
+        ) : pano ? (
+          <Panorama360 src={pano} width="100%" height="70vh" />
         ) : (
           <div style={{ padding: 20, border: "1px solid #ddd", borderRadius: 10 }}>
             360 panorama not uploaded for this listing.
