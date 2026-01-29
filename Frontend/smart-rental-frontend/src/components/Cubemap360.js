@@ -6,7 +6,7 @@ import "@photo-sphere-viewer/core/index.css";
 function preload(url) {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.crossOrigin = "anonymous"; // ✅ important for WebGL
+    img.crossOrigin = "anonymous";
     img.onload = () => resolve(url);
     img.onerror = () => reject(new Error("Failed to load: " + url));
     img.src = url;
@@ -14,7 +14,7 @@ function preload(url) {
 }
 
 export default function Cubemap360({
-  front, back, left, right, up, down,
+  cubemap, // ✅ expect {front, back, left, right, up, down}
   width = "100%",
   height = "70vh",
 }) {
@@ -25,27 +25,40 @@ export default function Cubemap360({
   useEffect(() => {
     if (!containerRef.current) return;
 
-    const urls = { front, back, left, right, up, down };
-    if (Object.values(urls).some((u) => !u)) return;
+    const urls = {
+      front: cubemap?.front,
+      back: cubemap?.back,
+      left: cubemap?.left,
+      right: cubemap?.right,
+      up: cubemap?.up,
+      down: cubemap?.down,
+    };
+
+    const missing = Object.entries(urls)
+      .filter(([_, v]) => !v)
+      .map(([k]) => k);
+
+    if (missing.length > 0) {
+      setError(`Missing cubemap images: ${missing.join(", ")} (need all 6)`);
+      return;
+    }
 
     let cancelled = false;
     setError("");
 
     (async () => {
       try {
-        // ✅ Preload all 6 images. If any fails -> you will see which one.
         await Promise.all([
-          preload(front),
-          preload(back),
-          preload(left),
-          preload(right),
-          preload(up),
-          preload(down),
+          preload(urls.front),
+          preload(urls.back),
+          preload(urls.left),
+          preload(urls.right),
+          preload(urls.up),
+          preload(urls.down),
         ]);
 
         if (cancelled) return;
 
-        // destroy old viewer
         if (viewerRef.current) {
           viewerRef.current.destroy();
           viewerRef.current = null;
@@ -53,18 +66,15 @@ export default function Cubemap360({
 
         viewerRef.current = new Viewer({
           container: containerRef.current,
-
-          // ✅ IMPORTANT: allow WebGL textures from backend domain
           crossOrigin: "anonymous",
-
           adapter: [CubemapAdapter, {}],
           panorama: {
-            left,
-            front,
-            right,
-            back,
-            top: up,
-            bottom: down,
+            left: urls.left,
+            front: urls.front,
+            right: urls.right,
+            back: urls.back,
+            top: urls.up,
+            bottom: urls.down,
           },
           navbar: ["zoom", "fullscreen"],
           loadingTxt: "Loading...",
@@ -82,7 +92,7 @@ export default function Cubemap360({
         viewerRef.current = null;
       }
     };
-  }, [front, back, left, right, up, down]);
+  }, [cubemap]);
 
   if (error) {
     return (

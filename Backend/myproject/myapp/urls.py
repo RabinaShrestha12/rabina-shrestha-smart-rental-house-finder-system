@@ -14,6 +14,7 @@ from myapp.view.public.owner_views import OwnerCreateListingView
 from myapp.view.public.tenant_views import TenantBookListingView
 from myapp.view.owner_profile_views import owner_profile
 
+
 urlpatterns = [
     # AUTH
     path("register_user/", register_user),

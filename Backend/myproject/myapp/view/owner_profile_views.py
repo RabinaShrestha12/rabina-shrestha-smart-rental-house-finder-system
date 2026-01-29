@@ -54,3 +54,4 @@ def public_listings(request):
     qs = Listing.objects.filter(is_available=True).order_by("-created_at")
     serializer = ListingSerializer(qs, many=True, context={"request": request})
     return Response(serializer.data, status=status.HTTP_200_OK)
+

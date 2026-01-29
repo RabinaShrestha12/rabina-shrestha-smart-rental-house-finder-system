@@ -1,34 +1,36 @@
 from rest_framework import serializers
-from django.conf import settings
-from urllib.parse import urlparse
 from django.contrib.auth import get_user_model
 from .models import Owner, Tenant, Listing
 
-
 User = get_user_model()
+
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
-            'id', 'username', 'first_name', 'last_name', 'email',
-            'role', 'address', 'phone', 'created_at', 'updated_at'
+            "id", "username", "first_name", "last_name", "email",
+            "role", "address", "phone", "created_at", "updated_at"
         ]
+
 
 class OwnerProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ["id", "username", "email", "phone", "address", "role"]
 
+
 class OwnerSerializer(serializers.ModelSerializer):
     class Meta:
         model = Owner
-        fields = '__all__'
+        fields = "__all__"
+
 
 class TenantSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tenant
         fields = "__all__"
+
 
 class ListingSerializer(serializers.ModelSerializer):
     # ✅ cover url
@@ -37,7 +39,7 @@ class ListingSerializer(serializers.ModelSerializer):
     # ✅ ONE panorama (recommended)
     pano_url = serializers.SerializerMethodField()
 
-    # ✅ cubemap urls (optional – you can keep)
+    # ✅ face urls (keep for debugging / old frontend)
     pano_front_url = serializers.SerializerMethodField()
     pano_back_url = serializers.SerializerMethodField()
     pano_left_url = serializers.SerializerMethodField()
@@ -45,9 +47,17 @@ class ListingSerializer(serializers.ModelSerializer):
     pano_up_url = serializers.SerializerMethodField()
     pano_down_url = serializers.SerializerMethodField()
 
+    # ✅ NEW: faces packed into one object for frontend cubemap viewer
+    cubemap = serializers.SerializerMethodField()
+
+    # ✅ NEW: frontend can choose correct viewer automatically
+    view_360_type = serializers.SerializerMethodField()
+
+    # ✅ 360 exists or not
     has_360 = serializers.SerializerMethodField()
 
     def _abs(self, request, filefield):
+        """Return absolute URL for filefield if request exists; otherwise relative URL."""
         if not filefield:
             return None
         try:
@@ -60,12 +70,11 @@ class ListingSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         return self._abs(request, obj.image)
 
-    # ✅ NEW: panorama url from pano_360 field
     def get_pano_url(self, obj):
         request = self.context.get("request")
         return self._abs(request, obj.pano_360)
 
-    # cubemap url getters
+    # individual face url getters
     def get_pano_front_url(self, obj):
         request = self.context.get("request")
         return self._abs(request, obj.pano_front)
@@ -90,7 +99,7 @@ class ListingSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         return self._abs(request, obj.pano_down)
 
-    def get_has_360(self, obj):
+    def _has_cubemap(self, obj):
         return all([
             bool(obj.pano_front),
             bool(obj.pano_back),
@@ -99,6 +108,29 @@ class ListingSerializer(serializers.ModelSerializer):
             bool(obj.pano_up),
             bool(obj.pano_down),
         ])
+
+    def get_cubemap(self, obj):
+        request = self.context.get("request")
+        return {
+            "front": self._abs(request, obj.pano_front),
+            "back":  self._abs(request, obj.pano_back),
+            "left":  self._abs(request, obj.pano_left),
+            "right": self._abs(request, obj.pano_right),
+            "up":    self._abs(request, obj.pano_up),
+            "down":  self._abs(request, obj.pano_down),
+        }
+
+    def get_view_360_type(self, obj):
+        # Priority 1: single equirectangular panorama
+        if obj.pano_360:
+            return "equirect"
+        # Priority 2: complete cubemap (all 6 faces)
+        if self._has_cubemap(obj):
+            return "cubemap"
+        return "none"
+
+    def get_has_360(self, obj):
+        return bool(obj.pano_360) or self._has_cubemap(obj)
 
     class Meta:
         model = Listing
@@ -109,16 +141,20 @@ class ListingSerializer(serializers.ModelSerializer):
 
             # stored files
             "image",
-            "pano_360",  # ✅ NEW FIELD
+            "pano_360",
             "pano_front", "pano_back", "pano_left", "pano_right", "pano_up", "pano_down",
 
             # urls
             "image_url",
-            "pano_url",  # ✅ NEW URL
+            "pano_url",
             "pano_front_url", "pano_back_url", "pano_left_url",
             "pano_right_url", "pano_up_url", "pano_down_url",
 
+            # NEW packed object + helper
+            "cubemap",
+            "view_360_type",
             "has_360",
+
             "is_available", "created_at",
         ]
 
@@ -127,14 +163,12 @@ class ListingSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             "image": {"required": False, "allow_null": True},
 
-            # ✅ pano_360 not required
             "pano_360": {"required": False, "allow_null": True},
 
-            # cubemap fields not required
             "pano_front": {"required": False, "allow_null": True},
-            "pano_back": {"required": False, "allow_null": True},
-            "pano_left": {"required": False, "allow_null": True},
+            "pano_back":  {"required": False, "allow_null": True},
+            "pano_left":  {"required": False, "allow_null": True},
             "pano_right": {"required": False, "allow_null": True},
-            "pano_up": {"required": False, "allow_null": True},
-            "pano_down": {"required": False, "allow_null": True},
+            "pano_up":    {"required": False, "allow_null": True},
+            "pano_down":  {"required": False, "allow_null": True},
         }

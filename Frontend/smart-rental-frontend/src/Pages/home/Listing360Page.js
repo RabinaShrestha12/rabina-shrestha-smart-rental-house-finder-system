@@ -15,6 +15,7 @@ export default function Listing360Page() {
       try {
         const res = await api.get(`/public/listings/${id}/`);
         setListing(res.data);
+        console.log("LISTING:", res.data); // ✅ debug
       } catch (e) {
         console.error(e);
         alert("Failed to load 360 view");
@@ -30,13 +31,10 @@ export default function Listing360Page() {
 
   const pano = listing.pano_url;
 
+  const cube = listing.cubemap; // ✅ from serializer
+
   const hasCube =
-    listing.pano_front_url &&
-    listing.pano_back_url &&
-    listing.pano_left_url &&
-    listing.pano_right_url &&
-    listing.pano_up_url &&
-    listing.pano_down_url;
+    cube?.front && cube?.back && cube?.left && cube?.right && cube?.up && cube?.down;
 
   return (
     <div style={{ padding: 16 }}>
@@ -47,27 +45,11 @@ export default function Listing360Page() {
       <h2 style={{ marginTop: 0 }}>{listing.title}</h2>
       <p style={{ marginTop: 0, opacity: 0.8 }}>{listing.location}</p>
 
-      <div
-        style={{
-          width: "100%",
-          height: "70vh",
-          borderRadius: 12,
-          overflow: "hidden",
-        }}
-      >
+      <div style={{ width: "100%", height: "70vh", borderRadius: 12, overflow: "hidden" }}>
         {hasCube ? (
-          <Cubemap360
-            width="100%"
-            height="70vh"
-            front={listing.pano_front_url}
-            back={listing.pano_back_url}
-            left={listing.pano_left_url}
-            right={listing.pano_right_url}
-            up={listing.pano_up_url}
-            down={listing.pano_down_url}
-          />
+          <Cubemap360 cubemap={cube} width="100%" height="70vh" />
         ) : pano ? (
-          <Panorama360 src={pano} width="100%" height="70vh" />
+          <Panorama360 panoramaUrl={pano} />
         ) : (
           <div style={{ padding: 20, border: "1px solid #ddd", borderRadius: 10 }}>
             360 panorama not uploaded for this listing.

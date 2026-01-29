@@ -61,7 +61,7 @@ export default function OwnerAddListing360() {
 
       // ✅ IMPORTANT: your axios baseURL already ends with /api
       // so do NOT write /api again
-      await api.post("/owner/listings/create/", fd);
+      await api.post("/owner/listings/", fd);
 
       alert("✅ Property posted successfully!");
     } catch (err) {
