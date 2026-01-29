@@ -1,107 +1,174 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Viewer } from "@photo-sphere-viewer/core";
-import { CubemapAdapter } from "@photo-sphere-viewer/cubemap-adapter";
-import "@photo-sphere-viewer/core/index.css";
+import * as THREE from "three";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
-function preload(url) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => resolve(url);
-    img.onerror = () => reject(new Error("Failed to load: " + url));
-    img.src = url;
-  });
-}
-
-export default function Cubemap360({
-  cubemap, // ✅ expect {front, back, left, right, up, down}
-  width = "100%",
-  height = "70vh",
-}) {
-  const containerRef = useRef(null);
-  const viewerRef = useRef(null);
-  const [error, setError] = useState("");
+export default function Cubemap360({ faces, height = "70vh" }) {
+  const mountRef = useRef(null);
+  const [hint, setHint] = useState("Drag to look around • Scroll to zoom");
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!mountRef.current) return;
 
-    const urls = {
-      front: cubemap?.front,
-      back: cubemap?.back,
-      left: cubemap?.left,
-      right: cubemap?.right,
-      up: cubemap?.up,
-      down: cubemap?.down,
-    };
-
-    const missing = Object.entries(urls)
-      .filter(([_, v]) => !v)
-      .map(([k]) => k);
-
-    if (missing.length > 0) {
-      setError(`Missing cubemap images: ${missing.join(", ")} (need all 6)`);
+    if (
+      !faces?.pano_front ||
+      !faces?.pano_back ||
+      !faces?.pano_left ||
+      !faces?.pano_right ||
+      !faces?.pano_up ||
+      !faces?.pano_down
+    ) {
+      console.error("❌ Missing faces:", faces);
+      setHint("❌ Missing one or more 360 images.");
       return;
     }
 
-    let cancelled = false;
-    setError("");
+    const el = mountRef.current;
+    el.innerHTML = "";
 
-    (async () => {
-      try {
-        await Promise.all([
-          preload(urls.front),
-          preload(urls.back),
-          preload(urls.left),
-          preload(urls.right),
-          preload(urls.up),
-          preload(urls.down),
-        ]);
+    const scene = new THREE.Scene();
 
-        if (cancelled) return;
+    const camera = new THREE.PerspectiveCamera(
+      60,
+      el.clientWidth / el.clientHeight,
+      0.1,
+      2000
+    );
+    camera.position.set(0, 0, 0.1);
 
-        if (viewerRef.current) {
-          viewerRef.current.destroy();
-          viewerRef.current = null;
-        }
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(el.clientWidth, el.clientHeight);
+    renderer.setPixelRatio(window.devicePixelRatio || 1);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-        viewerRef.current = new Viewer({
-          container: containerRef.current,
-          crossOrigin: "anonymous",
-          adapter: [CubemapAdapter, {}],
-          panorama: {
-            left: urls.left,
-            front: urls.front,
-            right: urls.right,
-            back: urls.back,
-            top: urls.up,
-            bottom: urls.down,
-          },
-          navbar: ["zoom", "fullscreen"],
-          loadingTxt: "Loading...",
-        });
-      } catch (e) {
-        console.error(e);
-        setError(e.message || "Failed to load cubemap images");
-      }
-    })();
+    // IMPORTANT: allow mouse/touch drag
+    renderer.domElement.style.width = "100%";
+    renderer.domElement.style.height = "100%";
+    renderer.domElement.style.display = "block";
+    renderer.domElement.style.cursor = "grab";
+    renderer.domElement.style.touchAction = "none";
+    renderer.domElement.style.pointerEvents = "auto";
+
+    el.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enablePan = false;
+    controls.enableZoom = true;
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+
+    // ✅ AUTO ROTATE so you can SEE all sides even without dragging
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 0.6;
+
+    // Stop auto-rotate when user interacts
+    const stopAuto = () => {
+      controls.autoRotate = false;
+      setHint("Drag to look around • Scroll to zoom");
+      renderer.domElement.style.cursor = "grabbing";
+    };
+    const stopGrab = () => {
+      renderer.domElement.style.cursor = "grab";
+    };
+
+    renderer.domElement.addEventListener("pointerdown", stopAuto);
+    renderer.domElement.addEventListener("pointerup", stopGrab);
+    renderer.domElement.addEventListener("pointerleave", stopGrab);
+
+    const loader = new THREE.TextureLoader();
+    loader.setCrossOrigin("anonymous");
+
+    // Box materials order: [right, left, top, bottom, front, back]
+    const texRight = loader.load(faces.pano_right);
+    const texLeft = loader.load(faces.pano_left);
+    const texTop = loader.load(faces.pano_up);
+    const texBottom = loader.load(faces.pano_down);
+    const texFront = loader.load(faces.pano_front);
+    const texBack = loader.load(faces.pano_back);
+
+    [texRight, texLeft, texTop, texBottom, texFront, texBack].forEach((t) => {
+      t.colorSpace = THREE.SRGBColorSpace;
+    });
+
+    const materials = [
+      new THREE.MeshBasicMaterial({ map: texRight, side: THREE.BackSide }),
+      new THREE.MeshBasicMaterial({ map: texLeft, side: THREE.BackSide }),
+      new THREE.MeshBasicMaterial({ map: texTop, side: THREE.BackSide }),
+      new THREE.MeshBasicMaterial({ map: texBottom, side: THREE.BackSide }),
+      new THREE.MeshBasicMaterial({ map: texFront, side: THREE.BackSide }),
+      new THREE.MeshBasicMaterial({ map: texBack, side: THREE.BackSide }),
+    ];
+
+    const geometry = new THREE.BoxGeometry(500, 500, 500);
+    const skybox = new THREE.Mesh(geometry, materials);
+    scene.add(skybox);
+
+    let raf = 0;
+    const animate = () => {
+      raf = requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    };
+    animate();
+
+    const onResize = () => {
+      camera.aspect = el.clientWidth / el.clientHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(el.clientWidth, el.clientHeight);
+    };
+    window.addEventListener("resize", onResize);
+
+    setHint("Auto-rotating… click/drag to control");
 
     return () => {
-      cancelled = true;
-      if (viewerRef.current) {
-        viewerRef.current.destroy();
-        viewerRef.current = null;
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", onResize);
+
+      renderer.domElement.removeEventListener("pointerdown", stopAuto);
+      renderer.domElement.removeEventListener("pointerup", stopGrab);
+      renderer.domElement.removeEventListener("pointerleave", stopGrab);
+
+      controls.dispose();
+      geometry.dispose();
+      materials.forEach((m) => {
+        if (m.map) m.map.dispose();
+        m.dispose();
+      });
+      renderer.dispose();
+
+      if (renderer.domElement && el.contains(renderer.domElement)) {
+        el.removeChild(renderer.domElement);
       }
     };
-  }, [cubemap]);
+  }, [faces]);
 
-  if (error) {
-    return (
-      <div style={{ padding: 12, border: "1px solid #f99", borderRadius: 10 }}>
-        <b>360 viewer error:</b>
-        <div style={{ marginTop: 8 }}>{error}</div>
+  return (
+    <div style={{ width: "100%", height, position: "relative" }}>
+      <div
+        ref={mountRef}
+        style={{
+          width: "100%",
+          height: "100%",
+          borderRadius: 12,
+          overflow: "hidden",
+          border: "1px solid #ddd",
+          background: "#000",
+        }}
+      />
+      <div
+        style={{
+          position: "absolute",
+          left: 12,
+          bottom: 12,
+          padding: "6px 10px",
+          background: "rgba(0,0,0,0.55)",
+          color: "#fff",
+          borderRadius: 8,
+          fontSize: 13,
+          fontWeight: 600,
+        }}
+      >
+        {hint}
       </div>
-    );
-  }
-
-  return <div ref={containerRef} style={{ width, height }} />;
+    </div>
+  );
 }

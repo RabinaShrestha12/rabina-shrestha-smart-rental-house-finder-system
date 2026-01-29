@@ -5,14 +5,13 @@ from myapp.view.auth_views import (
     list_all_users, list_owners, list_tenants, user_detail_crud,
 )
 
-from myapp.view.public.public_views import (
-    PublicListingListView,
-    PublicListingDetailView,
-)
-
-from myapp.view.public.owner_views import OwnerCreateListingView
 from myapp.view.public.tenant_views import TenantBookListingView
 from myapp.view.owner_profile_views import owner_profile
+from django.urls import path
+
+from .view.public.public_views import PublicListingListView, PublicListingDetailView
+from .view.public.owner_views import OwnerCreateListingView
+
 
 
 urlpatterns = [
@@ -40,4 +39,6 @@ urlpatterns = [
 
     # PROFILE
     path("owner-profile/", owner_profile),
+
+   
 ]

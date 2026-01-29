@@ -1,68 +1,88 @@
-import React, { useEffect, useRef, useState } from "react";
-import { Viewer } from "@photo-sphere-viewer/core";
-import "@photo-sphere-viewer/core/index.css";
+import React, { useEffect, useRef } from "react";
+import * as THREE from "three";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
-function preload(url) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = "anonymous"; // ✅ important
-    img.onload = () => resolve(url);
-    img.onerror = () => reject(new Error("Failed to load: " + url));
-    img.src = url;
-  });
-}
-
-export default function Panorama360({ src, width = "100%", height = "70vh" }) {
-  const containerRef = useRef(null);
-  const viewerRef = useRef(null);
-  const [error, setError] = useState("");
+export default function Panorama360({ panoramaUrl, height = "70vh" }) {
+  const mountRef = useRef(null);
 
   useEffect(() => {
-    if (!containerRef.current || !src) return;
+    if (!mountRef.current || !panoramaUrl) return;
+    const el = mountRef.current;
 
-    let cancelled = false;
-    setError("");
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(
+      75,
+      el.clientWidth / el.clientHeight,
+      0.1,
+      2000
+    );
+    camera.position.set(0, 0, 0.1);
 
-    (async () => {
-      try {
-        await preload(src);
-        if (cancelled) return;
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(el.clientWidth, el.clientHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    el.appendChild(renderer.domElement);
 
-        if (viewerRef.current) {
-          viewerRef.current.destroy();
-          viewerRef.current = null;
-        }
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableZoom = true;
+    controls.enablePan = false;
 
-        viewerRef.current = new Viewer({
-          container: containerRef.current,
-          crossOrigin: "anonymous", // ✅ important
-          panorama: src,
-          navbar: ["zoom", "fullscreen"],
-          loadingTxt: "Loading...",
-        });
-      } catch (e) {
-        console.error(e);
-        setError(e.message || "Failed to load panorama");
-      }
-    })();
+    // sphere around camera (inside-out)
+    const geometry = new THREE.SphereGeometry(500, 60, 40);
+    geometry.scale(-1, 1, 1);
+
+    const texture = new THREE.TextureLoader().load(
+      panoramaUrl,
+      () => {},
+      undefined,
+      (err) => console.error("❌ panorama load failed:", err)
+    );
+    texture.colorSpace = THREE.SRGBColorSpace;
+
+    const material = new THREE.MeshBasicMaterial({ map: texture });
+    const mesh = new THREE.Mesh(geometry, material);
+    scene.add(mesh);
+
+    let raf = 0;
+    const animate = () => {
+      raf = requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    };
+    animate();
+
+    const onResize = () => {
+      camera.aspect = el.clientWidth / el.clientHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(el.clientWidth, el.clientHeight);
+    };
+    window.addEventListener("resize", onResize);
 
     return () => {
-      cancelled = true;
-      if (viewerRef.current) {
-        viewerRef.current.destroy();
-        viewerRef.current = null;
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", onResize);
+      controls.dispose();
+      geometry.dispose();
+      material.dispose();
+      texture.dispose();
+      renderer.dispose();
+      if (renderer.domElement && el.contains(renderer.domElement)) {
+        el.removeChild(renderer.domElement);
       }
     };
-  }, [src]);
+  }, [panoramaUrl]);
 
-  if (error) {
-    return (
-      <div style={{ padding: 12, border: "1px solid #f99", borderRadius: 10 }}>
-        <b>360 viewer error:</b>
-        <div style={{ marginTop: 8 }}>{error}</div>
-      </div>
-    );
-  }
-
-  return <div ref={containerRef} style={{ width, height }} />;
+  return (
+    <div
+      ref={mountRef}
+      style={{
+        width: "100%",
+        height,
+        borderRadius: 12,
+        overflow: "hidden",
+        border: "1px solid #ddd",
+        background: "#000",
+      }}
+    />
+  );
 }

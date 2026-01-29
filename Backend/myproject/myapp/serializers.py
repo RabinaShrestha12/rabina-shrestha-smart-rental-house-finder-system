@@ -32,6 +32,17 @@ class TenantSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 
+from rest_framework import serializers
+from django.contrib.auth import get_user_model
+from django.core.files.base import ContentFile
+from io import BytesIO
+from PIL import Image, ImageOps
+
+from .models import Owner, Tenant, Listing
+
+User = get_user_model()
+
+
 class ListingSerializer(serializers.ModelSerializer):
     # ✅ cover url
     image_url = serializers.SerializerMethodField()
@@ -39,7 +50,7 @@ class ListingSerializer(serializers.ModelSerializer):
     # ✅ ONE panorama (recommended)
     pano_url = serializers.SerializerMethodField()
 
-    # ✅ face urls (keep for debugging / old frontend)
+    # ✅ face urls
     pano_front_url = serializers.SerializerMethodField()
     pano_back_url = serializers.SerializerMethodField()
     pano_left_url = serializers.SerializerMethodField()
@@ -47,17 +58,16 @@ class ListingSerializer(serializers.ModelSerializer):
     pano_up_url = serializers.SerializerMethodField()
     pano_down_url = serializers.SerializerMethodField()
 
-    # ✅ NEW: faces packed into one object for frontend cubemap viewer
+    # ✅ Packed object for frontend cubemap viewer
     cubemap = serializers.SerializerMethodField()
 
-    # ✅ NEW: frontend can choose correct viewer automatically
     view_360_type = serializers.SerializerMethodField()
-
-    # ✅ 360 exists or not
     has_360 = serializers.SerializerMethodField()
 
+    # ---------------------------
+    # URL helpers
+    # ---------------------------
     def _abs(self, request, filefield):
-        """Return absolute URL for filefield if request exists; otherwise relative URL."""
         if not filefield:
             return None
         try:
@@ -74,7 +84,6 @@ class ListingSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         return self._abs(request, obj.pano_360)
 
-    # individual face url getters
     def get_pano_front_url(self, obj):
         request = self.context.get("request")
         return self._abs(request, obj.pano_front)
@@ -110,6 +119,7 @@ class ListingSerializer(serializers.ModelSerializer):
         ])
 
     def get_cubemap(self, obj):
+        # return urls always (even if some missing) so frontend can debug
         request = self.context.get("request")
         return {
             "front": self._abs(request, obj.pano_front),
@@ -121,16 +131,63 @@ class ListingSerializer(serializers.ModelSerializer):
         }
 
     def get_view_360_type(self, obj):
-        # Priority 1: single equirectangular panorama
         if obj.pano_360:
             return "equirect"
-        # Priority 2: complete cubemap (all 6 faces)
         if self._has_cubemap(obj):
             return "cubemap"
         return "none"
 
     def get_has_360(self, obj):
         return bool(obj.pano_360) or self._has_cubemap(obj)
+
+    # ---------------------------
+    # ✅ IMPORTANT FIX:
+    # Make cubemap faces SQUARE + same size
+    # (prevents Three.js / WebGL black screen)
+    # ---------------------------
+    def _make_square(self, uploaded_file, size=1024):
+        """
+        Crops center to square and resizes to size x size.
+        Works for any portrait/landscape WhatsApp photos.
+        """
+        if not uploaded_file:
+            return None
+
+        img = Image.open(uploaded_file)
+        img = ImageOps.exif_transpose(img)  # fix phone rotation
+        img = img.convert("RGB")
+
+        w, h = img.size
+        side = min(w, h)
+        left = (w - side) // 2
+        top = (h - side) // 2
+        img = img.crop((left, top, left + side, top + side))
+        img = img.resize((size, size), Image.LANCZOS)
+
+        buffer = BytesIO()
+        img.save(buffer, format="JPEG", quality=90, optimize=True)
+        return ContentFile(buffer.getvalue(), name=uploaded_file.name)
+
+    def _normalize_uploads(self, validated_data):
+        # cover image (optional)
+        if validated_data.get("image"):
+            validated_data["image"] = self._make_square(validated_data["image"], 1024)
+
+        # cubemap faces (optional)
+        face_fields = ["pano_front", "pano_back", "pano_left", "pano_right", "pano_up", "pano_down"]
+        for f in face_fields:
+            if validated_data.get(f):
+                validated_data[f] = self._make_square(validated_data[f], 1024)
+
+        return validated_data
+
+    def create(self, validated_data):
+        validated_data = self._normalize_uploads(validated_data)
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        validated_data = self._normalize_uploads(validated_data)
+        return super().update(instance, validated_data)
 
     class Meta:
         model = Listing
@@ -150,7 +207,7 @@ class ListingSerializer(serializers.ModelSerializer):
             "pano_front_url", "pano_back_url", "pano_left_url",
             "pano_right_url", "pano_up_url", "pano_down_url",
 
-            # NEW packed object + helper
+            # packed object + helper
             "cubemap",
             "view_360_type",
             "has_360",
@@ -162,9 +219,7 @@ class ListingSerializer(serializers.ModelSerializer):
 
         extra_kwargs = {
             "image": {"required": False, "allow_null": True},
-
             "pano_360": {"required": False, "allow_null": True},
-
             "pano_front": {"required": False, "allow_null": True},
             "pano_back":  {"required": False, "allow_null": True},
             "pano_left":  {"required": False, "allow_null": True},
