@@ -1,22 +1,23 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 
 export default function OwnerAddListing360() {
+  const nav = useNavigate();
+
   const [form, setForm] = useState({
     title: "",
     description: "",
     property_type: "room",
-    price_per_week: "",
+    price_per_month: "",   // ✅ changed
     location: "",
     electricity_bill: "",
     owner_contact_number: "",
     owner_contact_email: "",
   });
 
-  // ✅ cover image (Listing.image)
   const [cover, setCover] = useState(null);
 
-  // ✅ 360 images (match Django field names exactly)
   const [pano, setPano] = useState({
     pano_front: null,
     pano_back: null,
@@ -35,7 +36,6 @@ export default function OwnerAddListing360() {
     setPano((p) => ({ ...p, [key]: file || null }));
   };
 
-  // ✅ Cover preview (revoked automatically)
   const coverPreview = useMemo(() => {
     if (!cover) return null;
     return URL.createObjectURL(cover);
@@ -43,21 +43,16 @@ export default function OwnerAddListing360() {
 
   useEffect(() => {
     return () => {
-      // cleanup cover preview URL
       if (coverPreview) URL.revokeObjectURL(coverPreview);
     };
   }, [coverPreview]);
 
-  // ✅ Pano preview helper (revoked by <img> lifecycle is not automatic,
-  // so we keep it simple. This is okay for small usage; if you want full cleanup
-  // for each, I can add a custom hook.)
   const panoPreview = (file) => (file ? URL.createObjectURL(file) : null);
 
   const submit = async (e) => {
     e.preventDefault();
 
     try {
-      // ✅ Basic frontend checks (optional, but helps)
       if (!form.title.trim()) {
         alert("Title is required.");
         return;
@@ -66,55 +61,32 @@ export default function OwnerAddListing360() {
         alert("Location is required.");
         return;
       }
-      if (!form.price_per_week || Number(form.price_per_week) <= 0) {
-        alert("Price per week must be a positive number.");
+
+      // ✅ changed validation to month
+      if (!form.price_per_month || Number(form.price_per_month) <= 0) {
+        alert("Price per month must be a positive number.");
         return;
       }
 
       const fd = new FormData();
 
-      // ✅ Append only non-empty values (prevents serializer errors for "")
       Object.entries(form).forEach(([k, v]) => {
         if (v !== "" && v !== null && v !== undefined) {
           fd.append(k, v);
         }
       });
 
-      // ✅ cover image must be "image" (ONLY if serializer field is image)
       if (cover) fd.append("image", cover);
 
-      // ✅ 360 fields must match model field names exactly
       Object.entries(pano).forEach(([k, file]) => {
         if (file) fd.append(k, file);
       });
 
-      // ✅ IMPORTANT: your axios baseURL already ends with /api
-      // so do NOT write /api again
-      // If your Django url is /owner/listings/ instead, change to "/owner/listings/"
       await api.post("/owner/listings/create/", fd);
 
       alert("✅ Property posted successfully!");
+      nav("/", { replace: true });
 
-      // ✅ Reset after success
-      setForm({
-        title: "",
-        description: "",
-        property_type: "room",
-        price_per_week: "",
-        location: "",
-        electricity_bill: "",
-        owner_contact_number: "",
-        owner_contact_email: "",
-      });
-      setCover(null);
-      setPano({
-        pano_front: null,
-        pano_back: null,
-        pano_left: null,
-        pano_right: null,
-        pano_up: null,
-        pano_down: null,
-      });
     } catch (err) {
       console.log("UPLOAD ERROR:", err);
       console.log("RESPONSE DATA:", err?.response?.data);
@@ -172,12 +144,13 @@ export default function OwnerAddListing360() {
             required
           />
 
+          {/* ✅ changed input to month */}
           <input
-            name="price_per_week"
-            value={form.price_per_week}
+            name="price_per_month"
+            value={form.price_per_month}
             onChange={onChange}
             type="number"
-            placeholder="Price per week"
+            placeholder="Price per month"
             required
             min="1"
           />
@@ -205,7 +178,6 @@ export default function OwnerAddListing360() {
           />
         </div>
 
-        {/* ✅ COVER */}
         <div style={{ border: "1px solid #ddd", padding: 12, borderRadius: 10 }}>
           <b>Cover image (thumbnail)</b>
           <div style={{ marginTop: 8 }}>
@@ -232,7 +204,6 @@ export default function OwnerAddListing360() {
           )}
         </div>
 
-        {/* ✅ 360 */}
         <div style={{ border: "1px solid #ddd", padding: 12, borderRadius: 10 }}>
           <b>360° Photos (6 sides)</b>
 
@@ -281,8 +252,6 @@ export default function OwnerAddListing360() {
                       border: "1px solid #ccc",
                     }}
                     onLoad={(e) => {
-                      // ✅ revoke pano preview url after image loads
-                      // (prevents memory leaks for each pano image)
                       const src = e.currentTarget.src;
                       if (src.startsWith("blob:")) URL.revokeObjectURL(src);
                     }}

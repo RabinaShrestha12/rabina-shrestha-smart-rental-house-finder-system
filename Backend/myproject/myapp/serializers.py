@@ -1,6 +1,10 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import Owner, Tenant, Listing
+from django.core.files.base import ContentFile
+from io import BytesIO
+from PIL import Image, ImageOps
+
+from .models import Owner, Tenant, Listing, BookingRequest
 
 User = get_user_model()
 
@@ -32,25 +36,10 @@ class TenantSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 
-from rest_framework import serializers
-from django.contrib.auth import get_user_model
-from django.core.files.base import ContentFile
-from io import BytesIO
-from PIL import Image, ImageOps
-
-from .models import Owner, Tenant, Listing
-
-User = get_user_model()
-
-
 class ListingSerializer(serializers.ModelSerializer):
-    # ✅ cover url
     image_url = serializers.SerializerMethodField()
-
-    # ✅ ONE panorama (recommended)
     pano_url = serializers.SerializerMethodField()
 
-    # ✅ face urls
     pano_front_url = serializers.SerializerMethodField()
     pano_back_url = serializers.SerializerMethodField()
     pano_left_url = serializers.SerializerMethodField()
@@ -58,15 +47,10 @@ class ListingSerializer(serializers.ModelSerializer):
     pano_up_url = serializers.SerializerMethodField()
     pano_down_url = serializers.SerializerMethodField()
 
-    # ✅ Packed object for frontend cubemap viewer
     cubemap = serializers.SerializerMethodField()
-
     view_360_type = serializers.SerializerMethodField()
     has_360 = serializers.SerializerMethodField()
 
-    # ---------------------------
-    # URL helpers
-    # ---------------------------
     def _abs(self, request, filefield):
         if not filefield:
             return None
@@ -119,7 +103,6 @@ class ListingSerializer(serializers.ModelSerializer):
         ])
 
     def get_cubemap(self, obj):
-        # return urls always (even if some missing) so frontend can debug
         request = self.context.get("request")
         return {
             "front": self._abs(request, obj.pano_front),
@@ -140,21 +123,12 @@ class ListingSerializer(serializers.ModelSerializer):
     def get_has_360(self, obj):
         return bool(obj.pano_360) or self._has_cubemap(obj)
 
-    # ---------------------------
-    # ✅ IMPORTANT FIX:
-    # Make cubemap faces SQUARE + same size
-    # (prevents Three.js / WebGL black screen)
-    # ---------------------------
+    # OPTIONAL: square-crop uploads for stability
     def _make_square(self, uploaded_file, size=1024):
-        """
-        Crops center to square and resizes to size x size.
-        Works for any portrait/landscape WhatsApp photos.
-        """
         if not uploaded_file:
             return None
-
         img = Image.open(uploaded_file)
-        img = ImageOps.exif_transpose(img)  # fix phone rotation
+        img = ImageOps.exif_transpose(img)
         img = img.convert("RGB")
 
         w, h = img.size
@@ -169,11 +143,9 @@ class ListingSerializer(serializers.ModelSerializer):
         return ContentFile(buffer.getvalue(), name=uploaded_file.name)
 
     def _normalize_uploads(self, validated_data):
-        # cover image (optional)
         if validated_data.get("image"):
             validated_data["image"] = self._make_square(validated_data["image"], 1024)
 
-        # cubemap faces (optional)
         face_fields = ["pano_front", "pano_back", "pano_left", "pano_right", "pano_up", "pano_down"]
         for f in face_fields:
             if validated_data.get(f):
@@ -196,34 +168,91 @@ class ListingSerializer(serializers.ModelSerializer):
             "price_per_week", "location", "electricity_bill",
             "owner_contact_number", "owner_contact_email",
 
-            # stored files
             "image",
             "pano_360",
             "pano_front", "pano_back", "pano_left", "pano_right", "pano_up", "pano_down",
 
-            # urls
             "image_url",
             "pano_url",
             "pano_front_url", "pano_back_url", "pano_left_url",
             "pano_right_url", "pano_up_url", "pano_down_url",
 
-            # packed object + helper
             "cubemap",
             "view_360_type",
             "has_360",
 
-            "is_available", "created_at",
-        ]
+            # ✅ booking uses these
+            "is_available",
+            "status",
 
+            "created_at",
+        ]
         read_only_fields = ["id", "owner", "created_at"]
 
-        extra_kwargs = {
-            "image": {"required": False, "allow_null": True},
-            "pano_360": {"required": False, "allow_null": True},
-            "pano_front": {"required": False, "allow_null": True},
-            "pano_back":  {"required": False, "allow_null": True},
-            "pano_left":  {"required": False, "allow_null": True},
-            "pano_right": {"required": False, "allow_null": True},
-            "pano_up":    {"required": False, "allow_null": True},
-            "pano_down":  {"required": False, "allow_null": True},
-        }
+
+# =========================
+# ✅ BOOKING SERIALIZERS
+# =========================
+
+class TenantBookingCreateSerializer(serializers.Serializer):
+    listing_id = serializers.IntegerField()
+    message = serializers.CharField(required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        request = self.context["request"]
+        user = request.user
+
+        if not user.is_authenticated:
+            raise serializers.ValidationError("Login required.")
+
+        if getattr(user, "role", "") != "tenant":
+            raise serializers.ValidationError("Only TENANT can request booking.")
+
+        listing_id = attrs["listing_id"]
+        try:
+            listing = Listing.objects.get(id=listing_id)
+        except Listing.DoesNotExist:
+            raise serializers.ValidationError("Listing not found.")
+
+        if listing.is_available is False or listing.status == "booked":
+            raise serializers.ValidationError("This listing is already booked.")
+
+        if listing.owner_id == user.id:
+            raise serializers.ValidationError("Owner cannot request booking for own listing.")
+
+        attrs["listing"] = listing
+        return attrs
+
+    def create(self, validated_data):
+        tenant = self.context["request"].user
+        listing = validated_data["listing"]
+        message = validated_data.get("message", "")
+
+        obj, _ = BookingRequest.objects.update_or_create(
+            listing=listing,
+            tenant=tenant,
+            defaults={
+                "message": message,
+                "status": BookingRequest.STATUS_PENDING,
+                "decided_at": None,
+            },
+        )
+        return obj
+
+
+class TenantBookingListSerializer(serializers.ModelSerializer):
+    listing = ListingSerializer(read_only=True)
+
+    class Meta:
+        model = BookingRequest
+        fields = ["id", "listing", "message", "status", "created_at", "decided_at"]
+
+
+class OwnerBookingListSerializer(serializers.ModelSerializer):
+    listing = ListingSerializer(read_only=True)
+    tenant_email = serializers.EmailField(source="tenant.email", read_only=True)
+    tenant_name = serializers.CharField(source="tenant.username", read_only=True)
+
+    class Meta:
+        model = BookingRequest
+        fields = ["id", "listing", "tenant_name", "tenant_email", "message", "status", "created_at", "decided_at"]

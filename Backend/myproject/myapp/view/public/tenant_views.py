@@ -3,7 +3,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 
-from ...models import Listing
+from ...models import Listing, BookingRequest
 
 
 class IsTenantRole(IsAuthenticated):
@@ -12,7 +12,7 @@ class IsTenantRole(IsAuthenticated):
         return bool(ok and getattr(request.user, "role", "") == "tenant")
 
 
-class TenantBookListingView(APIView):
+class TenantRequestBookingView(APIView):
     permission_classes = [IsTenantRole]
 
     def post(self, request, listing_id):
@@ -20,8 +20,15 @@ class TenantBookListingView(APIView):
         if not listing:
             return Response({"error": "Listing not available"}, status=status.HTTP_404_NOT_FOUND)
 
-        # simple demo booking action
-        listing.is_available = False
-        listing.save()
+        if listing.owner_id == request.user.id:
+            return Response({"error": "Owner cannot request booking on own listing"}, status=400)
 
-        return Response({"message": "Booked successfully"}, status=status.HTTP_200_OK)
+        message = request.data.get("message", "")
+
+        obj, _ = BookingRequest.objects.update_or_create(
+            listing=listing,
+            tenant=request.user,
+            defaults={"message": message, "status": BookingRequest.STATUS_PENDING, "decided_at": None},
+        )
+
+        return Response({"message": "✅ Request sent to owner", "request_id": obj.id}, status=201)

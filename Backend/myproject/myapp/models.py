@@ -1,10 +1,12 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.conf import settings
-from decimal import Decimal
+from django.utils import timezone
 
+# =========================
+# USER MODELS (UNCHANGED)
+# =========================
 
-# Create your models here.
 class User(AbstractUser):
     USER_TYPE = (
         ('admin','Admin'),
@@ -13,31 +15,32 @@ class User(AbstractUser):
     )
     role = models.CharField(max_length=100, choices=USER_TYPE, blank=True, default="tenant")
     address = models.CharField(max_length=100, blank=True, default="")
-    phone = models.CharField(max_length=30, blank=True, default="")  # ✅ change
+    phone = models.CharField(max_length=30, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
 
 class Owner(models.Model):
     address = models.CharField(max_length=100)
-    phone = models.CharField(max_length=30)  # ✅ change
+    phone = models.CharField(max_length=30)
     location = models.CharField(max_length=200)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return f"Owner {self.id}"
-    
-    
+
+
 class Tenant(models.Model):
     address = models.CharField(max_length=100)
-    phone = models.CharField(max_length=30)  # ✅ change
+    phone = models.CharField(max_length=30)
     location = models.CharField(max_length=200)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return f"Tenant {self.id}"
+
 
 class OwnerProfile(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="owner_profile")
@@ -50,6 +53,7 @@ class OwnerProfile(models.Model):
     def __str__(self):
         return f"OwnerProfile({self.user.username})"
 
+
 class TenantProfile(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="tenant_profile")
     location = models.CharField(max_length=200, blank=True, default="")
@@ -59,6 +63,10 @@ class TenantProfile(models.Model):
     def __str__(self):
         return f"TenantProfile({self.user.username})"
 
+
+# =========================
+# LISTING MODEL (ADD ONLY)
+# =========================
 
 class Listing(models.Model):
     PROPERTY_TYPE_CHOICES = [
@@ -85,20 +93,15 @@ class Listing(models.Model):
     price_per_week = models.DecimalField(max_digits=10, decimal_places=2)
     location = models.CharField(max_length=255)
 
-    # ✅ extra fields you asked
     electricity_bill = models.CharField(max_length=100, blank=True, default="")
 
     owner_contact_number = models.CharField(max_length=30, blank=True, default="")
     owner_contact_email = models.EmailField(blank=True, default="")
 
-    # ✅ cover image
     image = models.ImageField(upload_to="listings/", blank=True, null=True)
 
-    # ✅ 360 panorama (ONE image - recommended)
     pano_360 = models.ImageField(upload_to="listings/pano360/", blank=True, null=True)
 
-
-    # ✅ 360 images (6 sides)
     pano_front = models.ImageField(upload_to="listings/360/", blank=True, null=True)
     pano_back  = models.ImageField(upload_to="listings/360/", blank=True, null=True)
     pano_left  = models.ImageField(upload_to="listings/360/", blank=True, null=True)
@@ -106,10 +109,63 @@ class Listing(models.Model):
     pano_up    = models.ImageField(upload_to="listings/360/", blank=True, null=True)
     pano_down  = models.ImageField(upload_to="listings/360/", blank=True, null=True)
 
+    # ✅ ADD BACK (do NOT remove status)
     is_available = models.BooleanField(default=True)
+
+    # ✅ Keep your status (already exists)
+    STATUS_AVAILABLE = "available"
+    STATUS_BOOKED = "booked"
+    STATUS_CHOICES = [
+        (STATUS_AVAILABLE, "Available"),
+        (STATUS_BOOKED, "Booked"),
+    ]
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_AVAILABLE, db_index=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def mark_booked(self):
+        self.is_available = False
+        self.status = self.STATUS_BOOKED
+        self.save(update_fields=["is_available", "status"])
+
+    def mark_available(self):
+        self.is_available = True
+        self.status = self.STATUS_AVAILABLE
+        self.save(update_fields=["is_available", "status"])
 
     def __str__(self):
         return f"{self.title} - {self.location}"
 
-    
+
+# =========================
+# ✅ BOOKING REQUEST MODEL (NEW)
+# =========================
+
+class BookingRequest(models.Model):
+    STATUS_PENDING = "pending"
+    STATUS_APPROVED = "approved"
+    STATUS_REJECTED = "rejected"
+
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "Pending"),
+        (STATUS_APPROVED, "Approved"),
+        (STATUS_REJECTED, "Rejected"),
+    ]
+
+    listing = models.ForeignKey(Listing, on_delete=models.CASCADE, related_name="booking_requests")
+    tenant = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="booking_requests")
+
+    message = models.TextField(blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING, db_index=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    decided_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        # one request per tenant per listing (prevents spam)
+        constraints = [
+            models.UniqueConstraint(fields=["listing", "tenant"], name="uniq_listing_tenant_booking")
+        ]
+
+    def __str__(self):
+        return f"BookingRequest(listing={self.listing_id}, tenant={self.tenant_id}, status={self.status})"

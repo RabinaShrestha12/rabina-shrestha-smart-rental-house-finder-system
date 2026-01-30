@@ -4,7 +4,8 @@ import { Routes, Route } from "react-router-dom";
 // ✅ PUBLIC
 import HomePublic from "./pages/home/HomePublic";
 import PublicListings from "./pages/home/PublicListings";
-import Listing360Page from "./pages/home/Listing360Page"; // ✅ MUST MATCH FILE NAME
+import PublicListingDetails from "./pages/home/PublicListingDetails";
+import Listing360Page from "./pages/home/Listing360Page";
 
 // ✅ AUTH
 import UserAuth from "./pages/auth/UserAuth";
@@ -32,6 +33,10 @@ export default function App() {
       {/* PUBLIC */}
       <Route path="/" element={<HomePublic />} />
       <Route path="/listings" element={<PublicListings />} />
+
+      {/* ✅ DETAILS PAGE (support BOTH urls) */}
+      <Route path="/listings/:id" element={<PublicListingDetails />} />
+      <Route path="/public/listings/:id" element={<PublicListingDetails />} />
 
       {/* ✅ 360 PAGE (PUBLIC) */}
       <Route path="/listing/:id/360" element={<Listing360Page />} />
