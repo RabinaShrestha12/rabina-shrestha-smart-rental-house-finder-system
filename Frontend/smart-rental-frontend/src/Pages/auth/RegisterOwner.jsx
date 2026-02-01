@@ -1,63 +1,143 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import React, { useState } from "react";
 import api from "../../api/axios";
-import Shell from "../../components/Shell";
-import TextField from "../../components/TextField";
-import Toast from "../../components/Toast";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../auth/AuthContext";
+import OtpModal from "./OtpModal";
 
 export default function RegisterOwner() {
+  const nav = useNavigate();
+  const { verifyOtp, resendVerification } = useAuth();
+
   const [form, setForm] = useState({
     username: "",
     email: "",
     password: "",
     address: "",
     phone: "",
-    role: "owner",
   });
 
-  const [toast, setToast] = useState({ type: "info", msg: "" });
   const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [errMsg, setErrMsg] = useState("");
 
-  const onChange = (e) => setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
+  const [otpOpen, setOtpOpen] = useState(false);
+  const [otpToken, setOtpToken] = useState("");
+  const [otpPurpose, setOtpPurpose] = useState("signup");
 
-  const submit = async (e) => {
+  const onChange = (e) =>
+    setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
+
+  const openOtp = (data) => {
+    setOtpToken(data?.otp_token || "");
+    setOtpPurpose(data?.purpose || "signup");
+    setOtpOpen(true);
+  };
+
+  const closeOtp = () => {
+    setOtpOpen(false);
+    setOtpToken("");
+    setOtpPurpose("signup");
+  };
+
+  const handleRegister = async (e) => {
     e.preventDefault();
-    setToast({ type: "info", msg: "" });
+    if (loading) return;
+
     setLoading(true);
+    setMsg("");
+    setErrMsg("");
+
     try {
-      await api.post("owner_register/", form);
-      setToast({ type: "success", msg: "Owner registered successfully!" });
-      setForm({ username: "", email: "", password: "", address: "", phone: "", role: "owner" });
+      const res = await api.post("register_user/", {
+        username: (form.username || "").trim(),
+        email: (form.email || "").trim().toLowerCase(),
+        password: form.password || "",
+        role: "owner",
+        address: form.address || "",
+        phone: form.phone || "",
+      });
+
+      if (res?.data?.verification_required && res?.data?.otp_token) {
+        setMsg(res.data.message || "OTP sent. Please verify.");
+        openOtp(res.data);
+        return;
+      }
+
+      setMsg("Registered successfully.");
     } catch (err) {
-      const msg = err?.response?.data?.err || err?.response?.data?.detail || "Owner registration failed.";
-      setToast({ type: "error", msg });
+      const m = err?.response?.data?.error || err?.message || "Register failed";
+      setErrMsg(String(m));
     } finally {
       setLoading(false);
     }
   };
 
+  const handleVerify = async (code) => {
+    if (!otpToken) {
+      setErrMsg("Missing otp_token. Please register again.");
+      return;
+    }
+
+    setLoading(true);
+    setErrMsg("");
+
+    try {
+      const res = await verifyOtp({ otp_token: otpToken, code });
+      closeOtp();
+
+      const role = res?.role;
+      if (role === "owner") nav("/owner-dashboard", { replace: true });
+      else if (role === "tenant") nav("/tenant-dashboard", { replace: true });
+      else if (role === "admin") nav("/admin-dashboard", { replace: true });
+      else nav("/", { replace: true });
+    } catch (err) {
+      setErrMsg(err?.message || "OTP verification failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    try {
+      await resendVerification({ email: form.email });
+      setMsg("OTP resent. Use the latest OTP code.");
+    } catch (err) {
+      setErrMsg(err?.message || "Resend failed");
+    }
+  };
+
   return (
-    <Shell
-      title="Register Owner"
-      subtitle="Admin only: register an Owner account. Token is sent automatically."
-      right={<Link to="/admin" className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm hover:bg-white/10 transition">Back</Link>}
-    >
-      <Toast type={toast.type} message={toast.msg} onClose={() => setToast({ type: "info", msg: "" })} />
+    <div style={{ padding: 16 }}>
+      <h2>Register Owner</h2>
 
-      <form onSubmit={submit} className="grid gap-4">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <TextField label="Username" name="username" value={form.username} onChange={onChange} required />
-          <TextField label="Phone" name="phone" value={form.phone} onChange={onChange} required />
-        </div>
+      <form onSubmit={handleRegister}>
+        <input name="username" value={form.username} onChange={onChange} placeholder="Name" style={iStyle} />
+        <input name="phone" value={form.phone} onChange={onChange} placeholder="Phone" style={iStyle} />
+        <input name="address" value={form.address} onChange={onChange} placeholder="Address" style={iStyle} />
+        <input name="email" value={form.email} onChange={onChange} placeholder="Email" style={iStyle} />
+        <input name="password" value={form.password} onChange={onChange} placeholder="Password" type="password" style={iStyle} />
 
-        <TextField label="Email" name="email" value={form.email} onChange={onChange} required />
-        <TextField label="Password" name="password" type="password" value={form.password} onChange={onChange} required />
-        <TextField label="Address" name="address" value={form.address} onChange={onChange} required />
-
-        <button disabled={loading} className="rounded-2xl bg-indigo-500 px-5 py-3 text-sm font-medium hover:bg-indigo-400 transition disabled:opacity-60">
-          {loading ? "Creating..." : "Create Owner →"}
+        <button type="submit" disabled={loading} style={bStyle}>
+          {loading ? "Please wait..." : "Create owner account"}
         </button>
       </form>
-    </Shell>
+
+      {msg ? <div style={{ marginTop: 10, color: "#b8ffb8" }}>{msg}</div> : null}
+      {errMsg ? <div style={{ marginTop: 10, color: "#ff8a8a" }}>{errMsg}</div> : null}
+
+      <OtpModal
+        open={otpOpen}
+        purpose={otpPurpose}
+        email={form.email}
+        loading={loading}
+        error={errMsg}
+        onVerify={handleVerify}
+        onResend={handleResend}
+        onClose={closeOtp}
+      />
+    </div>
   );
 }
+
+const iStyle = { width: "100%", padding: 10, marginBottom: 10, borderRadius: 10 };
+const bStyle = { width: "100%", padding: 12, borderRadius: 12, border: "none", background: "#6d5efc", color: "white", fontWeight: 700 };

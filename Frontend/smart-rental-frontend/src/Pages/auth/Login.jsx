@@ -7,11 +7,12 @@ import { useAuth } from "../../auth/AuthContext";
 
 export default function Login() {
   const [mode, setMode] = useState("admin"); // admin | user
-  const [form, setForm] = useState({ username: "", password: "" });
+  const [form, setForm] = useState({ email: "", password: "" });
   const [toast, setToast] = useState({ type: "info", msg: "" });
   const [loading, setLoading] = useState(false);
 
-  const { loginAdmin, loginUser } = useAuth();
+  // ✅ updated functions (based on the OTP-ready AuthContext I gave)
+  const { startLoginAdmin, startLoginUser } = useAuth();
   const nav = useNavigate();
 
   const onChange = (e) =>
@@ -19,11 +20,9 @@ export default function Login() {
 
   const goByRole = (role) => {
     const r = (role || "").toLowerCase();
-
     if (r === "admin") return nav("/admin-dashboard", { replace: true });
     if (r === "owner") return nav("/owner-dashboard", { replace: true });
     if (r === "tenant") return nav("/tenant-dashboard", { replace: true });
-
     return nav("/unauthorized", { replace: true });
   };
 
@@ -33,8 +32,35 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const data = mode === "admin" ? await loginAdmin(form) : await loginUser(form);
-      goByRole(data.role);
+      const payload = {
+        email: form.email,
+        password: form.password,
+      };
+
+      const data =
+        mode === "admin"
+          ? await startLoginAdmin(payload)
+          : await startLoginUser(payload);
+
+      // ✅ OTP required -> go to OTP page
+      if (data?.verification_required) {
+        nav("/otp", {
+          state: {
+            otp_token: data.otp_token,
+            purpose: data.purpose, // "login" or "verify"
+            email: form.email,
+          },
+        });
+        return;
+      }
+
+      // ✅ If your backend ever returns tokens directly (when REQUIRE_OTP_ON_EVERY_LOGIN = False)
+      if (data?.tokens && data?.role) {
+        goByRole(data.role);
+        return;
+      }
+
+      setToast({ type: "error", msg: "Unexpected response from server." });
     } catch (err) {
       setToast({ type: "error", msg: err.message || "Login failed." });
     } finally {
@@ -45,7 +71,7 @@ export default function Login() {
   return (
     <Shell
       title="Login"
-      subtitle="Choose Admin login or Owner/Tenant login. Redirects you to the correct dashboard."
+      subtitle="Choose Admin login or Owner/Tenant login. If OTP is enabled, we will send a code to your email."
       right={
         <Link
           to="/"
@@ -89,9 +115,9 @@ export default function Login() {
 
       <form onSubmit={submit} className="mt-6 grid gap-4">
         <TextField
-          label="Username"
-          name="username"
-          value={form.username}
+          label="Email"
+          name="email"
+          value={form.email}
           onChange={onChange}
           required
         />
@@ -109,7 +135,7 @@ export default function Login() {
           disabled={loading}
           className="rounded-2xl bg-indigo-500 px-5 py-3 text-sm font-medium hover:bg-indigo-400 transition disabled:opacity-60"
         >
-          {loading ? "Logging in..." : "Login →"}
+          {loading ? "Sending code..." : "Continue →"}
         </button>
       </form>
 

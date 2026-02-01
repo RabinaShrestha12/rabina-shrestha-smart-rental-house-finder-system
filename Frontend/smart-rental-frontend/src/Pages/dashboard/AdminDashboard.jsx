@@ -5,39 +5,67 @@ import Shell from "../../components/Shell";
 import Toast from "../../components/Toast";
 
 export default function AdminDashboard() {
-  const { email, logout } = useAuth();
+  const { auth, logout } = useAuth(); // ✅ FIX
+  const email = auth?.email || "";
 
   const [toast, setToast] = useState({ type: "info", msg: "" });
-
   const [owners, setOwners] = useState([]);
   const [tenants, setTenants] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const load = async () => {
+      setLoading(true);
       try {
-        // ✅ these match your Django URL patterns
+        // ✅ IMPORTANT: NO leading "/" or axios will drop /api/
         const [ownersRes, tenantsRes] = await Promise.all([
-          api.get("/admin/users/owners/"),
-          api.get("/admin/users/tenants/"),
+          api.get("admin/users/owners/"),
+          api.get("admin/users/tenants/"),
         ]);
 
         const ownersList = Array.isArray(ownersRes.data)
           ? ownersRes.data
-          : (ownersRes.data?.results || []);
+          : ownersRes.data?.results || [];
+
         const tenantsList = Array.isArray(tenantsRes.data)
           ? tenantsRes.data
-          : (tenantsRes.data?.results || []);
+          : tenantsRes.data?.results || [];
 
         setOwners(ownersList);
         setTenants(tenantsList);
       } catch (err) {
+        const status = err?.response?.status;
+        const data = err?.response?.data;
+
         const msg =
-          err?.response?.data?.detail ||
-          err?.response?.data?.error ||
-          (typeof err?.response?.data === "string" ? "API returned HTML (wrong URL)" : "") ||
-          `Failed to load users (status: ${err?.response?.status || "?"}).`;
+          data?.detail ||
+          data?.error ||
+          (typeof data === "string" ? data : "") ||
+          `Failed to load users (status: ${status || "?"}).`;
 
         setToast({ type: "error", msg });
+
+        // Helpful hints based on status
+        if (status === 401) {
+          setToast({
+            type: "error",
+            msg: "Unauthorized (401). Admin token missing/expired. Please login again.",
+          });
+        }
+        if (status === 403) {
+          setToast({
+            type: "error",
+            msg: "Forbidden (403). Your account is not admin or role permission failed.",
+          });
+        }
+        if (status === 404) {
+          setToast({
+            type: "error",
+            msg: "Not found (404). Check Django URL patterns for admin/users/owners and admin/users/tenants.",
+          });
+        }
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -62,6 +90,10 @@ export default function AdminDashboard() {
         message={toast.msg}
         onClose={() => setToast({ type: "info", msg: "" })}
       />
+
+      {loading && (
+        <div className="mb-4 text-sm text-slate-300">Loading users…</div>
+      )}
 
       {/* Owners */}
       <div className="rounded-2xl border border-white/10 bg-black/30 p-5 mb-6">
@@ -91,7 +123,7 @@ export default function AdminDashboard() {
                   </td>
                 </tr>
               ))}
-              {!owners.length && (
+              {!loading && !owners.length && (
                 <tr>
                   <td className="py-4 text-slate-400" colSpan={4}>
                     No owners found.
@@ -131,7 +163,7 @@ export default function AdminDashboard() {
                   </td>
                 </tr>
               ))}
-              {!tenants.length && (
+              {!loading && !tenants.length && (
                 <tr>
                   <td className="py-4 text-slate-400" colSpan={4}>
                     No tenants found.

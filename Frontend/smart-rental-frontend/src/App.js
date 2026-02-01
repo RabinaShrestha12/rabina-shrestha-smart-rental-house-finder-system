@@ -1,30 +1,31 @@
 import React from "react";
 import { Routes, Route } from "react-router-dom";
 
-// ✅ PUBLIC
+// PUBLIC
 import HomePublic from "./pages/home/HomePublic";
 import PublicListings from "./pages/home/PublicListings";
 import PublicListingDetails from "./pages/home/PublicListingDetails";
 import Listing360Page from "./pages/home/Listing360Page";
 
-// ✅ AUTH
+// AUTH
 import UserAuth from "./pages/auth/UserAuth";
 import AdminLogin from "./pages/auth/AdminLogin";
+import Otp from "./pages/auth/Otp";
 
-// ✅ DASHBOARDS
+// DASHBOARDS
 import AdminDashboard from "./pages/dashboard/AdminDashboard";
 import OwnerDashboard from "./pages/dashboard/OwnerDashboard";
 import TenantDashboard from "./pages/dashboard/TenantDashboard";
 
-// ✅ OWNER / TENANT
+// OWNER / TENANT
 import OwnerAddListing from "./pages/home/OwnerAddListing";
 import TenantBookPage from "./pages/home/TenantBookPage";
 
-// ✅ COMMON
+// COMMON
 import Unauthorized from "./pages/Unauthorized";
 import NotFound from "./pages/NotFound";
 
-// ✅ PROTECTED ROUTE
+// PROTECTED
 import ProtectedRoute from "./auth/ProtectedRoute";
 
 export default function App() {
@@ -33,16 +34,13 @@ export default function App() {
       {/* PUBLIC */}
       <Route path="/" element={<HomePublic />} />
       <Route path="/listings" element={<PublicListings />} />
-
-      {/* ✅ DETAILS PAGE (support BOTH urls) */}
       <Route path="/listings/:id" element={<PublicListingDetails />} />
       <Route path="/public/listings/:id" element={<PublicListingDetails />} />
-
-      {/* ✅ 360 PAGE (PUBLIC) */}
       <Route path="/listing/:id/360" element={<Listing360Page />} />
 
       {/* AUTH */}
       <Route path="/auth" element={<UserAuth />} />
+      <Route path="/otp" element={<Otp />} />
       <Route path="/super-admin-login-9382" element={<AdminLogin />} />
 
       {/* OWNER */}
