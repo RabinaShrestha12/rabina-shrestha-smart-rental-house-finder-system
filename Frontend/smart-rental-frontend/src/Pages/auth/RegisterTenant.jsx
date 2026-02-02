@@ -20,7 +20,6 @@ export default function RegisterTenant() {
   const [msg, setMsg] = useState("");
   const [errMsg, setErrMsg] = useState("");
 
-  // OTP state
   const [otpOpen, setOtpOpen] = useState(false);
   const [otpToken, setOtpToken] = useState("");
   const [otpPurpose, setOtpPurpose] = useState("signup");
@@ -40,7 +39,6 @@ export default function RegisterTenant() {
     setOtpPurpose("signup");
   };
 
-  // ✅ Register tenant -> returns otp_token
   const handleRegister = async (e) => {
     e.preventDefault();
     if (loading) return;
@@ -50,7 +48,7 @@ export default function RegisterTenant() {
     setErrMsg("");
 
     try {
-      const res = await api.post("register_user/", {
+      const res = await api.post("/register_user/", {
         username: (form.username || "").trim(),
         email: (form.email || "").trim().toLowerCase(),
         password: form.password || "",
@@ -65,16 +63,20 @@ export default function RegisterTenant() {
         return;
       }
 
-      setMsg("Registered successfully.");
+      setMsg("Registered successfully. Please login.");
+      nav("/auth", { replace: true });
     } catch (err) {
-      const m = err?.response?.data?.error || err?.message || "Register failed";
+      const m =
+        err?.response?.data?.error ||
+        err?.response?.data?.detail ||
+        err?.message ||
+        "Register failed";
       setErrMsg(String(m));
     } finally {
       setLoading(false);
     }
   };
 
-  // ✅ verify signup OTP -> creates user + returns tokens
   const handleVerify = async (code) => {
     if (!otpToken) {
       setErrMsg("Missing otp_token. Please register again.");
@@ -86,17 +88,20 @@ export default function RegisterTenant() {
 
     try {
       const res = await verifyOtp({ otp_token: otpToken, code });
-
-      // verifyOtp already stores tokens in localStorage ✅
       closeOtp();
 
-      const role = res?.role;
-      if (role === "tenant") nav("/tenant-dashboard", { replace: true });
-      else if (role === "owner") nav("/owner-dashboard", { replace: true });
-      else if (role === "admin") nav("/admin-dashboard", { replace: true });
+      const role = (res?.role || "").toLowerCase();
+      if (role === "tenant") nav("/tenant", { replace: true });
+      else if (role === "owner") nav("/owner", { replace: true });
+      else if (role === "admin") nav("/admin", { replace: true });
       else nav("/", { replace: true });
     } catch (err) {
-      setErrMsg(err?.message || "OTP verification failed");
+      const m =
+        err?.response?.data?.detail ||
+        err?.response?.data?.error ||
+        err?.message ||
+        "OTP verification failed";
+      setErrMsg(String(m));
     } finally {
       setLoading(false);
     }
@@ -122,7 +127,6 @@ export default function RegisterTenant() {
         <input name="email" value={form.email} onChange={onChange} placeholder="Email" style={iStyle} />
         <input name="password" value={form.password} onChange={onChange} placeholder="Password" type="password" style={iStyle} />
 
-        {/* ✅ IMPORTANT: only submit via form (prevents double POST) */}
         <button type="submit" disabled={loading} style={bStyle}>
           {loading ? "Please wait..." : "Create tenant account"}
         </button>
@@ -145,12 +149,7 @@ export default function RegisterTenant() {
   );
 }
 
-const iStyle = {
-  width: "100%",
-  padding: 10,
-  marginBottom: 10,
-  borderRadius: 10,
-};
+const iStyle = { width: "100%", padding: 10, marginBottom: 10, borderRadius: 10 };
 
 const bStyle = {
   width: "100%",

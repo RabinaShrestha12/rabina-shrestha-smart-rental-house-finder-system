@@ -48,7 +48,7 @@ export default function RegisterOwner() {
     setErrMsg("");
 
     try {
-      const res = await api.post("register_user/", {
+      const res = await api.post("/register_user/", {
         username: (form.username || "").trim(),
         email: (form.email || "").trim().toLowerCase(),
         password: form.password || "",
@@ -57,15 +57,21 @@ export default function RegisterOwner() {
         phone: form.phone || "",
       });
 
+      // ✅ if OTP required after signup
       if (res?.data?.verification_required && res?.data?.otp_token) {
         setMsg(res.data.message || "OTP sent. Please verify.");
         openOtp(res.data);
         return;
       }
 
-      setMsg("Registered successfully.");
+      setMsg("Registered successfully. Please login.");
+      nav("/auth", { replace: true });
     } catch (err) {
-      const m = err?.response?.data?.error || err?.message || "Register failed";
+      const m =
+        err?.response?.data?.error ||
+        err?.response?.data?.detail ||
+        err?.message ||
+        "Register failed";
       setErrMsg(String(m));
     } finally {
       setLoading(false);
@@ -85,13 +91,18 @@ export default function RegisterOwner() {
       const res = await verifyOtp({ otp_token: otpToken, code });
       closeOtp();
 
-      const role = res?.role;
-      if (role === "owner") nav("/owner-dashboard", { replace: true });
-      else if (role === "tenant") nav("/tenant-dashboard", { replace: true });
-      else if (role === "admin") nav("/admin-dashboard", { replace: true });
+      const role = (res?.role || "").toLowerCase();
+      if (role === "owner") nav("/owner", { replace: true });
+      else if (role === "tenant") nav("/tenant", { replace: true });
+      else if (role === "admin") nav("/admin", { replace: true });
       else nav("/", { replace: true });
     } catch (err) {
-      setErrMsg(err?.message || "OTP verification failed");
+      const m =
+        err?.response?.data?.detail ||
+        err?.response?.data?.error ||
+        err?.message ||
+        "OTP verification failed";
+      setErrMsg(String(m));
     } finally {
       setLoading(false);
     }

@@ -11,8 +11,8 @@ export default function Login() {
   const [toast, setToast] = useState({ type: "info", msg: "" });
   const [loading, setLoading] = useState(false);
 
-  // ✅ updated functions (based on the OTP-ready AuthContext I gave)
-  const { startLoginAdmin, startLoginUser } = useAuth();
+  // ✅ use the actual functions that exist in AuthContext
+  const { loginAdmin, loginUser } = useAuth();
   const nav = useNavigate();
 
   const onChange = (e) =>
@@ -20,9 +20,9 @@ export default function Login() {
 
   const goByRole = (role) => {
     const r = (role || "").toLowerCase();
-    if (r === "admin") return nav("/admin-dashboard", { replace: true });
-    if (r === "owner") return nav("/owner-dashboard", { replace: true });
-    if (r === "tenant") return nav("/tenant-dashboard", { replace: true });
+    if (r === "admin") return nav("/admin", { replace: true });
+    if (r === "owner") return nav("/owner", { replace: true });
+    if (r === "tenant") return nav("/tenant", { replace: true });
     return nav("/unauthorized", { replace: true });
   };
 
@@ -32,29 +32,24 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const payload = {
-        email: form.email,
-        password: form.password,
-      };
-
       const data =
         mode === "admin"
-          ? await startLoginAdmin(payload)
-          : await startLoginUser(payload);
+          ? await loginAdmin(form.email, form.password)
+          : await loginUser(form.email, form.password);
 
       // ✅ OTP required -> go to OTP page
       if (data?.verification_required) {
         nav("/otp", {
           state: {
             otp_token: data.otp_token,
-            purpose: data.purpose, // "login" or "verify"
+            purpose: data.purpose || "login",
             email: form.email,
           },
         });
         return;
       }
 
-      // ✅ If your backend ever returns tokens directly (when REQUIRE_OTP_ON_EVERY_LOGIN = False)
+      // ✅ If backend returns tokens directly (OTP disabled)
       if (data?.tokens && data?.role) {
         goByRole(data.role);
         return;
@@ -62,7 +57,12 @@ export default function Login() {
 
       setToast({ type: "error", msg: "Unexpected response from server." });
     } catch (err) {
-      setToast({ type: "error", msg: err.message || "Login failed." });
+      const msg =
+        err?.response?.data?.detail ||
+        err?.response?.data?.error ||
+        err.message ||
+        "Login failed.";
+      setToast({ type: "error", msg });
     } finally {
       setLoading(false);
     }
@@ -133,6 +133,7 @@ export default function Login() {
 
         <button
           disabled={loading}
+          type="submit"
           className="rounded-2xl bg-indigo-500 px-5 py-3 text-sm font-medium hover:bg-indigo-400 transition disabled:opacity-60"
         >
           {loading ? "Sending code..." : "Continue →"}
