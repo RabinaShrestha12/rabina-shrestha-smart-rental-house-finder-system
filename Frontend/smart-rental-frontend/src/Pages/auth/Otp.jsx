@@ -1,8 +1,5 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import Shell from "../../components/Shell";
-import TextField from "../../components/TextField";
-import Toast from "../../components/Toast";
 import api from "../../api/axios";
 
 export default function Otp() {
@@ -11,7 +8,7 @@ export default function Otp() {
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
-  const [toast, setToast] = useState({ type: "info", msg: "" });
+  const [msg, setMsg] = useState("");
 
   useEffect(() => {
     const savedEmail = sessionStorage.getItem("otp_email");
@@ -20,73 +17,63 @@ export default function Otp() {
 
   const submit = async (e) => {
     e.preventDefault();
+    setMsg("");
 
     if (!email || !code) {
-      setToast({ type: "error", msg: "Email or OTP missing." });
+      setMsg("❌ Email or OTP missing.");
       return;
     }
 
     setLoading(true);
     try {
-      await api.post("/verify-otp/", {
+      await api.post("verify-otp/", {
         email: email.trim().toLowerCase(),
         code: code.trim(),
         purpose: "signup",
       });
 
       sessionStorage.removeItem("otp_email");
-
-      setToast({ type: "success", msg: "OTP verified. You can login now." });
-
+      setMsg("✅ OTP verified. You can login now.");
       setTimeout(() => nav("/auth", { replace: true }), 800);
     } catch (err) {
-      setToast({
-        type: "error",
-        msg:
-          err?.response?.data?.detail ||
-          err?.response?.data?.error ||
-          "OTP verification failed",
-      });
+      setMsg("❌ " + (err?.response?.data?.error || "OTP verification failed"));
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Shell title="OTP Verification" subtitle="Enter signup OTP">
-      <Toast
-        type={toast.type}
-        message={toast.msg}
-        onClose={() => setToast({ type: "info", msg: "" })}
-      />
+    <div style={{ maxWidth: 480, margin: "40px auto", padding: 20 }}>
+      <h2>OTP Verification</h2>
+      <p>Enter signup OTP</p>
 
-      <form onSubmit={submit} className="mt-6 grid gap-4">
-        <TextField
-          label="Email"
+      {msg ? <div style={{ marginBottom: 12 }}>{msg}</div> : null}
+
+      <form onSubmit={submit} style={{ display: "grid", gap: 10 }}>
+        <input
+          placeholder="example@gmail.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
+          style={{ padding: 10 }}
         />
 
-        <TextField
-          label="OTP Code"
+        <input
+          placeholder="6 digit OTP"
           value={code}
           onChange={(e) => setCode(e.target.value)}
           required
+          style={{ padding: 10 }}
         />
 
-        <button
-          disabled={loading}
-          type="submit"
-          className="rounded-2xl bg-indigo-500 px-5 py-3 text-sm font-medium"
-        >
+        <button disabled={loading} type="submit" style={{ padding: 10 }}>
           {loading ? "Verifying..." : "Verify OTP"}
         </button>
 
-        <Link to="/auth" className="text-sm text-center text-indigo-300">
+        <Link to="/auth" style={{ textAlign: "center" }}>
           Back to login
         </Link>
       </form>
-    </Shell>
+    </div>
   );
 }

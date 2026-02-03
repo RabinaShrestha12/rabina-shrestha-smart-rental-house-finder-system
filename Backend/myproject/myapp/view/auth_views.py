@@ -1,12 +1,6 @@
-# myapp/view/auth_views.py
-from __future__ import annotations
-import logging
-from datetime import timedelta
-from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.contrib.auth.hashers import make_password
 from django.db import IntegrityError, transaction
-from django.utils import timezone
+
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, BasePermission
 from rest_framework.response import Response
@@ -14,26 +8,34 @@ from rest_framework import status
 
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from myapp.models import PendingSignup
-from myapp.otp_utils import (
-    create_and_send_signup_otp,
-    create_and_send_user_otp,
-    verify_otp,
-)
+from django.conf import settings
+from django.core.mail import send_mail
+from django.utils import timezone
+from django.contrib.auth.hashers import make_password, check_password
 
-logger = logging.getLogger(__name__)
+from datetime import timedelta
+import random
+
+from ..models import PendingSignup, PendingSignupOTP  # ✅ your existing OTP models
+
 User = get_user_model()
 
 
 # -----------------------------
-# Helpers
+# JWT TOKENS
 # -----------------------------
 def get_tokens_for_user(user):
     refresh = RefreshToken.for_user(user)
     return {"refresh": str(refresh), "access": str(refresh.access_token)}
 
 
+# -----------------------------
+# PERMISSIONS
+# -----------------------------
 class IsAdminRole(BasePermission):
+    """
+    Allow access only to authenticated users whose role == 'admin'
+    """
     def has_permission(self, request, view):
         return bool(
             request.user
@@ -46,519 +48,376 @@ class IsAdminRole(BasePermission):
         )
 
 
-def get_user_by_email(email: str):
+# -----------------------------
+# HELPERS
+# -----------------------------
+def get_user_by_email(email):
     if not email:
         return None
     return User.objects.filter(email__iexact=email).first()
 
 
-def ensure_unique_username(username: str) -> str:
-    base = username or "user"
-    candidate = base
-    i = 1
-    while User.objects.filter(username=candidate).exists():
-        candidate = f"{base}{i}"
-        i += 1
-    return candidate
+def generate_otp_code():
+    return str(random.randint(100000, 999999))
 
 
-def is_admin_user(user) -> bool:
-    return bool(
-        getattr(user, "role", None) == "admin"
-        or user.is_staff
-        or user.is_superuser
+def send_otp_email(to_email, code):
+    from_email = getattr(settings, "DEFAULT_FROM_EMAIL", None) or getattr(settings, "EMAIL_HOST_USER", None)
+    if not from_email:
+        raise Exception("DEFAULT_FROM_EMAIL or EMAIL_HOST_USER not configured")
+
+    # ✅ Debug print so you can see OTP in terminal too
+    print(f"[OTP DEBUG] sending OTP to {to_email}: {code}")
+
+    send_mail(
+        subject="Smart Rental House Finder - Signup OTP",
+        message=f"Your signup OTP code is: {code}\n\nThis code expires in 10 minutes.",
+        from_email=from_email,
+        recipient_list=[to_email],
+        fail_silently=False,
     )
 
 
-def gmail_only_allowed(email: str) -> bool:
-    if not getattr(settings, "REQUIRE_GMAIL_ONLY", False):
-        return True
-    email = (email or "").strip().lower()
-    return email.endswith("@gmail.com")
-
-
-def user_has_field(field_name: str) -> bool:
-    try:
-        return hasattr(User, field_name)
-    except Exception:
-        return hasattr(User(), field_name)
-
-
-def otp_error_response(err):
-    """
-    Convert OTP/email errors into the correct HTTP status:
-    - SMTP/Gmail auth/network failures -> 500 (server-side issue)
-    - Rate limit / resend limit -> 429
-    - Others -> 400
-    """
-    msg = str(err or "").strip()
-    msg_lower = msg.lower()
-
-    # Always log the real reason (so you see it in terminal)
-    logger.warning("OTP send failed: %s", msg)
-
-    # SMTP/Gmail auth or network issues -> 500
-    smtp_keywords = [
-        "535",
-        "authentication",
-        "username and password",
-        "smtp",
-        "smtpauthenticationerror",
-        "timed out",
-        "timeout",
-        "connection",
-        "network",
-        "ssl",
-        "tls",
-    ]
-    if any(k in msg_lower for k in smtp_keywords):
-        return Response({"error": msg}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-    # Rate limit / resend limit -> 429
-    throttle_keywords = [
-        "too many",
-        "try again",
-        "limit",
-        "rate",
-        "throttle",
-        "cooldown",
-        "resend",
-        "wait",
-        "blocked",
-    ]
-    if any(k in msg_lower for k in throttle_keywords):
-        return Response({"error": msg}, status=status.HTTP_429_TOO_MANY_REQUESTS)
-
-    # Otherwise: bad request / validation / business rule
-    return Response({"error": msg}, status=status.HTTP_400_BAD_REQUEST)
-
-
 # =========================================================
-# REGISTER USER (OWNER/TENANT) -> OTP FIRST (PendingSignup)
+# ✅ REGISTER (creates PendingSignup + OTP, sends email)
 # =========================================================
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def register_user(request):
-    try:
-        data = request.data
+    data = request.data
 
-        email = (data.get("email") or "").strip().lower()
-        password = data.get("password")
-        role = (data.get("role") or "").strip().lower()
-        address = data.get("address", "") or ""
-        phone = str(data.get("phone", "") or "")
-        username = (data.get("username") or "").strip()
+    email = (data.get("email") or "").strip().lower()
+    password = data.get("password")
+    role = data.get("role")  # owner/tenant ONLY
+    address = data.get("address", "")
+    phone = data.get("phone", "")
 
-        if not email or not password:
-            return Response({"error": "email and password are required"}, status=status.HTTP_400_BAD_REQUEST)
+    # optional username
+    username = (data.get("username") or "").strip()
+    if not username and email:
+        username = email.split("@")[0]
 
-        if not gmail_only_allowed(email):
-            return Response({"error": "Only Gmail addresses are allowed."}, status=status.HTTP_400_BAD_REQUEST)
+    if not email or not password:
+        return Response({"error": "email and password are required"}, status=status.HTTP_400_BAD_REQUEST)
 
-        if role not in ["owner", "tenant"]:
-            return Response({"error": "role must be owner/tenant"}, status=status.HTTP_400_BAD_REQUEST)
+    if role not in ["owner", "tenant"]:
+        return Response({"error": "role must be owner/tenant"}, status=status.HTTP_400_BAD_REQUEST)
 
-        if User.objects.filter(email__iexact=email).exists():
-            return Response({"error": "Email already exists"}, status=status.HTTP_400_BAD_REQUEST)
+    # ✅ If real user already exists
+    if User.objects.filter(email__iexact=email).exists():
+        return Response({"error": "Email already exists. Please login."}, status=status.HTTP_400_BAD_REQUEST)
 
-        if not username:
-            username = email.split("@")[0]
-        username = ensure_unique_username(username)
-
-        ttl = int(getattr(settings, "SIGNUP_OTP_TTL_SECONDS", 600))
-        expires_at = timezone.now() + timedelta(seconds=ttl)
-
-        ps, _ = PendingSignup.objects.update_or_create(
-            email=email,
-            defaults={
-                "username": username,
-                "role": role,
-                "password_hash": make_password(password),
-                "address": address,
-                "phone": phone,
-                "is_used": False,
-                "expires_at": expires_at,
-            },
+    # ✅ If pending signup exists (not used and not expired) -> resend OTP
+    existing_pending = PendingSignup.objects.filter(email__iexact=email, is_used=False).order_by("-created_at").first()
+    if existing_pending and not existing_pending.is_expired():
+        code = generate_otp_code()
+        PendingSignupOTP.objects.create(
+            pending=existing_pending,
+            purpose="signup",
+            code_hash=make_password(code),
+            expires_at=timezone.now() + timedelta(minutes=10),
+            is_used=False,
         )
-
-        otp_token, err = create_and_send_signup_otp(ps)
-        if err:
-            return otp_error_response(err)
+        try:
+            send_otp_email(email, code)
+        except Exception as e:
+            return Response({"error": f"OTP send failed: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         return Response(
-            {
-                "message": "OTP sent to your email. Verify to complete signup.",
-                "verification_required": True,
-                "purpose": "signup",
-                "otp_token": otp_token,
-                "email": email,
-                "role": role,
-            },
+            {"message": "OTP resent. Please verify OTP.", "email": email},
             status=status.HTTP_200_OK,
         )
 
+    # ✅ make username unique (against REAL users + pending signups)
+    base_username = username
+    i = 1
+    while (
+        User.objects.filter(username=username).exists()
+        or PendingSignup.objects.filter(username=username, is_used=False).exists()
+    ):
+        username = f"{base_username}{i}"
+        i += 1
+
+    try:
+        pending = PendingSignup.objects.create(
+            email=email,
+            username=username,
+            role=role,
+            password_hash=make_password(password),  # ✅ store hashed password
+            address=address,
+            phone=str(phone),
+            expires_at=timezone.now() + timedelta(minutes=30),
+            is_used=False,
+        )
+
+        code = generate_otp_code()
+        PendingSignupOTP.objects.create(
+            pending=pending,
+            purpose="signup",
+            code_hash=make_password(code),
+            expires_at=timezone.now() + timedelta(minutes=10),
+            is_used=False,
+        )
+
+        send_otp_email(email, code)
+
+        return Response(
+            {"message": "OTP sent to email. Please verify OTP.", "email": email},
+            status=status.HTTP_201_CREATED,
+        )
+
+    except IntegrityError:
+        return Response({"error": "Signup failed. Try again."}, status=status.HTTP_400_BAD_REQUEST)
     except Exception as e:
-        logger.exception("register_user failed")
-        return Response({"error": "Server error", "detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response({"error": f"OTP send failed: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 # =========================================================
-# ADMIN REGISTER -> OTP FIRST (PendingSignup)
+# ✅ VERIFY OTP (creates real User)
 # =========================================================
 @api_view(["POST"])
 @permission_classes([AllowAny])
-def register_admin(request):
+def verify_otp(request):
+    email = (request.data.get("email") or "").strip().lower()
+    code = (request.data.get("code") or "").strip()
+    purpose = (request.data.get("purpose") or "signup").strip()
+
+    if not email or not code:
+        return Response({"error": "email and code are required"}, status=status.HTTP_400_BAD_REQUEST)
+
+    pending = PendingSignup.objects.filter(email__iexact=email, is_used=False).order_by("-created_at").first()
+    if not pending:
+        return Response({"error": "No pending signup found. Please register again."}, status=status.HTTP_400_BAD_REQUEST)
+
+    if pending.is_expired():
+        pending.is_used = True
+        pending.save(update_fields=["is_used"])
+        return Response({"error": "Signup expired. Please register again."}, status=status.HTTP_400_BAD_REQUEST)
+
+    otp = PendingSignupOTP.objects.filter(pending=pending, purpose=purpose, is_used=False).order_by("-created_at").first()
+    if not otp:
+        return Response({"error": "OTP not found. Please register again (or resend)."}, status=status.HTTP_400_BAD_REQUEST)
+
+    if timezone.now() > otp.expires_at:
+        otp.is_used = True
+        otp.save(update_fields=["is_used"])
+        return Response({"error": "OTP expired. Please register again (or resend)."}, status=status.HTTP_400_BAD_REQUEST)
+
+    if otp.attempts >= 5:
+        otp.is_used = True
+        otp.save(update_fields=["is_used"])
+        return Response({"error": "Too many attempts. Please register again (or resend)."}, status=status.HTTP_400_BAD_REQUEST)
+
+    # ✅ verify hash
+    ok = check_password(code, otp.code_hash)
+
+    otp.attempts += 1
+    otp.save(update_fields=["attempts"])
+
+    if not ok:
+        return Response({"error": "Invalid OTP"}, status=status.HTTP_400_BAD_REQUEST)
+
+    # ✅ Create real user
     try:
-        data = request.data
+        with transaction.atomic():
+            if User.objects.filter(email__iexact=email).exists():
+                return Response({"error": "User already exists. Please login."}, status=status.HTTP_400_BAD_REQUEST)
 
-        email = (data.get("email") or "").strip().lower()
-        password = data.get("password")
-        address = data.get("address", "") or ""
-        phone = str(data.get("phone", "") or "")
-        username = (data.get("username") or "").strip()
+            user = User.objects.create_user(
+                username=pending.username,
+                email=pending.email,
+                password=None,
+            )
+            user.password = pending.password_hash  # ✅ already hashed
+            user.role = pending.role
+            user.address = pending.address
+            user.phone = pending.phone
+            user.is_email_verified = True
+            user.save()
 
-        if not email or not password:
-            return Response({"error": "email and password are required"}, status=status.HTTP_400_BAD_REQUEST)
+            otp.is_used = True
+            otp.save(update_fields=["is_used"])
 
-        if not gmail_only_allowed(email):
-            return Response({"error": "Only Gmail addresses are allowed."}, status=status.HTTP_400_BAD_REQUEST)
+            pending.is_used = True
+            pending.save(update_fields=["is_used"])
 
-        if User.objects.filter(email__iexact=email).exists():
-            return Response({"error": "Email already exists"}, status=status.HTTP_400_BAD_REQUEST)
-
-        if not username:
-            username = email.split("@")[0]
-        username = ensure_unique_username(username)
-
-        ttl = int(getattr(settings, "SIGNUP_OTP_TTL_SECONDS", 600))
-        expires_at = timezone.now() + timedelta(seconds=ttl)
-
-        ps, _ = PendingSignup.objects.update_or_create(
-            email=email,
-            defaults={
-                "username": username,
-                "role": "admin",
-                "password_hash": make_password(password),
-                "address": address,
-                "phone": phone,
-                "is_used": False,
-                "expires_at": expires_at,
-            },
-        )
-
-        otp_token, err = create_and_send_signup_otp(ps)
-        if err:
-            return otp_error_response(err)
-
-        return Response(
-            {
-                "message": "OTP sent to your email. Verify to complete admin signup.",
-                "verification_required": True,
-                "purpose": "signup",
-                "otp_token": otp_token,
-                "email": email,
-                "role": "admin",
-            },
-            status=status.HTTP_200_OK,
-        )
+        return Response({"message": "OTP verified. Account created. You can login now."}, status=status.HTTP_200_OK)
 
     except Exception as e:
-        logger.exception("register_admin failed")
-        return Response({"error": "Server error", "detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response({"error": f"Account creation failed: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 # =========================================================
-# LOGIN USER (OWNER/TENANT) -> send OTP
+# LOGIN USER (Owner/Tenant)
 # =========================================================
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def login_user(request):
-    try:
-        email = (request.data.get("email") or "").strip().lower()
-        password = request.data.get("password")
+    email = (request.data.get("email") or "").strip().lower()
+    password = request.data.get("password")
 
-        if not email or not password:
-            return Response({"error": "email and password are required"}, status=status.HTTP_400_BAD_REQUEST)
+    if not email or not password:
+        return Response({"error": "email and password are required"}, status=status.HTTP_400_BAD_REQUEST)
 
-        user = get_user_by_email(email)
-        if not user or not user.check_password(password):
-            return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+    user = get_user_by_email(email)
 
-        if is_admin_user(user):
-            return Response({"error": "Use admin login endpoint"}, status=status.HTTP_403_FORBIDDEN)
+    if not user or not user.check_password(password):
+        return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
 
-        if user_has_field("is_email_verified") and not getattr(user, "is_email_verified", True):
-            otp_token, err = create_and_send_user_otp(user, purpose="verify")
-            if err:
-                return otp_error_response(err)
+    # ✅ prevent admin login from user login endpoint
+    if getattr(user, "role", None) == "admin" or user.is_staff or user.is_superuser:
+        return Response({"error": "Use admin login endpoint"}, status=status.HTTP_403_FORBIDDEN)
 
-            return Response(
-                {
-                    "message": "Email not verified. OTP sent to your email.",
-                    "verification_required": True,
-                    "purpose": "verify",
-                    "otp_token": otp_token,
-                },
-                status=status.HTTP_202_ACCEPTED,
-            )
+    # ✅ require verified email
+    if getattr(user, "is_email_verified", False) is False:
+        return Response({"error": "Email not verified. Please verify OTP first."}, status=status.HTTP_403_FORBIDDEN)
 
-        if bool(getattr(settings, "REQUIRE_OTP_ON_EVERY_LOGIN", True)):
-            otp_token, err = create_and_send_user_otp(user, purpose="login")
-            if err:
-                return otp_error_response(err)
+    tokens = get_tokens_for_user(user)
 
-            return Response(
-                {
-                    "message": "Login OTP sent to your email.",
-                    "verification_required": True,
-                    "purpose": "login",
-                    "otp_token": otp_token,
-                },
-                status=status.HTTP_202_ACCEPTED,
-            )
-
-        tokens = get_tokens_for_user(user)
-        return Response(
-            {
-                "message": "Login successful",
-                "tokens": tokens,
-                "role": getattr(user, "role", None),
-                "user_id": user.id,
-                "email": user.email,
-                "username": user.username,
-            },
-            status=status.HTTP_200_OK,
-        )
-
-    except Exception as e:
-        logger.exception("login_user failed")
-        return Response({"error": "Server error", "detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    return Response(
+        {
+            "message": "Login successful",
+            "tokens": tokens,
+            "role": user.role,
+            "user_id": user.id,
+            "email": user.email,
+            "username": user.username,
+        },
+        status=status.HTTP_200_OK,
+    )
 
 
 # =========================================================
-# LOGIN ADMIN (email+password -> OTP)
+# ADMIN REGISTER (ONLY ONCE)
+# =========================================================
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def register_admin(request):
+    data = request.data
+
+    email = (data.get("email") or "").strip().lower()
+    password = data.get("password")
+    address = data.get("address", "")
+    phone = data.get("phone", "")
+
+    username = (data.get("username") or "").strip()
+    if not email or not password:
+        return Response({"error": "email and password are required"}, status=status.HTTP_400_BAD_REQUEST)
+    if not username:
+        username = email.split("@")[0]
+
+    if User.objects.filter(email__iexact=email).exists():
+        return Response({"error": "Email already exists"}, status=status.HTTP_400_BAD_REQUEST)
+
+    base_username = username
+    i = 1
+    while User.objects.filter(username=username).exists():
+        username = f"{base_username}{i}"
+        i += 1
+
+    try:
+        with transaction.atomic():
+            if User.objects.select_for_update().filter(role="admin").exists():
+                return Response({"error": "Admin already exists"}, status=status.HTTP_400_BAD_REQUEST)
+
+            admin = User.objects.create_user(username=username, email=email, password=password)
+            admin.role = "admin"
+            admin.address = address
+            admin.phone = str(phone)
+            admin.is_staff = True
+            admin.is_superuser = True
+            admin.is_email_verified = True
+            admin.save()
+
+        tokens = get_tokens_for_user(admin)
+
+        return Response(
+            {
+                "message": "Admin registered",
+                "tokens": tokens,
+                "user_id": admin.id,
+                "role": admin.role,
+                "email": admin.email,
+                "username": admin.username,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+    except IntegrityError:
+        return Response({"error": "Username or email already exists"}, status=status.HTTP_400_BAD_REQUEST)
+
+
+# =========================================================
+# ADMIN LOGIN
 # =========================================================
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def login_admin(request):
-    try:
-        email = (request.data.get("email") or "").strip().lower()
-        password = request.data.get("password")
+    email = (request.data.get("email") or "").strip().lower()
+    password = request.data.get("password")
 
-        if not email or not password:
-            return Response({"error": "email and password are required"}, status=status.HTTP_400_BAD_REQUEST)
+    if not email or not password:
+        return Response({"error": "email and password are required"}, status=status.HTTP_400_BAD_REQUEST)
 
-        user = get_user_by_email(email)
-        if not user or not user.check_password(password):
-            return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+    user = get_user_by_email(email)
 
-        if not is_admin_user(user):
-            return Response({"error": "Not an admin account"}, status=status.HTTP_403_FORBIDDEN)
+    if not user or not user.check_password(password):
+        return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
 
-        if user_has_field("is_email_verified") and not getattr(user, "is_email_verified", True):
-            otp_token, err = create_and_send_user_otp(user, purpose="verify")
-            if err:
-                return otp_error_response(err)
+    if getattr(user, "role", None) != "admin" and not user.is_staff and not user.is_superuser:
+        return Response({"error": "Not an admin account"}, status=status.HTTP_403_FORBIDDEN)
 
-            return Response(
-                {
-                    "message": "Admin email not verified. OTP sent to your email.",
-                    "verification_required": True,
-                    "purpose": "verify",
-                    "otp_token": otp_token,
-                },
-                status=status.HTTP_202_ACCEPTED,
-            )
+    tokens = get_tokens_for_user(user)
 
-        if bool(getattr(settings, "REQUIRE_OTP_ON_EVERY_LOGIN", True)):
-            otp_token, err = create_and_send_user_otp(user, purpose="login")
-            if err:
-                return otp_error_response(err)
-
-            return Response(
-                {
-                    "message": "Admin login OTP sent to your email.",
-                    "verification_required": True,
-                    "purpose": "login",
-                    "otp_token": otp_token,
-                },
-                status=status.HTTP_202_ACCEPTED,
-            )
-
-        tokens = get_tokens_for_user(user)
-        return Response(
-            {
-                "message": "Admin login successful",
-                "tokens": tokens,
-                "role": getattr(user, "role", None),
-                "user_id": user.id,
-                "email": user.email,
-                "username": user.username,
-            },
-            status=status.HTTP_200_OK,
-        )
-
-    except Exception as e:
-        logger.exception("login_admin failed")
-        return Response({"error": "Server error", "detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    return Response(
+        {
+            "message": "Admin login successful",
+            "tokens": tokens,
+            "role": user.role,
+            "user_id": user.id,
+            "email": user.email,
+            "username": user.username,
+        },
+        status=status.HTTP_200_OK,
+    )
 
 
 # =========================================================
-# VERIFY OTP (signup / verify / login) -> returns JWT
-# =========================================================
-@api_view(["POST"])
-@permission_classes([AllowAny])
-def verify_email_otp(request):
-    try:
-        otp_token = request.data.get("otp_token")
-        code = (request.data.get("code") or "").strip()
-
-        if not otp_token or not code:
-            return Response({"error": "otp_token and code are required"}, status=status.HTTP_400_BAD_REQUEST)
-
-        kind, obj, purpose, err = verify_otp(otp_token, code)
-        if err:
-            return Response({"error": err}, status=status.HTTP_400_BAD_REQUEST)
-
-        if kind == "pending" and purpose == "signup":
-            pending = obj
-            if pending.is_used:
-                return Response({"error": "Signup already completed."}, status=status.HTTP_400_BAD_REQUEST)
-
-            if getattr(pending, "role", "") == "admin":
-                with transaction.atomic():
-                    if User.objects.select_for_update().filter(role="admin").exists():
-                        return Response({"error": "Admin already exists."}, status=status.HTTP_400_BAD_REQUEST)
-
-            try:
-                create_kwargs = dict(
-                    username=pending.username,
-                    email=pending.email,
-                    role=pending.role,
-                    address=getattr(pending, "address", ""),
-                    phone=getattr(pending, "phone", ""),
-                )
-
-                if user_has_field("is_email_verified"):
-                    create_kwargs["is_email_verified"] = True
-
-                user = User.objects.create(**create_kwargs)
-                user.password = pending.password_hash  # already hashed
-
-                if pending.role == "admin":
-                    user.is_staff = True
-                    user.is_superuser = True
-
-                user.save()
-
-                pending.is_used = True
-                pending.save(update_fields=["is_used"])
-
-            except IntegrityError:
-                return Response({"error": "Username or email already exists"}, status=status.HTTP_400_BAD_REQUEST)
-
-            tokens = get_tokens_for_user(user)
-            return Response(
-                {
-                    "message": "Signup verified. Account created.",
-                    "tokens": tokens,
-                    "role": getattr(user, "role", None),
-                    "user_id": user.id,
-                    "email": user.email,
-                    "username": user.username,
-                    "email_verified": getattr(user, "is_email_verified", True),
-                },
-                status=status.HTTP_201_CREATED,
-            )
-
-        if kind == "user":
-            user = obj
-
-            if purpose == "verify" and user_has_field("is_email_verified"):
-                if not getattr(user, "is_email_verified", False):
-                    user.is_email_verified = True
-                    user.save(update_fields=["is_email_verified"])
-
-            tokens = get_tokens_for_user(user)
-            return Response(
-                {
-                    "message": "Verification successful",
-                    "tokens": tokens,
-                    "role": getattr(user, "role", None),
-                    "user_id": user.id,
-                    "email": user.email,
-                    "username": user.username,
-                    "email_verified": getattr(user, "is_email_verified", True),
-                },
-                status=status.HTTP_200_OK,
-            )
-
-        return Response({"error": "Invalid verification flow."}, status=status.HTTP_400_BAD_REQUEST)
-
-    except Exception as e:
-        logger.exception("verify_email_otp failed")
-        return Response({"error": "Server error", "detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-# =========================================================
-# RESEND OTP (signup pending OR user verify)
-# =========================================================
-@api_view(["POST"])
-@permission_classes([AllowAny])
-def resend_verification_code(request):
-    try:
-        email = (request.data.get("email") or "").strip().lower()
-        if not email:
-            return Response({"error": "email is required"}, status=status.HTTP_400_BAD_REQUEST)
-
-        pending = PendingSignup.objects.filter(email=email, is_used=False).first()
-        if pending:
-            otp_token, err = create_and_send_signup_otp(pending)
-            if err:
-                return otp_error_response(err)
-            return Response({"message": "OTP resent.", "otp_token": otp_token}, status=status.HTTP_200_OK)
-
-        user = get_user_by_email(email)
-        if user and user_has_field("is_email_verified") and not getattr(user, "is_email_verified", True):
-            otp_token, err = create_and_send_user_otp(user, purpose="verify")
-            if err:
-                return otp_error_response(err)
-            return Response({"message": "OTP resent.", "otp_token": otp_token}, status=status.HTTP_200_OK)
-
-        return Response({"message": "If email exists, OTP was sent."}, status=status.HTTP_200_OK)
-
-    except Exception as e:
-        logger.exception("resend_verification_code failed")
-        return Response({"error": "Server error", "detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-# =========================================================
-# ADMIN LIST/CRUD
+# ADMIN: LIST USERS
 # =========================================================
 @api_view(["GET"])
 @permission_classes([IsAdminRole])
 def list_all_users(request):
-    qs = User.objects.all().values("id", "username", "email", "role", "address", "phone", "created_at")
-    return Response(list(qs), status=status.HTTP_200_OK)
+    users = User.objects.all().values(
+        "id", "username", "email", "role", "address", "phone", "created_at"
+    )
+    return Response(list(users), status=status.HTTP_200_OK)
 
 
 @api_view(["GET"])
 @permission_classes([IsAdminRole])
 def list_owners(request):
-    qs = User.objects.filter(role="owner").values("id", "username", "email", "role", "address", "phone", "created_at")
-    return Response(list(qs), status=status.HTTP_200_OK)
+    owners = User.objects.filter(role="owner").values(
+        "id", "username", "email", "role", "address", "phone", "created_at"
+    )
+    return Response(list(owners), status=status.HTTP_200_OK)
 
 
 @api_view(["GET"])
 @permission_classes([IsAdminRole])
 def list_tenants(request):
-    qs = User.objects.filter(role="tenant").values("id", "username", "email", "role", "address", "phone", "created_at")
-    return Response(list(qs), status=status.HTTP_200_OK)
+    tenants = User.objects.filter(role="tenant").values(
+        "id", "username", "email", "role", "address", "phone", "created_at"
+    )
+    return Response(list(tenants), status=status.HTTP_200_OK)
 
 
+# =========================================================
+# ADMIN: USER DETAIL CRUD
+# =========================================================
 @api_view(["GET", "PUT", "DELETE"])
 @permission_classes([IsAdminRole])
-def user_detail_crud(request, user_id: int):
+def user_detail_crud(request, user_id):
     try:
         user = User.objects.get(id=user_id)
     except User.DoesNotExist:
@@ -570,10 +429,10 @@ def user_detail_crud(request, user_id: int):
                 "id": user.id,
                 "username": user.username,
                 "email": user.email,
-                "role": getattr(user, "role", None),
-                "address": getattr(user, "address", ""),
-                "phone": getattr(user, "phone", ""),
-                "created_at": getattr(user, "created_at", None),
+                "role": user.role,
+                "address": user.address,
+                "phone": user.phone,
+                "created_at": user.created_at,
             },
             status=status.HTTP_200_OK,
         )
@@ -588,24 +447,82 @@ def user_detail_crud(request, user_id: int):
             if new_email:
                 user.email = new_email
 
-        if hasattr(user, "address"):
-            user.address = data.get("address", getattr(user, "address", ""))
+        user.address = data.get("address", user.address)
 
         if "role" in data:
-            new_role = (data.get("role") or "").strip().lower()
+            new_role = data.get("role")
             if new_role not in ["owner", "tenant", "admin"]:
                 return Response({"error": "role must be owner/tenant/admin"}, status=status.HTTP_400_BAD_REQUEST)
-            if hasattr(user, "role"):
-                user.role = new_role
+            user.role = new_role
 
-        if "phone" in data and hasattr(user, "phone"):
-            user.phone = str(data.get("phone", getattr(user, "phone", "")))
+        if "phone" in data:
+            user.phone = str(data.get("phone", user.phone))
 
         user.save()
         return Response({"message": "User updated"}, status=status.HTTP_200_OK)
 
-    if getattr(user, "role", None) == "admin":
+    # DELETE
+    if user.role == "admin":
         return Response({"error": "Admin user cannot be deleted"}, status=status.HTTP_403_FORBIDDEN)
 
     user.delete()
     return Response({"message": "User deleted"}, status=status.HTTP_200_OK)
+
+
+# =========================================================
+# ADMIN: SEND EMAIL (ALL or SELECTED)
+# =========================================================
+@api_view(["POST"])
+@permission_classes([IsAdminRole])
+def admin_send_email(request):
+    data = request.data
+
+    send_to = (data.get("send_to") or "all").strip().lower()
+    recipients = data.get("recipients") or []
+    subject = (data.get("subject") or "").strip()
+    message = (data.get("message") or "").strip()
+    email_type = (data.get("type") or "announcement").strip()
+
+    if not subject or not message:
+        return Response({"error": "subject and message are required"}, status=status.HTTP_400_BAD_REQUEST)
+
+    if send_to == "all":
+        emails = list(
+            User.objects.exclude(email__isnull=True)
+            .exclude(email__exact="")
+            .values_list("email", flat=True)
+        )
+    elif send_to == "selected":
+        if not isinstance(recipients, list) or len(recipients) == 0:
+            return Response({"error": "recipients list is required for selected mode"}, status=status.HTTP_400_BAD_REQUEST)
+        emails = [str(e).strip() for e in recipients if str(e).strip()]
+    else:
+        return Response({"error": "send_to must be 'all' or 'selected'"}, status=status.HTTP_400_BAD_REQUEST)
+
+    if len(emails) == 0:
+        return Response({"error": "No recipients found"}, status=status.HTTP_400_BAD_REQUEST)
+
+    final_subject = f"[{email_type.upper()}] {subject}"
+    final_message = message
+
+    from_email = getattr(settings, "DEFAULT_FROM_EMAIL", None) or getattr(settings, "EMAIL_HOST_USER", None)
+    if not from_email:
+        return Response(
+            {"error": "Email is not configured. Set DEFAULT_FROM_EMAIL or EMAIL_HOST_USER in settings.py"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+    try:
+        send_mail(
+            subject=final_subject,
+            message=final_message,
+            from_email=from_email,
+            recipient_list=emails,
+            fail_silently=False,
+        )
+        return Response(
+            {"message": "Email sent", "sent_to": send_to, "count": len(emails)},
+            status=status.HTTP_200_OK,
+        )
+    except Exception as e:
+        return Response({"error": f"Email sending failed: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

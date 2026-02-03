@@ -18,7 +18,7 @@ export default function UserAuth() {
   // register fields
   const [reg, setReg] = useState({
     role: "tenant",
-    name: "",
+    username: "",   // ✅ use username (backend field)
     address: "",
     phone: "",
     email: "",
@@ -48,6 +48,7 @@ export default function UserAuth() {
     } catch (err) {
       const detail =
         err?.response?.data?.error ||
+        err?.response?.data?.detail ||
         JSON.stringify(err?.response?.data || err.message);
       setMsg("❌ Login failed: " + detail);
     }
@@ -58,12 +59,20 @@ export default function UserAuth() {
     setMsg("");
 
     try {
+      // ✅ register API call (backend sends OTP)
       await registerUser(reg);
-      setMsg("✅ Registered successfully. Please login now.");
-      setTab("login");
+
+      // ✅ save email for OTP page autofill
+      sessionStorage.setItem("otp_email", (reg.email || "").trim().toLowerCase());
+
+      setMsg("✅ Registered. OTP sent to your email. Please verify OTP.");
+
+      // ✅ go to OTP page after register
+      navigate("/otp", { replace: true });
     } catch (err) {
       const detail =
         err?.response?.data?.error ||
+        err?.response?.data?.detail ||
         JSON.stringify(err?.response?.data || err.message);
       setMsg("❌ Register failed: " + detail);
     }
@@ -89,7 +98,7 @@ export default function UserAuth() {
         </div>
 
         <div className="auth-grid">
-          {/* LEFT: Login/Register */}
+          {/* LEFT */}
           <div className="card">
             <div className="tabs">
               <button
@@ -171,7 +180,9 @@ export default function UserAuth() {
                 </div>
 
                 <button className="btn" type="submit">
-                  {loginType === "admin" ? "Login as Admin" : "Login as Owner/Tenant"}
+                  {loginType === "admin"
+                    ? "Login as Admin"
+                    : "Login as Owner/Tenant"}
                 </button>
 
                 <button
@@ -191,7 +202,12 @@ export default function UserAuth() {
 
                 <div className="field">
                   <div className="label">Register as</div>
-                  <select className="select" name="role" value={reg.role} onChange={onRegChange}>
+                  <select
+                    className="select"
+                    name="role"
+                    value={reg.role}
+                    onChange={onRegChange}
+                  >
                     <option value="tenant">Tenant</option>
                     <option value="owner">Owner</option>
                   </select>
@@ -199,10 +215,16 @@ export default function UserAuth() {
 
                 <div className="row-2">
                   <div className="field">
-                    <div className="label">Name</div>
+                    <div className="label">Username</div>
                     <div className="input-wrap">
                       <span className="icon">👤</span>
-                      <input className="input" name="name" placeholder="Full name" value={reg.name} onChange={onRegChange} />
+                      <input
+                        className="input"
+                        name="username"
+                        placeholder="e.g. kechan123"
+                        value={reg.username}
+                        onChange={onRegChange}
+                      />
                     </div>
                   </div>
 
@@ -210,21 +232,41 @@ export default function UserAuth() {
                     <div className="label">Phone</div>
                     <div className="input-wrap">
                       <span className="icon">📞</span>
-                      <input className="input" name="phone" placeholder="Phone number" value={reg.phone} onChange={onRegChange} />
+                      <input
+                        className="input"
+                        name="phone"
+                        placeholder="Phone number"
+                        value={reg.phone}
+                        onChange={onRegChange}
+                      />
                     </div>
                   </div>
                 </div>
 
                 <div className="field">
                   <div className="label">Address</div>
-                  <input className="input" style={{ paddingLeft: 12 }} name="address" placeholder="Address" value={reg.address} onChange={onRegChange} />
+                  <input
+                    className="input"
+                    style={{ paddingLeft: 12 }}
+                    name="address"
+                    placeholder="Address"
+                    value={reg.address}
+                    onChange={onRegChange}
+                  />
                 </div>
 
                 <div className="field">
                   <div className="label">Email</div>
                   <div className="input-wrap">
                     <span className="icon">✉️</span>
-                    <input className="input" name="email" placeholder="you@example.com" value={reg.email} onChange={onRegChange} />
+                    <input
+                      className="input"
+                      name="email"
+                      placeholder="you@example.com"
+                      value={reg.email}
+                      onChange={onRegChange}
+                      required
+                    />
                   </div>
                 </div>
 
@@ -232,11 +274,21 @@ export default function UserAuth() {
                   <div className="label">Password</div>
                   <div className="input-wrap">
                     <span className="icon">🔒</span>
-                    <input className="input" name="password" type="password" placeholder="Create password" value={reg.password} onChange={onRegChange} />
+                    <input
+                      className="input"
+                      name="password"
+                      type="password"
+                      placeholder="Create password"
+                      value={reg.password}
+                      onChange={onRegChange}
+                      required
+                    />
                   </div>
                 </div>
 
-                <button className="btn" type="submit">Create account</button>
+                <button className="btn" type="submit">
+                  Create account
+                </button>
               </form>
             )}
 
@@ -247,7 +299,7 @@ export default function UserAuth() {
             )}
           </div>
 
-          {/* RIGHT: Nice side panel */}
+          {/* RIGHT */}
           <div className="card">
             <div className="section-title">
               <h3>Quick guide</h3>
@@ -257,22 +309,29 @@ export default function UserAuth() {
             <div className="side-list">
               <div className="side-item">
                 <div className="t">Login</div>
-                <div className="d">Select role and login → you go to your dashboard automatically.</div>
+                <div className="d">
+                  Select role and login → you go to your dashboard automatically.
+                </div>
               </div>
 
               <div className="side-item">
                 <div className="t">Register</div>
-                <div className="d">Tenant/Owner can self-register, then login with the same credentials.</div>
+                <div className="d">
+                  Tenant/Owner registers → OTP verify → then login.
+                </div>
               </div>
 
               <div className="side-item">
                 <div className="t">Role Security</div>
-                <div className="d">Owner cannot open Tenant pages, and Admin has separate access.</div>
+                <div className="d">
+                  Owner cannot open Tenant pages, and Admin has separate access.
+                </div>
               </div>
             </div>
 
             <div className="alert" style={{ marginTop: 14, opacity: 0.9 }}>
-              Tip: If you refresh the page, you stay logged in because token is saved in localStorage.
+              Tip: If you refresh the page, you stay logged in because token is saved
+              in localStorage.
             </div>
           </div>
         </div>

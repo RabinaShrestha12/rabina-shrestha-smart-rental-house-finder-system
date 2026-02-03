@@ -17,6 +17,9 @@ import AdminDashboard from "./pages/dashboard/AdminDashboard";
 import OwnerDashboard from "./pages/dashboard/OwnerDashboard";
 import TenantDashboard from "./pages/dashboard/TenantDashboard";
 
+// ✅ NEW ADMIN PAGE (Email UI)
+import EmailBroadcast from "./pages/dashboard/EmailBroadcast";
+
 // OWNER / TENANT
 import OwnerAddListing from "./pages/home/OwnerAddListing";
 import TenantBookPage from "./pages/home/TenantBookPage";
@@ -85,6 +88,16 @@ export default function App() {
         element={
           <ProtectedRoute allowRoles={["admin"]}>
             <AdminDashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* ✅ NEW: ADMIN EMAIL BROADCAST PAGE */}
+      <Route
+        path="/admin/email-broadcast"
+        element={
+          <ProtectedRoute allowRoles={["admin"]}>
+            <EmailBroadcast />
           </ProtectedRoute>
         }
       />
