@@ -67,11 +67,11 @@ def send_otp_email(to_email, code):
         raise Exception("DEFAULT_FROM_EMAIL or EMAIL_HOST_USER not configured")
 
     # ✅ Debug print so you can see OTP in terminal too
-    print(f"[OTP DEBUG] sending OTP to {to_email}: {code}")
+    #print(f"[OTP DEBUG] sending signup OTP to {to_email}: {code}")
 
     send_mail(
         subject="Smart Rental House Finder - Signup OTP",
-        message=f"Your signup OTP code is: {code}\n\nThis code expires in 10 minutes.",
+        message=f"Your signup OTP code is: {code}\n\n(Enter this code once to verify your email.)",
         from_email=from_email,
         recipient_list=[to_email],
         fail_silently=False,
@@ -92,7 +92,6 @@ def register_user(request):
     address = data.get("address", "")
     phone = data.get("phone", "")
 
-    # optional username
     username = (data.get("username") or "").strip()
     if not username and email:
         username = email.split("@")[0]
@@ -107,15 +106,15 @@ def register_user(request):
     if User.objects.filter(email__iexact=email).exists():
         return Response({"error": "Email already exists. Please login."}, status=status.HTTP_400_BAD_REQUEST)
 
-    # ✅ If pending signup exists (not used and not expired) -> resend OTP
+    # ✅ If pending signup exists (not used) -> resend OTP (no expiry needed)
     existing_pending = PendingSignup.objects.filter(email__iexact=email, is_used=False).order_by("-created_at").first()
-    if existing_pending and not existing_pending.is_expired():
+    if existing_pending:
         code = generate_otp_code()
         PendingSignupOTP.objects.create(
             pending=existing_pending,
             purpose="signup",
             code_hash=make_password(code),
-            expires_at=timezone.now() + timedelta(minutes=10),
+            expires_at=timezone.now() + timedelta(days=3650),  # ✅ effectively "no expiry"
             is_used=False,
         )
         try:
@@ -124,7 +123,7 @@ def register_user(request):
             return Response({"error": f"OTP send failed: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         return Response(
-            {"message": "OTP resent. Please verify OTP.", "email": email},
+            {"message": "OTP resent. Please verify OTP once.", "email": email},
             status=status.HTTP_200_OK,
         )
 
@@ -146,7 +145,7 @@ def register_user(request):
             password_hash=make_password(password),  # ✅ store hashed password
             address=address,
             phone=str(phone),
-            expires_at=timezone.now() + timedelta(minutes=30),
+            expires_at=timezone.now() + timedelta(days=3650),  # ✅ effectively "no expiry"
             is_used=False,
         )
 
@@ -155,14 +154,14 @@ def register_user(request):
             pending=pending,
             purpose="signup",
             code_hash=make_password(code),
-            expires_at=timezone.now() + timedelta(minutes=10),
+            expires_at=timezone.now() + timedelta(days=3650),  # ✅ effectively "no expiry"
             is_used=False,
         )
 
         send_otp_email(email, code)
 
         return Response(
-            {"message": "OTP sent to email. Please verify OTP.", "email": email},
+            {"message": "OTP sent to email. Verify once to activate account.", "email": email},
             status=status.HTTP_201_CREATED,
         )
 
@@ -173,7 +172,7 @@ def register_user(request):
 
 
 # =========================================================
-# ✅ VERIFY OTP (creates real User)
+# ✅ VERIFY OTP (creates real User) - NO 10 minute expiry check
 # =========================================================
 @api_view(["POST"])
 @permission_classes([AllowAny])
@@ -189,26 +188,20 @@ def verify_otp(request):
     if not pending:
         return Response({"error": "No pending signup found. Please register again."}, status=status.HTTP_400_BAD_REQUEST)
 
-    if pending.is_expired():
-        pending.is_used = True
-        pending.save(update_fields=["is_used"])
-        return Response({"error": "Signup expired. Please register again."}, status=status.HTTP_400_BAD_REQUEST)
+    otp = PendingSignupOTP.objects.filter(
+        pending=pending,
+        purpose=purpose,
+        is_used=False
+    ).order_by("-created_at").first()
 
-    otp = PendingSignupOTP.objects.filter(pending=pending, purpose=purpose, is_used=False).order_by("-created_at").first()
     if not otp:
-        return Response({"error": "OTP not found. Please register again (or resend)."}, status=status.HTTP_400_BAD_REQUEST)
-
-    if timezone.now() > otp.expires_at:
-        otp.is_used = True
-        otp.save(update_fields=["is_used"])
-        return Response({"error": "OTP expired. Please register again (or resend)."}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"error": "OTP not found. Please resend OTP."}, status=status.HTTP_400_BAD_REQUEST)
 
     if otp.attempts >= 5:
         otp.is_used = True
         otp.save(update_fields=["is_used"])
-        return Response({"error": "Too many attempts. Please register again (or resend)."}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"error": "Too many attempts. Please resend OTP."}, status=status.HTTP_400_BAD_REQUEST)
 
-    # ✅ verify hash
     ok = check_password(code, otp.code_hash)
 
     otp.attempts += 1
@@ -232,7 +225,7 @@ def verify_otp(request):
             user.role = pending.role
             user.address = pending.address
             user.phone = pending.phone
-            user.is_email_verified = True
+            user.is_email_verified = True  # ✅ verified forever after this
             user.save()
 
             otp.is_used = True
@@ -241,14 +234,14 @@ def verify_otp(request):
             pending.is_used = True
             pending.save(update_fields=["is_used"])
 
-        return Response({"message": "OTP verified. Account created. You can login now."}, status=status.HTTP_200_OK)
+        return Response({"message": "OTP verified. Account activated. You can login anytime now."}, status=status.HTTP_200_OK)
 
     except Exception as e:
         return Response({"error": f"Account creation failed: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 # =========================================================
-# LOGIN USER (Owner/Tenant)
+# ✅ LOGIN USER (Owner/Tenant) - NO OTP, ONLY email+password
 # =========================================================
 @api_view(["POST"])
 @permission_classes([AllowAny])
@@ -268,9 +261,9 @@ def login_user(request):
     if getattr(user, "role", None) == "admin" or user.is_staff or user.is_superuser:
         return Response({"error": "Use admin login endpoint"}, status=status.HTTP_403_FORBIDDEN)
 
-    # ✅ require verified email
+    # ✅ must be verified ONCE (signup OTP)
     if getattr(user, "is_email_verified", False) is False:
-        return Response({"error": "Email not verified. Please verify OTP first."}, status=status.HTTP_403_FORBIDDEN)
+        return Response({"error": "Email not verified. Please verify signup OTP first."}, status=status.HTTP_403_FORBIDDEN)
 
     tokens = get_tokens_for_user(user)
 

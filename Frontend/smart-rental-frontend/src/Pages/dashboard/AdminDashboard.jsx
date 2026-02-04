@@ -5,7 +5,7 @@ import Shell from "../../components/Shell";
 import Toast from "../../components/Toast";
 
 export default function AdminDashboard() {
-  const { auth, logout } = useAuth(); // ✅ FIX
+  const { auth, logout } = useAuth();
   const email = auth?.email || "";
 
   const [toast, setToast] = useState({ type: "info", msg: "" });
@@ -18,9 +18,12 @@ export default function AdminDashboard() {
       setLoading(true);
       try {
         // ✅ IMPORTANT: NO leading "/" or axios will drop /api/
+        // ✅ FIXED: These must match Django urls.py:
+        //     path("admin/owners/", list_owners)
+        //     path("admin/tenants/", list_tenants)
         const [ownersRes, tenantsRes] = await Promise.all([
-          api.get("admin/users/owners/"),
-          api.get("admin/users/tenants/"),
+          api.get("admin/owners/"),
+          api.get("admin/tenants/"),
         ]);
 
         const ownersList = Array.isArray(ownersRes.data)
@@ -43,6 +46,7 @@ export default function AdminDashboard() {
           (typeof data === "string" ? data : "") ||
           `Failed to load users (status: ${status || "?"}).`;
 
+        // Default error message
         setToast({ type: "error", msg });
 
         // Helpful hints based on status
@@ -61,7 +65,7 @@ export default function AdminDashboard() {
         if (status === 404) {
           setToast({
             type: "error",
-            msg: "Not found (404). Check Django URL patterns for admin/users/owners and admin/users/tenants.",
+            msg: "Not found (404). Check Django URL patterns for admin/owners and admin/tenants.",
           });
         }
       } finally {

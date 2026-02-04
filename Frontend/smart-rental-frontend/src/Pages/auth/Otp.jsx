@@ -1,26 +1,43 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useLocation } from "react-router-dom";
+import Shell from "../../components/Shell";
+import TextField from "../../components/TextField";
+import Toast from "../../components/Toast";
 import api from "../../api/axios";
 
 export default function Otp() {
   const nav = useNavigate();
+  const location = useLocation();
 
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState("");
+  const [toast, setToast] = useState({ type: "info", msg: "" });
 
   useEffect(() => {
     const savedEmail = sessionStorage.getItem("otp_email");
     if (savedEmail) setEmail(savedEmail);
-  }, []);
+
+    // ✅ Show toast passed from Register page
+    const passedToast = location?.state?.toast;
+    if (passedToast?.msg) {
+      setToast(passedToast);
+      // clear history state so refresh doesn’t repeat the toast
+      window.history.replaceState({}, document.title);
+    } else if (savedEmail) {
+      // ✅ If user opened OTP page directly but email exists
+      setToast({
+        type: "info",
+        msg: `OTP has been sent to ${savedEmail}. Check Inbox/Spam.`,
+      });
+    }
+  }, [location]);
 
   const submit = async (e) => {
     e.preventDefault();
-    setMsg("");
 
     if (!email || !code) {
-      setMsg("❌ Email or OTP missing.");
+      setToast({ type: "error", msg: "Email or OTP missing." });
       return;
     }
 
@@ -33,47 +50,61 @@ export default function Otp() {
       });
 
       sessionStorage.removeItem("otp_email");
-      setMsg("✅ OTP verified. You can login now.");
+
+      setToast({ type: "success", msg: "OTP verified. You can login now." });
       setTimeout(() => nav("/auth", { replace: true }), 800);
     } catch (err) {
-      setMsg("❌ " + (err?.response?.data?.error || "OTP verification failed"));
+      setToast({
+        type: "error",
+        msg:
+          err?.response?.data?.detail ||
+          err?.response?.data?.error ||
+          "OTP verification failed",
+      });
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div style={{ maxWidth: 480, margin: "40px auto", padding: 20 }}>
-      <h2>OTP Verification</h2>
-      <p>Enter signup OTP</p>
+    <Shell title="OTP Verification" subtitle="Enter the OTP sent to your email">
+      <Toast
+        type={toast.type}
+        message={toast.msg}
+        onClose={() => setToast({ type: "info", msg: "" })}
+      />
 
-      {msg ? <div style={{ marginBottom: 12 }}>{msg}</div> : null}
+      <div className="mt-3 text-sm opacity-80">
+        Tip: If you don’t see the OTP, check <b>Spam/Junk</b>.
+      </div>
 
-      <form onSubmit={submit} style={{ display: "grid", gap: 10 }}>
-        <input
-          placeholder="example@gmail.com"
+      <form onSubmit={submit} className="mt-6 grid gap-4">
+        <TextField
+          label="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
-          style={{ padding: 10 }}
         />
 
-        <input
-          placeholder="6 digit OTP"
+        <TextField
+          label="OTP Code"
           value={code}
           onChange={(e) => setCode(e.target.value)}
           required
-          style={{ padding: 10 }}
         />
 
-        <button disabled={loading} type="submit" style={{ padding: 10 }}>
+        <button
+          disabled={loading}
+          type="submit"
+          className="rounded-2xl bg-indigo-500 px-5 py-3 text-sm font-medium"
+        >
           {loading ? "Verifying..." : "Verify OTP"}
         </button>
 
-        <Link to="/auth" style={{ textAlign: "center" }}>
+        <Link to="/auth" className="text-sm text-center text-indigo-300">
           Back to login
         </Link>
       </form>
-    </div>
+    </Shell>
   );
 }

@@ -12,6 +12,9 @@ import UserAuth from "./pages/auth/UserAuth";
 import AdminLogin from "./pages/auth/AdminLogin";
 import Otp from "./pages/auth/Otp";
 
+// ✅ HIDDEN ADMIN SETUP PAGE
+import AdminSetup from "./pages/admin/AdminSetup";
+
 // DASHBOARDS
 import AdminDashboard from "./pages/dashboard/AdminDashboard";
 import OwnerDashboard from "./pages/dashboard/OwnerDashboard";
@@ -45,6 +48,9 @@ export default function App() {
       <Route path="/auth" element={<UserAuth />} />
       <Route path="/otp" element={<Otp />} />
       <Route path="/super-admin-login-9382" element={<AdminLogin />} />
+
+      {/* ✅ HIDDEN: ADMIN SETUP (register admin once) */}
+      <Route path="/setup-admin-9x2k" element={<AdminSetup />} />
 
       {/* OWNER */}
       <Route
@@ -92,7 +98,6 @@ export default function App() {
         }
       />
 
-      {/* ✅ NEW: ADMIN EMAIL BROADCAST PAGE */}
       <Route
         path="/admin/email-broadcast"
         element={
