@@ -1,3 +1,5 @@
+# Backend/myproject/myapp/view/auth_views.py
+
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
 
@@ -16,7 +18,8 @@ from django.contrib.auth.hashers import make_password, check_password
 from datetime import timedelta
 import random
 
-from ..models import PendingSignup, PendingSignupOTP  # ✅ your existing OTP models
+# ✅ IMPORTANT: include Tenant/Owner here
+from ..models import PendingSignup, PendingSignupOTP, Tenant, Owner
 
 User = get_user_model()
 
@@ -66,9 +69,6 @@ def send_otp_email(to_email, code):
     if not from_email:
         raise Exception("DEFAULT_FROM_EMAIL or EMAIL_HOST_USER not configured")
 
-    # ✅ Debug print so you can see OTP in terminal too
-    #print(f"[OTP DEBUG] sending signup OTP to {to_email}: {code}")
-
     send_mail(
         subject="Smart Rental House Finder - Signup OTP",
         message=f"Your signup OTP code is: {code}\n\n(Enter this code once to verify your email.)",
@@ -76,6 +76,31 @@ def send_otp_email(to_email, code):
         recipient_list=[to_email],
         fail_silently=False,
     )
+
+
+def ensure_role_profile(user):
+    """
+    ✅ Create Tenant/Owner row linked to the user (if missing).
+    Call this after user.save() or role updates.
+    """
+    if getattr(user, "role", None) == "tenant":
+        Tenant.objects.get_or_create(
+            user=user,
+            defaults={
+                "address": getattr(user, "address", "") or "",
+                "phone": getattr(user, "phone", "") or "",
+                "location": "",
+            },
+        )
+    elif getattr(user, "role", None) == "owner":
+        Owner.objects.get_or_create(
+            user=user,
+            defaults={
+                "address": getattr(user, "address", "") or "",
+                "phone": getattr(user, "phone", "") or "",
+                "location": "",
+            },
+        )
 
 
 # =========================================================
@@ -106,7 +131,7 @@ def register_user(request):
     if User.objects.filter(email__iexact=email).exists():
         return Response({"error": "Email already exists. Please login."}, status=status.HTTP_400_BAD_REQUEST)
 
-    # ✅ If pending signup exists (not used) -> resend OTP (no expiry needed)
+    # ✅ If pending signup exists -> resend OTP
     existing_pending = PendingSignup.objects.filter(email__iexact=email, is_used=False).order_by("-created_at").first()
     if existing_pending:
         code = generate_otp_code()
@@ -114,7 +139,7 @@ def register_user(request):
             pending=existing_pending,
             purpose="signup",
             code_hash=make_password(code),
-            expires_at=timezone.now() + timedelta(days=3650),  # ✅ effectively "no expiry"
+            expires_at=timezone.now() + timedelta(days=3650),  # no expiry
             is_used=False,
         )
         try:
@@ -122,10 +147,7 @@ def register_user(request):
         except Exception as e:
             return Response({"error": f"OTP send failed: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        return Response(
-            {"message": "OTP resent. Please verify OTP once.", "email": email},
-            status=status.HTTP_200_OK,
-        )
+        return Response({"message": "OTP resent. Please verify OTP once.", "email": email}, status=status.HTTP_200_OK)
 
     # ✅ make username unique (against REAL users + pending signups)
     base_username = username
@@ -142,10 +164,10 @@ def register_user(request):
             email=email,
             username=username,
             role=role,
-            password_hash=make_password(password),  # ✅ store hashed password
+            password_hash=make_password(password),  # store hashed password
             address=address,
             phone=str(phone),
-            expires_at=timezone.now() + timedelta(days=3650),  # ✅ effectively "no expiry"
+            expires_at=timezone.now() + timedelta(days=3650),
             is_used=False,
         )
 
@@ -154,7 +176,7 @@ def register_user(request):
             pending=pending,
             purpose="signup",
             code_hash=make_password(code),
-            expires_at=timezone.now() + timedelta(days=3650),  # ✅ effectively "no expiry"
+            expires_at=timezone.now() + timedelta(days=3650),
             is_used=False,
         )
 
@@ -172,7 +194,7 @@ def register_user(request):
 
 
 # =========================================================
-# ✅ VERIFY OTP (creates real User) - NO 10 minute expiry check
+# ✅ VERIFY OTP (creates real User) + ✅ creates Tenant/Owner row
 # =========================================================
 @api_view(["POST"])
 @permission_classes([AllowAny])
@@ -210,7 +232,6 @@ def verify_otp(request):
     if not ok:
         return Response({"error": "Invalid OTP"}, status=status.HTTP_400_BAD_REQUEST)
 
-    # ✅ Create real user
     try:
         with transaction.atomic():
             if User.objects.filter(email__iexact=email).exists():
@@ -221,12 +242,15 @@ def verify_otp(request):
                 email=pending.email,
                 password=None,
             )
-            user.password = pending.password_hash  # ✅ already hashed
+            user.password = pending.password_hash  # already hashed
             user.role = pending.role
             user.address = pending.address
             user.phone = pending.phone
-            user.is_email_verified = True  # ✅ verified forever after this
+            user.is_email_verified = True
             user.save()
+
+            # ✅ create Tenant/Owner profile
+            ensure_role_profile(user)
 
             otp.is_used = True
             otp.save(update_fields=["is_used"])
@@ -234,18 +258,34 @@ def verify_otp(request):
             pending.is_used = True
             pending.save(update_fields=["is_used"])
 
-        return Response({"message": "OTP verified. Account activated. You can login anytime now."}, status=status.HTTP_200_OK)
+        tokens = get_tokens_for_user(user)
+        return Response(
+            {
+                "message": "OTP verified. Account activated. You can login anytime now.",
+                "tokens": tokens,
+                "role": user.role,
+                "user_id": user.id,
+                "email": user.email,
+                "username": user.username,
+            },
+            status=status.HTTP_200_OK,
+        )
 
     except Exception as e:
         return Response({"error": f"Account creation failed: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 # =========================================================
-# ✅ LOGIN USER (Owner/Tenant) - NO OTP, ONLY email+password
+# ✅ LOGIN (ADMIN + OWNER + TENANT) - email+password
 # =========================================================
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def login_user(request):
+    """
+    ✅ Single login endpoint for ALL roles.
+    Frontend sends email + password only.
+    Backend returns tokens + role.
+    """
     email = (request.data.get("email") or "").strip().lower()
     password = request.data.get("password")
 
@@ -257,12 +297,8 @@ def login_user(request):
     if not user or not user.check_password(password):
         return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
 
-    # ✅ prevent admin login from user login endpoint
-    if getattr(user, "role", None) == "admin" or user.is_staff or user.is_superuser:
-        return Response({"error": "Use admin login endpoint"}, status=status.HTTP_403_FORBIDDEN)
-
-    # ✅ must be verified ONCE (signup OTP)
-    if getattr(user, "is_email_verified", False) is False:
+    # ✅ Only require verification for owner/tenant (admin is registered as verified)
+    if getattr(user, "role", None) in ["owner", "tenant"] and getattr(user, "is_email_verified", False) is False:
         return Response({"error": "Email not verified. Please verify signup OTP first."}, status=status.HTTP_403_FORBIDDEN)
 
     tokens = get_tokens_for_user(user)
@@ -271,7 +307,7 @@ def login_user(request):
         {
             "message": "Login successful",
             "tokens": tokens,
-            "role": user.role,
+            "role": user.role,  # admin/owner/tenant
             "user_id": user.id,
             "email": user.email,
             "username": user.username,
@@ -341,7 +377,7 @@ def register_admin(request):
 
 
 # =========================================================
-# ADMIN LOGIN
+# ADMIN LOGIN (Optional now - you can keep)
 # =========================================================
 @api_view(["POST"])
 @permission_classes([AllowAny])
@@ -452,6 +488,8 @@ def user_detail_crud(request, user_id):
             user.phone = str(data.get("phone", user.phone))
 
         user.save()
+        ensure_role_profile(user)
+
         return Response({"message": "User updated"}, status=status.HTTP_200_OK)
 
     # DELETE

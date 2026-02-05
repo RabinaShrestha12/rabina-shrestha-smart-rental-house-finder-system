@@ -5,10 +5,9 @@ import "./UserAuth.css";
 
 export default function UserAuth() {
   const navigate = useNavigate();
-  const { loginUser, loginAdmin, registerUser } = useAuth();
+  const { loginUser, registerUser } = useAuth(); // ✅ only loginUser + registerUser needed
 
   const [tab, setTab] = useState("login"); // login | register
-  const [loginType, setLoginType] = useState("user"); // user | admin
   const [msg, setMsg] = useState("");
   const [showPwd, setShowPwd] = useState(false);
 
@@ -18,7 +17,7 @@ export default function UserAuth() {
   // register fields
   const [reg, setReg] = useState({
     role: "tenant",
-    username: "",   // ✅ use username (backend field)
+    username: "",
     address: "",
     phone: "",
     email: "",
@@ -28,23 +27,42 @@ export default function UserAuth() {
   const onLogChange = (e) => setLog({ ...log, [e.target.name]: e.target.value });
   const onRegChange = (e) => setReg({ ...reg, [e.target.name]: e.target.value });
 
+  const goByRole = (role) => {
+    const r = (role || "").toLowerCase();
+    if (r === "admin") return navigate("/admin", { replace: true });
+    if (r === "owner") return navigate("/owner", { replace: true });
+    if (r === "tenant") return navigate("/tenant", { replace: true });
+    return navigate("/", { replace: true });
+  };
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setMsg("");
 
     try {
-      const data =
-        loginType === "admin"
-          ? await loginAdmin(log.email, log.password)
-          : await loginUser(log.email, log.password);
+      // ✅ ONE login (backend decides role)
+      const data = await loginUser(log.email, log.password);
 
-      // ✅ redirect must match App.js: /owner /tenant /admin
-      if (data.role === "admin") navigate("/admin");
-      else if (data.role === "owner") navigate("/owner");
-      else if (data.role === "tenant") navigate("/tenant");
-      else navigate("/");
+      // ✅ if your backend uses OTP for login, keep this (optional)
+      if (data?.verification_required) {
+        navigate("/otp", {
+          state: {
+            otp_token: data.otp_token,
+            purpose: data.purpose || "login",
+            email: log.email,
+          },
+        });
+        return;
+      }
 
-      setMsg("✅ Login successful. Redirecting…");
+      // ✅ redirect to dashboard based on role from backend
+      if (data?.role) {
+        setMsg("✅ Login successful. Redirecting…");
+        goByRole(data.role);
+        return;
+      }
+
+      setMsg("❌ Login failed: Unexpected response from server.");
     } catch (err) {
       const detail =
         err?.response?.data?.error ||
@@ -59,15 +77,11 @@ export default function UserAuth() {
     setMsg("");
 
     try {
-      // ✅ register API call (backend sends OTP)
       await registerUser(reg);
 
-      // ✅ save email for OTP page autofill
       sessionStorage.setItem("otp_email", (reg.email || "").trim().toLowerCase());
 
       setMsg("✅ Registered. OTP sent to your email. Please verify OTP.");
-
-      // ✅ go to OTP page after register
       navigate("/otp", { replace: true });
     } catch (err) {
       const detail =
@@ -86,19 +100,15 @@ export default function UserAuth() {
             <div className="logo-badge" />
             <div>
               <h1>Smart Rental System</h1>
-              <p>Login/Register and go to your role-based dashboard.</p>
+              <p>Login/Register and go to your dashboard.</p>
             </div>
           </div>
 
-          <div className="badge-row">
-            <div className="badge">JWT Auth</div>
-            <div className="badge">Role Based</div>
-            <div className="badge">Owner • Tenant • Admin</div>
-          </div>
+          {/* ❌ removed badges row */}
         </div>
 
-        <div className="auth-grid">
-          {/* LEFT */}
+        {/* ✅ single centered card */}
+        <div className="auth-grid single">
           <div className="card">
             <div className="tabs">
               <button
@@ -119,34 +129,7 @@ export default function UserAuth() {
 
             {tab === "login" ? (
               <form onSubmit={handleLogin}>
-                <div className="section-title">
-                  <h3>Choose account type</h3>
-                  <span className="hint">Use your email + password</span>
-                </div>
-
-                <div className="role-chips">
-                  <label className="chip">
-                    <input
-                      type="radio"
-                      name="loginType"
-                      value="user"
-                      checked={loginType === "user"}
-                      onChange={() => setLoginType("user")}
-                    />
-                    Owner / Tenant
-                  </label>
-
-                  <label className="chip">
-                    <input
-                      type="radio"
-                      name="loginType"
-                      value="admin"
-                      checked={loginType === "admin"}
-                      onChange={() => setLoginType("admin")}
-                    />
-                    Admin
-                  </label>
-                </div>
+                {/* ❌ removed choose account type */}
 
                 <div className="field">
                   <div className="label">Email</div>
@@ -180,9 +163,7 @@ export default function UserAuth() {
                 </div>
 
                 <button className="btn" type="submit">
-                  {loginType === "admin"
-                    ? "Login as Admin"
-                    : "Login as Owner/Tenant"}
+                  Login
                 </button>
 
                 <button
@@ -196,8 +177,8 @@ export default function UserAuth() {
             ) : (
               <form onSubmit={handleRegister}>
                 <div className="section-title">
-                  <h3>Create owner/tenant account</h3>
-                  <span className="hint">Role + basic details</span>
+                  <h3>Create account</h3>
+                  <span className="hint">Owner/Tenant register</span>
                 </div>
 
                 <div className="field">
@@ -297,42 +278,6 @@ export default function UserAuth() {
                 {msg}
               </div>
             )}
-          </div>
-
-          {/* RIGHT */}
-          <div className="card">
-            <div className="section-title">
-              <h3>Quick guide</h3>
-              <span className="hint">How it works</span>
-            </div>
-
-            <div className="side-list">
-              <div className="side-item">
-                <div className="t">Login</div>
-                <div className="d">
-                  Select role and login → you go to your dashboard automatically.
-                </div>
-              </div>
-
-              <div className="side-item">
-                <div className="t">Register</div>
-                <div className="d">
-                  Tenant/Owner registers → OTP verify → then login.
-                </div>
-              </div>
-
-              <div className="side-item">
-                <div className="t">Role Security</div>
-                <div className="d">
-                  Owner cannot open Tenant pages, and Admin has separate access.
-                </div>
-              </div>
-            </div>
-
-            <div className="alert" style={{ marginTop: 14, opacity: 0.9 }}>
-              Tip: If you refresh the page, you stay logged in because token is saved
-              in localStorage.
-            </div>
           </div>
         </div>
       </div>
