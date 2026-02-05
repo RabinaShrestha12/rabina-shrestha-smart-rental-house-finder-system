@@ -18,6 +18,18 @@ function toImageSrc(value) {
   return `${BACKEND}/${s}`;
 }
 
+function weekToMonth(weekly) {
+  const n = Number(weekly);
+  if (Number.isNaN(n) || n <= 0) return null;
+  return n * 4.345;
+}
+
+function money(v) {
+  const n = Number(v);
+  if (Number.isNaN(n)) return "";
+  return Number.isInteger(n) ? String(n) : n.toFixed(2);
+}
+
 export default function HomePublic() {
   const nav = useNavigate();
 
@@ -28,13 +40,31 @@ export default function HomePublic() {
   const [location, setLocation] = useState("");
   const [type, setType] = useState("");
 
+  // ✅ Read auth state
   const token = localStorage.getItem("access");
   const role = localStorage.getItem("role");
+
+  // ✅ Save redirect then go to auth
+  const goToAuth = (redirectTo) => {
+    sessionStorage.setItem("post_login_redirect", redirectTo);
+    nav("/auth");
+  };
+
+  // ✅ Send user to THEIR dashboard (admin/owner/tenant)
+  // IMPORTANT: your app routes are /admin, /owner, /tenant (not /admin/dashboard)
+  const goToDashboardByRole = () => {
+    const r = localStorage.getItem("role");
+    if (r === "admin") return nav("/admin");
+    if (r === "owner") return nav("/owner");
+    return nav("/tenant");
+  };
 
   const loadListings = async () => {
     setLoading(true);
     try {
-      const res = await api.get("/public/listings/", { params: { q, location, type } });
+      const res = await api.get("/public/listings/", {
+        params: { q, location, type },
+      });
       setListings(res.data || []);
     } catch (err) {
       console.error(err);
@@ -63,13 +93,30 @@ export default function HomePublic() {
 
     if (!t) {
       alert("Please login / register first to add a property.");
-      return nav("/auth");
+      return goToAuth("/owner/listings/create");
     }
     if (r !== "owner") {
       alert("Only Owner account can add a property. Please login as Owner.");
-      return nav("/unauthorized");
+      return goToDashboardByRole();
     }
     nav("/owner/listings/create");
+  };
+
+  // ✅ Booking click handler: always works (even if not logged in)
+  const handleBookingClick = (listingId, booked) => {
+    if (booked) return;
+
+    const t = localStorage.getItem("access");
+    const r = localStorage.getItem("role");
+
+    if (!t) return goToAuth(`/tenant/book/${listingId}`);
+
+    if (r !== "tenant") {
+      alert("Please login as Tenant to book a property.");
+      return goToAuth(`/tenant/book/${listingId}`);
+    }
+
+    nav(`/tenant/book/${listingId}`);
   };
 
   // ---------------- STYLES ----------------
@@ -78,7 +125,6 @@ export default function HomePublic() {
     padding: "26px 14px",
     position: "relative",
     overflow: "hidden",
-    // ✅ much more color (less white)
     background:
       "radial-gradient(900px 500px at 10% 10%, rgba(34,211,238,0.45) 0%, rgba(34,211,238,0) 60%)," +
       "radial-gradient(900px 520px at 85% 15%, rgba(168,85,247,0.42) 0%, rgba(168,85,247,0) 60%)," +
@@ -114,7 +160,8 @@ export default function HomePublic() {
 
   const btnPrimary = {
     ...btnBase,
-    background: "linear-gradient(135deg, rgba(59,130,246,0.95) 0%, rgba(168,85,247,0.95) 100%)",
+    background:
+      "linear-gradient(135deg, rgba(59,130,246,0.95) 0%, rgba(168,85,247,0.95) 100%)",
     border: "1px solid rgba(255,255,255,0.18)",
   };
 
@@ -139,7 +186,11 @@ export default function HomePublic() {
     color: "#e5e7eb",
   };
 
-  const smallHint = { color: "rgba(229,231,235,0.70)", fontSize: 12, marginTop: 6 };
+  const smallHint = {
+    color: "rgba(229,231,235,0.70)",
+    fontSize: 12,
+    marginTop: 6,
+  };
 
   const tag = {
     display: "inline-flex",
@@ -214,7 +265,6 @@ export default function HomePublic() {
     fontWeight: 900,
   });
 
-  // ✅ Responsive + 4 columns on desktop
   const responsiveCss = `
     .searchGrid { display:grid; grid-template-columns: 1.2fr 1.2fr .7fr auto auto; gap: 10px; align-items: end; }
     .listingGrid { display:grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-top: 14px; }
@@ -258,13 +308,23 @@ export default function HomePublic() {
           <div className="searchGrid">
             <div>
               <div style={label}>Search</div>
-              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search title" style={input} />
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search title"
+                style={input}
+              />
               <div style={smallHint}>Example: “room”, “house”, “near college”</div>
             </div>
 
             <div>
               <div style={label}>Location</div>
-              <input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Location" style={input} />
+              <input
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                placeholder="Location"
+                style={input}
+              />
               <div style={smallHint}>Example: “Ithari”, “Canberra”</div>
             </div>
 
@@ -311,15 +371,17 @@ export default function HomePublic() {
                   item.pano_down_url;
 
                 const thumb = toImageSrc(item.pano_front_url || item.image_url || item.image);
-
                 const booked = item.status === "booked" || item.is_available === false;
 
-                let btnLabel = "Request Booking";
-                if (!token) btnLabel = "Login to Book";
-                else if (role !== "tenant") btnLabel = "Only Tenant Can Book";
-                else if (booked) btnLabel = "Booked";
+                const monthPriceRaw =
+                  item.price_per_month ??
+                  (item.price_per_week ? weekToMonth(item.price_per_week) : null);
 
-                const disabled = booked || (token && role !== "tenant");
+                const monthPriceText = monthPriceRaw == null ? "-" : money(monthPriceRaw);
+
+                // ✅ Button label always "Booking" (unless booked)
+                let btnLabel = booked ? "Booked" : "Booking";
+                const disabled = booked;
 
                 return (
                   <div
@@ -364,16 +426,31 @@ export default function HomePublic() {
                         {item.title || "About Property"}
                       </h4>
 
-                      <div style={{ color: "rgba(229,231,235,0.86)", fontSize: 13, display: "grid", gap: 6 }}>
+                      <div
+                        style={{
+                          color: "rgba(229,231,235,0.86)",
+                          fontSize: 13,
+                          display: "grid",
+                          gap: 6,
+                        }}
+                      >
                         <div>
                           <b>Location:</b> {item.location || "-"}
                         </div>
+
                         <div>
-                          <b>Price:</b> ${item.price_per_week}/week
+                          <b>Price:</b> ${monthPriceText}/month
                         </div>
                       </div>
 
-                      <p style={{ margin: "10px 0 0", color: "rgba(229,231,235,0.75)", fontSize: 13, lineHeight: 1.5 }}>
+                      <p
+                        style={{
+                          margin: "10px 0 0",
+                          color: "rgba(229,231,235,0.75)",
+                          fontSize: 13,
+                          lineHeight: 1.5,
+                        }}
+                      >
                         {(item.description || "This property is ...").slice(0, 90)}
                         {(item.description || "").length > 90 ? "..." : ""}
                       </p>
@@ -386,11 +463,7 @@ export default function HomePublic() {
                         <button
                           style={bookingBtn(disabled)}
                           disabled={disabled}
-                          onClick={() => {
-                            if (!token) return nav("/auth");
-                            if (role !== "tenant") return nav("/unauthorized");
-                            nav(`/tenant/book/${item.id}`);
-                          }}
+                          onClick={() => handleBookingClick(item.id, booked)}
                         >
                           {btnLabel}
                         </button>

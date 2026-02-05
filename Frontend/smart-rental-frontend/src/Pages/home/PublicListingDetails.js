@@ -1,3 +1,4 @@
+// src/pages/home/PublicListingDetails.js
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import api from "../../api/axios";
@@ -24,28 +25,103 @@ export default function PublicListingDetails() {
 
   const [listing, setListing] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
 
   const token = localStorage.getItem("access");
   const role = localStorage.getItem("role"); // tenant/owner/admin
 
+  const axiosErr = (e, fallback) =>
+    e?.response?.data?.detail ||
+    e?.response?.data?.message ||
+    (typeof e?.response?.data === "string" ? e.response.data : "") ||
+    e?.message ||
+    fallback;
+
   useEffect(() => {
     (async () => {
       setLoading(true);
+      setErr("");
       try {
-        // ✅ Your backend detail endpoint should be like this:
-        const res = await api.get(`/public/listings/${id}/`);
-        setListing(res.data);
+        // ✅ UPDATED: baseURL already ends with /api/ so do NOT start with /
+        // This becomes: http://127.0.0.1:8000/api/public/listings/<id>/
+        const res = await api.get(`public/listings/${id}/`);
+
+        // handle shapes (just in case)
+        const data = res.data?.data || res.data?.results?.[0] || res.data;
+
+        if (!data || typeof data !== "object") {
+          throw new Error("Invalid listing detail response.");
+        }
+
+        setListing(data);
       } catch (e) {
-        console.error(e);
-        alert("Failed to load property details.");
-        nav("/", { replace: true });
+        console.error("DETAIL LOAD ERROR:", e?.response?.status, e?.response?.data, e);
+        setErr(
+          axiosErr(
+            e,
+            `Failed to load property details for id=${id}. Check endpoint public/listings/${id}/`
+          )
+        );
+        // Don't auto redirect, let user see error
       } finally {
         setLoading(false);
       }
     })();
-  }, [id, nav]);
+  }, [id]);
 
   if (loading) return <div style={{ padding: 20 }}>Loading...</div>;
+
+  if (err) {
+    return (
+      <div style={{ padding: 20 }}>
+        <h3 style={{ marginTop: 0 }}>Could not load property</h3>
+        <div
+          style={{
+            padding: 12,
+            borderRadius: 10,
+            border: "1px solid #fca5a5",
+            background: "#fee2e2",
+            color: "#7f1d1d",
+            maxWidth: 900,
+            whiteSpace: "pre-wrap",
+          }}
+        >
+          {err}
+        </div>
+
+        <div style={{ marginTop: 12, display: "flex", gap: 10 }}>
+          <button
+            onClick={() => nav(-1)}
+            style={{
+              padding: "10px 14px",
+              borderRadius: 8,
+              border: "1px solid #ccc",
+              background: "#fff",
+              cursor: "pointer",
+              fontWeight: 700,
+            }}
+          >
+            ← Back
+          </button>
+
+          <button
+            onClick={() => nav("/listings")}
+            style={{
+              padding: "10px 14px",
+              borderRadius: 8,
+              border: "1px solid #ccc",
+              background: "#fff",
+              cursor: "pointer",
+              fontWeight: 700,
+            }}
+          >
+            Go to Listings
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (!listing) return <div style={{ padding: 20 }}>Not found.</div>;
 
   const cover = toImageSrc(listing.image_url || listing.image || listing.pano_front_url);
@@ -53,7 +129,11 @@ export default function PublicListingDetails() {
   const price =
     listing.price_per_month != null
       ? { value: listing.price_per_month, label: "/month" }
-      : { value: listing.price_per_week, label: "/week" };
+      : listing.price_per_month != null
+      ? { value: listing.price_per_week, label: "/week" }
+      : listing.rent != null
+      ? { value: listing.rent, label: "/month" }
+      : { value: "—", label: "" };
 
   const has360 =
     listing.pano_front_url &&
@@ -66,10 +146,17 @@ export default function PublicListingDetails() {
   return (
     <div style={{ maxWidth: 1100, margin: "0 auto", padding: 20 }}>
       {/* Top buttons */}
-      <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
+      <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
         <button
           onClick={() => nav(-1)}
-          style={{ padding: "10px 14px", borderRadius: 8, border: "1px solid #ccc", background: "#fff", cursor: "pointer", fontWeight: 700 }}
+          style={{
+            padding: "10px 14px",
+            borderRadius: 8,
+            border: "1px solid #ccc",
+            background: "#fff",
+            cursor: "pointer",
+            fontWeight: 700,
+          }}
         >
           ← Back
         </button>
@@ -77,7 +164,14 @@ export default function PublicListingDetails() {
         {has360 && (
           <button
             onClick={() => nav(`/listing/${listing.id}/360`)}
-            style={{ padding: "10px 14px", borderRadius: 8, border: "1px solid #ccc", background: "#fff", cursor: "pointer", fontWeight: 700 }}
+            style={{
+              padding: "10px 14px",
+              borderRadius: 8,
+              border: "1px solid #ccc",
+              background: "#fff",
+              cursor: "pointer",
+              fontWeight: 700,
+            }}
           >
             View 360°
           </button>
@@ -106,12 +200,28 @@ export default function PublicListingDetails() {
       </div>
 
       {/* Main card */}
-      <div style={{ border: "1px solid #ddd", borderRadius: 12, padding: 16, display: "flex", gap: 16 }}>
+      <div
+        style={{
+          border: "1px solid #ddd",
+          borderRadius: 12,
+          padding: 16,
+          display: "flex",
+          gap: 16,
+          flexWrap: "wrap",
+        }}
+      >
         {/* Image */}
         <img
           src={cover}
           alt="cover"
-          style={{ width: 360, height: 240, objectFit: "cover", borderRadius: 12, border: "1px solid #ccc", background: "#f7f7f7" }}
+          style={{
+            width: 360,
+            height: 240,
+            objectFit: "cover",
+            borderRadius: 12,
+            border: "1px solid #ccc",
+            background: "#f7f7f7",
+          }}
           onError={(e) => {
             e.currentTarget.onerror = null;
             e.currentTarget.src = "/no-image.png";
@@ -119,12 +229,12 @@ export default function PublicListingDetails() {
         />
 
         {/* Info */}
-        <div style={{ flex: 1 }}>
-          <h2 style={{ marginTop: 0 }}>{listing.title}</h2>
+        <div style={{ flex: 1, minWidth: 280 }}>
+          <h2 style={{ marginTop: 0 }}>{listing.title || "Property"}</h2>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <div><b>Type:</b> {listing.property_type}</div>
-            <div><b>Location:</b> {listing.location}</div>
+            <div><b>Type:</b> {listing.property_type || "—"}</div>
+            <div><b>Location:</b> {listing.location || listing.address || "—"}</div>
             <div><b>Price:</b> ${price.value}{price.label}</div>
             {listing.electricity_bill && <div><b>Electricity:</b> {listing.electricity_bill}</div>}
             {listing.owner_contact_number && <div><b>Owner phone:</b> {listing.owner_contact_number}</div>}
@@ -133,7 +243,9 @@ export default function PublicListingDetails() {
 
           <div style={{ marginTop: 12 }}>
             <b>Description</b>
-            <p style={{ marginTop: 6, lineHeight: 1.5 }}>{listing.description || "No description."}</p>
+            <p style={{ marginTop: 6, lineHeight: 1.5 }}>
+              {listing.description || "No description."}
+            </p>
           </div>
         </div>
       </div>
@@ -157,7 +269,10 @@ export default function PublicListingDetails() {
                   src={toImageSrc(url)}
                   alt={label}
                   style={{ width: "100%", height: 140, objectFit: "cover", borderRadius: 10, border: "1px solid #ccc" }}
-                  onError={(e) => (e.currentTarget.src = "/no-image.png")}
+                  onError={(e) => {
+                    e.currentTarget.onerror = null;
+                    e.currentTarget.src = "/no-image.png";
+                  }}
                 />
               </div>
             ))}

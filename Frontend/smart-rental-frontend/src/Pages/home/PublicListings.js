@@ -18,13 +18,24 @@ function toImageSrc(value) {
   return `${BACKEND}/${s}`;
 }
 
+function weekToMonth(weekly) {
+  const n = Number(weekly);
+  if (Number.isNaN(n) || n <= 0) return null;
+  return n * 4.345;
+}
+
+function money(v) {
+  const n = Number(v);
+  if (Number.isNaN(n)) return "";
+  return Number.isInteger(n) ? String(n) : n.toFixed(2);
+}
+
 export default function PublicListings() {
   const navigate = useNavigate();
 
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // search states
   const [qTitle, setQTitle] = useState("");
   const [qLocation, setQLocation] = useState("");
   const [qType, setQType] = useState("all");
@@ -43,7 +54,6 @@ export default function PublicListings() {
     })();
   }, []);
 
-  // ✅ Client-side filter (works instantly)
   const filtered = useMemo(() => {
     const t = qTitle.trim().toLowerCase();
     const loc = qLocation.trim().toLowerCase();
@@ -62,11 +72,31 @@ export default function PublicListings() {
     setQType("all");
   };
 
-  const goBook = (listingId) => navigate(`/tenant/book/${listingId}`);
   const go360 = (listingId) => navigate(`/listing/${listingId}/360`);
-
-  // ✅ NEW: details route
   const goDetails = (listingId) => navigate(`/listings/${listingId}`);
+
+  // ✅ Booking with auth check + redirect save
+  const goBook = (listingId, booked) => {
+    if (booked) return;
+
+    const token = localStorage.getItem("access");
+    const role = localStorage.getItem("role");
+
+    if (!token) {
+      sessionStorage.setItem("post_login_redirect", `/tenant/book/${listingId}`);
+      navigate("/auth");
+      return;
+    }
+
+    if (role !== "tenant") {
+      alert("Please login as Tenant to book a property.");
+      sessionStorage.setItem("post_login_redirect", `/tenant/book/${listingId}`);
+      navigate("/auth");
+      return;
+    }
+
+    navigate(`/tenant/book/${listingId}`);
+  };
 
   if (loading) return <div style={{ padding: 16 }}>Loading...</div>;
 
@@ -97,6 +127,7 @@ export default function PublicListings() {
             minWidth: 200,
           }}
         />
+
         <input
           value={qLocation}
           onChange={(e) => setQLocation(e.target.value)}
@@ -108,6 +139,7 @@ export default function PublicListings() {
             minWidth: 200,
           }}
         />
+
         <select
           value={qType}
           onChange={(e) => setQType(e.target.value)}
@@ -124,7 +156,6 @@ export default function PublicListings() {
           <option value="apartment">Apartment</option>
         </select>
 
-        {/* ✅ Search button (optional) */}
         <button
           onClick={() => {}}
           style={{ padding: "10px 14px", borderRadius: 10 }}
@@ -133,16 +164,15 @@ export default function PublicListings() {
           Search
         </button>
 
-        {/* ✅ Reset */}
-        <button
-          onClick={reset}
-          style={{ padding: "10px 14px", borderRadius: 10 }}
-        >
+        <button onClick={reset} style={{ padding: "10px 14px", borderRadius: 10 }}>
           Reset
         </button>
       </div>
 
-      <h3 style={{ marginTop: 0 }}>Available Listings</h3>
+      <h3 style={{ marginTop: 0 }}>
+        Available Listings{" "}
+        <span style={{ fontSize: 12, opacity: 0.7 }}>({filtered.length} found)</span>
+      </h3>
 
       {filtered.length === 0 && <div>No listings found.</div>}
 
@@ -151,6 +181,11 @@ export default function PublicListings() {
         {filtered.map((l) => {
           const cover = toImageSrc(l.image_url || l.image || l.pano_front_url);
           const booked = l.is_available === false || l.status === "booked";
+
+          const monthPriceRaw =
+            l.price_per_month ?? (l.price_per_week ? weekToMonth(l.price_per_week) : null);
+
+          const monthPriceText = monthPriceRaw == null ? "-" : money(monthPriceRaw);
 
           return (
             <div
@@ -202,25 +237,20 @@ export default function PublicListings() {
 
               {/* DETAILS */}
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 900, fontSize: 16 }}>
-                  {l.title || "About Property"}
-                </div>
+                <div style={{ fontWeight: 900, fontSize: 16 }}>{l.title || "About Property"}</div>
 
                 <div style={{ marginTop: 6 }}>
-                  <b>Type:</b> {l.property_type}
+                  <b>Type:</b> {l.property_type || "-"}
                 </div>
                 <div>
-                  <b>Location:</b> {l.location}
-                </div>
-                <div>
-                  <b>Price:</b> ${l.price_per_week}/week
+                  <b>Location:</b> {l.location || "-"}
                 </div>
 
-                {l.description && (
-                  <div style={{ marginTop: 6, opacity: 0.85 }}>
-                    {l.description}
-                  </div>
-                )}
+                <div>
+                  <b>Price:</b> ${monthPriceText}/month
+                </div>
+
+                {l.description && <div style={{ marginTop: 6, opacity: 0.85 }}>{l.description}</div>}
 
                 {booked && (
                   <div
@@ -240,7 +270,6 @@ export default function PublicListings() {
 
               {/* BUTTONS */}
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {/* ✅ NEW: Details button */}
                 <button
                   onClick={() => goDetails(l.id)}
                   style={{
@@ -253,9 +282,8 @@ export default function PublicListings() {
                   Details
                 </button>
 
-                {/* Booking */}
                 <button
-                  onClick={() => goBook(l.id)}
+                  onClick={() => goBook(l.id, booked)}
                   disabled={booked}
                   style={{
                     padding: "10px 14px",
@@ -264,7 +292,7 @@ export default function PublicListings() {
                     fontWeight: 800,
                   }}
                 >
-                  {booked ? "Not Available" : "Request Booking"}
+                  {booked ? "Booked" : "Booking"}
                 </button>
               </div>
             </div>

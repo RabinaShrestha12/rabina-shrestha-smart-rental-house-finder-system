@@ -1,12 +1,15 @@
-from django.contrib.auth import authenticate
-from django.contrib.auth.models import User
+from django.contrib.auth import authenticate, get_user_model
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
+
 from ..models import Owner
 from ..serializers import OwnerSerializer
+
+User = get_user_model()
+
 
 def get_tokens_for_user(user):
     refresh = RefreshToken.for_user(user)
@@ -20,20 +23,35 @@ def owner_register(request):
     username = data.get("username")
     password = data.get("password")
     email = data.get("email")
-    phone = data.get("phone")
-    address = data.get("address")
+    phone = data.get("phone", "")
+    address = data.get("address", "")
 
-    if not username or not password:
-        return Response({"detail": "username and password are required."}, status=status.HTTP_400_BAD_REQUEST)
+    if not username or not password or not email:
+        return Response(
+            {"detail": "username, email and password are required."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
     if User.objects.filter(username=username).exists():
         return Response({"detail": "Username already exists."}, status=status.HTTP_400_BAD_REQUEST)
 
+    if User.objects.filter(email=email).exists():
+        return Response({"detail": "Email already exists."}, status=status.HTTP_400_BAD_REQUEST)
+
+    # ✅ Create user (custom user model) and set role=owner
     user = User.objects.create_user(username=username, password=password, email=email)
-    Owner.objects.create(user=user, phone=phone, address=address)
+    if hasattr(user, "role"):
+        user.role = "owner"
+        user.save(update_fields=["role"])
+
+    # ✅ Create owner profile (avoid duplicates)
+    Owner.objects.get_or_create(user=user, defaults={"phone": phone, "address": address})
 
     tokens = get_tokens_for_user(user)
-    return Response({"detail": "Owner registered successfully.", "tokens": tokens}, status=status.HTTP_201_CREATED)
+    return Response(
+        {"detail": "Owner registered successfully.", "tokens": tokens},
+        status=status.HTTP_201_CREATED,
+    )
 
 
 @api_view(["POST"])
@@ -47,8 +65,11 @@ def owner_login(request):
     if user is None:
         return Response({"detail": "Invalid username or password."}, status=status.HTTP_401_UNAUTHORIZED)
 
-    # must be owner
-    if not hasattr(user, "owner_profile"):
+    # ✅ Ensure role is owner (best) OR owner profile exists (fallback)
+    is_owner_role = getattr(user, "role", None) == "owner"
+    has_owner_profile = Owner.objects.filter(user=user).exists()
+
+    if not is_owner_role and not has_owner_profile:
         return Response({"detail": "This account is not an owner."}, status=status.HTTP_403_FORBIDDEN)
 
     tokens = get_tokens_for_user(user)
@@ -58,17 +79,20 @@ def owner_login(request):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def get_owner_profile(request):
-    if not hasattr(request.user, "owner_profile"):
+    # ✅ Load via DB (doesn't depend on related_name like owner_profile)
+    profile = Owner.objects.filter(user=request.user).first()
+    if not profile:
         return Response({"detail": "Owner profile not found."}, status=status.HTTP_404_NOT_FOUND)
 
-    profile = request.user.owner_profile
     return Response(OwnerSerializer(profile).data, status=status.HTTP_200_OK)
 
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def get_all_owners(request):
-    if not request.user.is_staff:
+    # ✅ Admin only (works even if not staff but role=admin)
+    is_admin_role = getattr(request.user, "role", None) == "admin"
+    if not request.user.is_staff and not is_admin_role:
         return Response({"detail": "Admin only."}, status=status.HTTP_403_FORBIDDEN)
 
     owners = Owner.objects.all().order_by("-id")

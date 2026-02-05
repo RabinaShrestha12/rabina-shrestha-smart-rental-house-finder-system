@@ -1,57 +1,39 @@
-from rest_framework.decorators import api_view, permission_classes, parser_classes
-from rest_framework.permissions import AllowAny, IsAuthenticated, BasePermission
+# myapp/view/owner_profile_views.py
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 
-from django.contrib.auth import get_user_model
-from myapp.models import Listing
-from myapp.serializers import ListingSerializer, OwnerProfileSerializer
-
-User = get_user_model()
+from myapp.models import Owner, Listing
+from myapp.serializers import OwnerSerializer, ListingSerializer
 
 
-class IsOwnerRole(BasePermission):
-    def has_permission(self, request, view):
-        return bool(
-            request.user
-            and request.user.is_authenticated
-            and getattr(request.user, "role", "") == "owner"
-        )
-
-
-# ✅ GET /api/owner-profile/
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def owner_profile(request):
-    if getattr(request.user, "role", "") != "owner":
-        return Response({"detail": "Only owners can access this."}, status=status.HTTP_403_FORBIDDEN)
-    return Response(
-        OwnerProfileSerializer(request.user, context={"request": request}).data,
-        status=status.HTTP_200_OK
+    user = request.user
+
+    # ✅ only owners can access
+    if getattr(user, "role", "") != "owner":
+        return Response({"detail": "Only owner can access this profile."}, status=status.HTTP_403_FORBIDDEN)
+
+    # ✅ ensure Owner table row exists
+    owner_obj, _ = Owner.objects.get_or_create(
+        user=user,
+        defaults={
+            "address": getattr(user, "address", "") or "",
+            "phone": getattr(user, "phone", "") or "",
+            "location": "",
+        },
     )
 
+    # ✅ optionally include listings
+    listings = Listing.objects.filter(owner=user).order_by("-created_at")
 
-# ✅ POST /api/owner/listings/create/  (supports image upload)
-@api_view(["POST"])
-@permission_classes([IsAuthenticated, IsOwnerRole])
-@parser_classes([MultiPartParser, FormParser])
-def owner_create_listing(request):
-    serializer = ListingSerializer(data=request.data, context={"request": request})
-    if serializer.is_valid():
-        listing = serializer.save(owner=request.user)
-        return Response(
-            ListingSerializer(listing, context={"request": request}).data,
-            status=status.HTTP_201_CREATED
-        )
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-# ✅ GET /api/public/listings/
-@api_view(["GET"])
-@permission_classes([AllowAny])
-def public_listings(request):
-    qs = Listing.objects.filter(is_available=True).order_by("-created_at")
-    serializer = ListingSerializer(qs, many=True, context={"request": request})
-    return Response(serializer.data, status=status.HTTP_200_OK)
-
+    return Response(
+        {
+            "owner": OwnerSerializer(owner_obj).data,
+            "listings": ListingSerializer(listings, many=True, context={"request": request}).data,
+        },
+        status=status.HTTP_200_OK,
+    )

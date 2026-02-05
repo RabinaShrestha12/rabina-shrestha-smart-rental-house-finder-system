@@ -5,7 +5,7 @@ from django.utils import timezone
 
 
 # =========================
-# USER MODEL
+# USER MODEL (single table for login)
 # =========================
 class User(AbstractUser):
     USER_TYPE = (
@@ -14,24 +14,27 @@ class User(AbstractUser):
         ("tenant", "Tenant"),
     )
 
-    role = models.CharField(max_length=100, choices=USER_TYPE, blank=True, default="tenant")
+    role = models.CharField(max_length=20, choices=USER_TYPE, blank=True, default="tenant")
     is_email_verified = models.BooleanField(default=False)
 
     address = models.CharField(max_length=100, blank=True, default="")
     phone = models.CharField(max_length=30, blank=True, default="")
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    def __str__(self):
+        return f"{self.username} ({self.role})"
+
 
 # =========================
-# ✅ PENDING SIGNUP (OTP BEFORE REGISTRATION)
+# PENDING SIGNUP (OTP BEFORE REGISTRATION)
 # =========================
 class PendingSignup(models.Model):
     email = models.EmailField(db_index=True)
     username = models.CharField(max_length=150)
     role = models.CharField(max_length=20)  # admin/owner/tenant
 
-    # Store only hashed password (make_password result)
     password_hash = models.CharField(max_length=128)
 
     address = models.CharField(max_length=100, blank=True, default="")
@@ -50,8 +53,7 @@ class PendingSignup(models.Model):
 
 
 # =========================
-# ✅ OTP FOR PENDING SIGNUP
-# (this is the missing model causing your ImportError)
+# OTP FOR PENDING SIGNUP
 # =========================
 class PendingSignupOTP(models.Model):
     PURPOSE_CHOICES = (("signup", "signup"),)
@@ -71,73 +73,46 @@ class PendingSignupOTP(models.Model):
 
 
 # =========================
-# OPTIONAL: OTP FOR EXISTING USERS (verify/login)
-# =========================
-class EmailOTP(models.Model):
-    PURPOSE_CHOICES = (
-        ("verify", "verify"),
-        ("login", "login"),
-    )
-
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="email_otps")
-    purpose = models.CharField(max_length=10, choices=PURPOSE_CHOICES)
-    code_hash = models.CharField(max_length=128)
-
-    created_at = models.DateTimeField(auto_now_add=True)
-    expires_at = models.DateTimeField()
-
-    is_used = models.BooleanField(default=False)
-    attempts = models.PositiveSmallIntegerField(default=0)
-
-    def __str__(self):
-        return f"{self.user.email} ({self.purpose})"
-
-
-# =========================
-# OWNER / TENANT MODELS
+# OWNER / TENANT TABLES
 # =========================
 class Owner(models.Model):
-    address = models.CharField(max_length=100)
-    phone = models.CharField(max_length=30)
-    location = models.CharField(max_length=200)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="owner",
+        null=True,       # ✅ TEMP (fix migration issue)
+        blank=True,      # ✅ TEMP
+    )
 
-    def __str__(self):
-        return f"Owner {self.id}"
-
-
-class Tenant(models.Model):
-    address = models.CharField(max_length=100)
-    phone = models.CharField(max_length=30)
-    location = models.CharField(max_length=200)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return f"Tenant {self.id}"
-
-
-class OwnerProfile(models.Model):
-    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="owner_profile")
     address = models.CharField(max_length=100, blank=True, default="")
     phone = models.CharField(max_length=30, blank=True, default="")
     location = models.CharField(max_length=200, blank=True, default="")
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"OwnerProfile({self.user.username})"
+        return f"Owner({self.user.username if self.user else 'unlinked'})"
 
 
-class TenantProfile(models.Model):
-    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="tenant_profile")
+class Tenant(models.Model):
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="tenant",
+        null=True,       # ✅ TEMP (fix migration issue)
+        blank=True,      # ✅ TEMP
+    )
+
+    address = models.CharField(max_length=100, blank=True, default="")
+    phone = models.CharField(max_length=30, blank=True, default="")
     location = models.CharField(max_length=200, blank=True, default="")
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"TenantProfile({self.user.username})"
+        return f"Tenant({self.user.username if self.user else 'unlinked'})"
 
 
 # =========================
@@ -150,12 +125,17 @@ class Listing(models.Model):
         ("apartment", "Apartment"),
     ]
 
-    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="listings")
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="listings",
+    )
+
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
 
     property_type = models.CharField(max_length=20, choices=PROPERTY_TYPE_CHOICES, default="room")
-    price_per_week = models.DecimalField(max_digits=10, decimal_places=2)
+    price_per_month = models.DecimalField(max_digits=10, decimal_places=2)
     location = models.CharField(max_length=255)
 
     electricity_bill = models.CharField(max_length=100, blank=True, default="")
@@ -199,23 +179,28 @@ class Listing(models.Model):
 
 
 # =========================
-# BOOKING REQUEST MODEL
+# OPTION 1 BOOKING + CHAT SYSTEM
 # =========================
 class BookingRequest(models.Model):
     STATUS_PENDING = "pending"
-    STATUS_APPROVED = "approved"
+    STATUS_ACCEPTED = "accepted"
     STATUS_REJECTED = "rejected"
+    STATUS_CANCELLED = "cancelled"
 
     STATUS_CHOICES = [
         (STATUS_PENDING, "Pending"),
-        (STATUS_APPROVED, "Approved"),
+        (STATUS_ACCEPTED, "Accepted"),
         (STATUS_REJECTED, "Rejected"),
+        (STATUS_CANCELLED, "Cancelled"),
     ]
 
     listing = models.ForeignKey(Listing, on_delete=models.CASCADE, related_name="booking_requests")
-    tenant = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="booking_requests")
+    tenant = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="booking_requests",
+    )
 
-    message = models.TextField(blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING, db_index=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -226,5 +211,29 @@ class BookingRequest(models.Model):
             models.UniqueConstraint(fields=["listing", "tenant"], name="uniq_listing_tenant_booking")
         ]
 
+    @property
+    def owner(self):
+        return self.listing.owner
+
     def __str__(self):
         return f"BookingRequest(listing={self.listing_id}, tenant={self.tenant_id}, status={self.status})"
+
+
+class BookingMessage(models.Model):
+    request = models.ForeignKey(
+        BookingRequest,
+        on_delete=models.CASCADE,
+        related_name="messages",
+    )
+    sender = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="sent_booking_messages",
+    )
+
+    text = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_read = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"BookingMessage(req={self.request_id}, sender={self.sender_id})"

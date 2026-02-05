@@ -20,6 +20,17 @@ import AdminDashboard from "./pages/dashboard/AdminDashboard";
 import OwnerDashboard from "./pages/dashboard/OwnerDashboard";
 import TenantDashboard from "./pages/dashboard/TenantDashboard";
 
+// ✅ TENANT PAGES
+import TenantInbox from "./pages/dashboard/TenantInbox"; // ✅ ADD THIS
+
+// ✅ OWNER PAGES
+import OwnerMyProperties from "./pages/dashboard/OwnerMyProperties";
+import OwnerListingDetail from "./pages/dashboard/OwnerListingDetail";
+import OwnerListingEdit from "./pages/dashboard/OwnerListingEdit";
+
+// ✅ OWNER MESSAGES PAGE
+import OwnerMessages from "./pages/dashboard/OwnerMessages";
+
 // ✅ NEW ADMIN PAGE (Email UI)
 import EmailBroadcast from "./pages/dashboard/EmailBroadcast";
 
@@ -49,7 +60,7 @@ export default function App() {
       <Route path="/otp" element={<Otp />} />
       <Route path="/super-admin-login-9382" element={<AdminLogin />} />
 
-      {/* ✅ HIDDEN: ADMIN SETUP (register admin once) */}
+      {/* ✅ HIDDEN: ADMIN SETUP */}
       <Route path="/setup-admin-9x2k" element={<AdminSetup />} />
 
       {/* OWNER */}
@@ -61,11 +72,49 @@ export default function App() {
           </ProtectedRoute>
         }
       />
+
+      <Route
+        path="/owner/my-properties"
+        element={
+          <ProtectedRoute allowRoles={["owner"]}>
+            <OwnerMyProperties />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/owner/listing/:id"
+        element={
+          <ProtectedRoute allowRoles={["owner"]}>
+            <OwnerListingDetail />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/owner/listing/:id/edit"
+        element={
+          <ProtectedRoute allowRoles={["owner"]}>
+            <OwnerListingEdit />
+          </ProtectedRoute>
+        }
+      />
+
       <Route
         path="/owner/listings/create"
         element={
           <ProtectedRoute allowRoles={["owner"]}>
             <OwnerAddListing />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* ✅ Owner Messages */}
+      <Route
+        path="/owner/messages"
+        element={
+          <ProtectedRoute allowRoles={["owner"]}>
+            <OwnerMessages />
           </ProtectedRoute>
         }
       />
@@ -79,6 +128,17 @@ export default function App() {
           </ProtectedRoute>
         }
       />
+
+      {/* ✅ Tenant Inbox (needed for replies + ?open= ) */}
+      <Route
+        path="/tenant/inbox"
+        element={
+          <ProtectedRoute allowRoles={["tenant"]}>
+            <TenantInbox />
+          </ProtectedRoute>
+        }
+      />
+
       <Route
         path="/tenant/book/:listing_id"
         element={

@@ -1,5 +1,4 @@
 # myapp/serializers.py
-
 from __future__ import annotations
 
 from io import BytesIO
@@ -9,18 +8,13 @@ from django.core.files.base import ContentFile
 from PIL import Image, ImageOps
 from rest_framework import serializers
 
-from .models import (
-    OwnerProfile,
-    TenantProfile,
-    Listing,
-    BookingRequest,
-)
+from .models import Owner, Tenant, Listing, BookingRequest, BookingMessage
 
 User = get_user_model()
 
 
 # =========================
-# USER SERIALIZERS
+# USER SERIALIZER
 # =========================
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -41,29 +35,60 @@ class UserSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "created_at", "updated_at"]
 
 
-class OwnerProfileSerializer(serializers.ModelSerializer):
-    user = serializers.PrimaryKeyRelatedField(read_only=True)
+# =========================
+# OWNER / TENANT SERIALIZERS (linked tables)
+# =========================
+class OwnerSerializer(serializers.ModelSerializer):
+    user_id = serializers.IntegerField(source="user.id", read_only=True)
+    username = serializers.CharField(source="user.username", read_only=True, default=None)
+    email = serializers.EmailField(source="user.email", read_only=True, default=None)
 
     class Meta:
-        model = OwnerProfile
-        fields = ["id", "user", "address", "phone", "location", "created_at", "updated_at"]
-        read_only_fields = ["id", "created_at", "updated_at"]
+        model = Owner
+        fields = [
+            "id",
+            "user_id",
+            "username",
+            "email",
+            "address",
+            "phone",
+            "location",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "user_id", "username", "email", "created_at", "updated_at"]
 
 
-class TenantProfileSerializer(serializers.ModelSerializer):
-    user = serializers.PrimaryKeyRelatedField(read_only=True)
+class TenantSerializer(serializers.ModelSerializer):
+    user_id = serializers.IntegerField(source="user.id", read_only=True)
+    username = serializers.CharField(source="user.username", read_only=True, default=None)
+    email = serializers.EmailField(source="user.email", read_only=True, default=None)
 
     class Meta:
-        model = TenantProfile
-        fields = ["id", "user", "location", "created_at", "updated_at"]
-        read_only_fields = ["id", "created_at", "updated_at"]
+        model = Tenant
+        fields = [
+            "id",
+            "user_id",
+            "username",
+            "email",
+            "address",
+            "phone",
+            "location",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "user_id", "username", "email", "created_at", "updated_at"]
 
 
 # =========================
-# LISTING SERIALIZER (+360)
+# LISTING SERIALIZER (+360 + owner info)
 # =========================
 class ListingSerializer(serializers.ModelSerializer):
-    # Absolute URLs for frontend
+    # owner info for frontend display
+    owner_name = serializers.CharField(source="owner.username", read_only=True)
+    owner_email = serializers.EmailField(source="owner.email", read_only=True)
+
+    # Absolute URLs
     image_url = serializers.SerializerMethodField()
     pano_url = serializers.SerializerMethodField()
 
@@ -159,16 +184,11 @@ class ListingSerializer(serializers.ModelSerializer):
         return bool(getattr(obj, "pano_360", None)) or self._has_cubemap(obj)
 
     # -------------------------
-    # OPTIONAL: normalize uploads
+    # Optional: normalize uploads
     # -------------------------
     def _make_square(self, uploaded_file, size=1024):
-        """
-        Optional: crops to square for consistency
-        (Use if your cubemap faces are inconsistent sizes)
-        """
         if not uploaded_file:
             return None
-
         img = Image.open(uploaded_file)
         img = ImageOps.exif_transpose(img)
         img = img.convert("RGB")
@@ -185,11 +205,9 @@ class ListingSerializer(serializers.ModelSerializer):
         return ContentFile(buffer.getvalue(), name=uploaded_file.name)
 
     def _normalize_uploads(self, validated_data):
-        # main image
         if validated_data.get("image"):
             validated_data["image"] = self._make_square(validated_data["image"], 1024)
 
-        # cubemap faces
         face_fields = ["pano_front", "pano_back", "pano_left", "pano_right", "pano_up", "pano_down"]
         for f in face_fields:
             if validated_data.get(f):
@@ -210,10 +228,12 @@ class ListingSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "owner",
+            "owner_name",
+            "owner_email",
             "title",
             "description",
             "property_type",
-            "price_per_week",
+            "price_per_month",
             "location",
             "electricity_bill",
             "owner_contact_number",
@@ -241,39 +261,34 @@ class ListingSerializer(serializers.ModelSerializer):
             "status",
             "created_at",
         ]
-        read_only_fields = ["id", "owner", "created_at"]
+        read_only_fields = ["id", "owner", "created_at", "owner_name", "owner_email"]
 
 
 # =========================
-# BOOKING SERIALIZERS
+# OPTION 1: Booking + Messages
 # =========================
-class TenantBookingCreateSerializer(serializers.Serializer):
+class BookingRequestCreateSerializer(serializers.Serializer):
     listing_id = serializers.IntegerField()
-    message = serializers.CharField(required=False, allow_blank=True)
+    first_message = serializers.CharField(required=False, allow_blank=True)
 
     def validate(self, attrs):
-        request = self.context["request"]
-        user = request.user
+        user = self.context["request"].user
 
         if not user.is_authenticated:
             raise serializers.ValidationError("Login required.")
-
         if getattr(user, "role", "") != "tenant":
             raise serializers.ValidationError("Only TENANT can request booking.")
 
-        listing_id = attrs["listing_id"]
         try:
-            listing = Listing.objects.get(id=listing_id)
+            listing = Listing.objects.get(id=attrs["listing_id"])
         except Listing.DoesNotExist:
             raise serializers.ValidationError("Listing not found.")
 
-        if listing.is_available is False or listing.status == "booked":
-            raise serializers.ValidationError("This listing is already booked.")
+        if listing.status == "booked" or listing.is_available is False:
+            raise serializers.ValidationError("Listing already booked.")
 
-        # NOTE: If Listing.owner is a FK to User:
-        # listing.owner_id is User.id, so this check is okay
         if listing.owner_id == user.id:
-            raise serializers.ValidationError("Owner cannot request booking for own listing.")
+            raise serializers.ValidationError("You cannot book your own listing.")
 
         attrs["listing"] = listing
         return attrs
@@ -281,42 +296,73 @@ class TenantBookingCreateSerializer(serializers.Serializer):
     def create(self, validated_data):
         tenant = self.context["request"].user
         listing = validated_data["listing"]
-        message = validated_data.get("message", "")
+        first_text = (validated_data.get("first_message") or "").strip()
 
-        obj, _ = BookingRequest.objects.update_or_create(
+        booking, _ = BookingRequest.objects.get_or_create(
             listing=listing,
             tenant=tenant,
-            defaults={
-                "message": message,
-                "status": BookingRequest.STATUS_PENDING,
-                "decided_at": None,
-            },
+            defaults={"status": BookingRequest.STATUS_PENDING},
         )
-        return obj
+
+        if first_text:
+            BookingMessage.objects.create(request=booking, sender=tenant, text=first_text)
+
+        return booking
 
 
-class TenantBookingListSerializer(serializers.ModelSerializer):
-    listing = ListingSerializer(read_only=True)
+class BookingMessageSerializer(serializers.ModelSerializer):
+    sender_username = serializers.CharField(source="sender.username", read_only=True)
+    sender_role = serializers.CharField(source="sender.role", read_only=True)
 
     class Meta:
-        model = BookingRequest
-        fields = ["id", "listing", "message", "status", "created_at", "decided_at"]
+        model = BookingMessage
+        fields = [
+            "id",
+            "request",
+            "sender",
+            "sender_username",
+            "sender_role",
+            "text",
+            "created_at",
+            "is_read",
+        ]
+        # ✅ do NOT allow client to set request/sender directly
+        read_only_fields = ["id", "request", "sender", "created_at", "is_read"]
 
 
-class OwnerBookingListSerializer(serializers.ModelSerializer):
+class BookingRequestListSerializer(serializers.ModelSerializer):
     listing = ListingSerializer(read_only=True)
-    tenant_email = serializers.EmailField(source="tenant.email", read_only=True)
+
     tenant_name = serializers.CharField(source="tenant.username", read_only=True)
+    tenant_email = serializers.EmailField(source="tenant.email", read_only=True)
+
+    owner_name = serializers.CharField(source="listing.owner.username", read_only=True)
+    owner_email = serializers.EmailField(source="listing.owner.email", read_only=True)
+
+    last_message = serializers.SerializerMethodField()
 
     class Meta:
         model = BookingRequest
         fields = [
             "id",
             "listing",
+            "tenant",
             "tenant_name",
             "tenant_email",
-            "message",
+            "owner_name",
+            "owner_email",
             "status",
             "created_at",
             "decided_at",
+            "last_message",
         ]
+
+    def get_last_message(self, obj):
+        m = obj.messages.order_by("-created_at").first()
+        if not m:
+            return None
+        return {
+            "text": m.text[:120],
+            "created_at": m.created_at,
+            "sender": m.sender.username,
+        }
