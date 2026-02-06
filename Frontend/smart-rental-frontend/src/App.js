@@ -1,3 +1,4 @@
+// src/App.jsx
 import React from "react";
 import { Routes, Route } from "react-router-dom";
 
@@ -6,6 +7,9 @@ import HomePublic from "./pages/home/HomePublic";
 import PublicListings from "./pages/home/PublicListings";
 import PublicListingDetails from "./pages/home/PublicListingDetails";
 import Listing360Page from "./pages/home/Listing360Page";
+
+// ✅ NEW: MAP SEARCH
+import MapSearch from "./pages/home/MapSearch";
 
 // AUTH
 import UserAuth from "./pages/auth/UserAuth";
@@ -21,7 +25,7 @@ import OwnerDashboard from "./pages/dashboard/OwnerDashboard";
 import TenantDashboard from "./pages/dashboard/TenantDashboard";
 
 // ✅ TENANT PAGES
-import TenantInbox from "./pages/dashboard/TenantInbox"; // ✅ ADD THIS
+import TenantInbox from "./pages/dashboard/TenantInbox";
 
 // ✅ OWNER PAGES
 import OwnerMyProperties from "./pages/dashboard/OwnerMyProperties";
@@ -54,6 +58,9 @@ export default function App() {
       <Route path="/listings/:id" element={<PublicListingDetails />} />
       <Route path="/public/listings/:id" element={<PublicListingDetails />} />
       <Route path="/listing/:id/360" element={<Listing360Page />} />
+
+      {/* ✅ MAP SEARCH (public route; uses browser location) */}
+      <Route path="/map" element={<MapSearch />} />
 
       {/* AUTH */}
       <Route path="/auth" element={<UserAuth />} />

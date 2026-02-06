@@ -137,6 +137,9 @@ class Listing(models.Model):
     property_type = models.CharField(max_length=20, choices=PROPERTY_TYPE_CHOICES, default="room")
     price_per_month = models.DecimalField(max_digits=10, decimal_places=2)
     location = models.CharField(max_length=255)
+    # in Listing model
+    latitude = models.DecimalField(max_digits=12, decimal_places=8, null=True, blank=True)
+    longitude = models.DecimalField(max_digits=12, decimal_places=8, null=True, blank=True)
 
     electricity_bill = models.CharField(max_length=100, blank=True, default="")
     owner_contact_number = models.CharField(max_length=30, blank=True, default="")

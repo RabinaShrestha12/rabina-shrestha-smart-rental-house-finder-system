@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import api from "../../api/axios";
+import ListingMapPanel from "../../components/ListingMapPanel";
 
 const BACKEND = "http://127.0.0.1:8000";
 
@@ -42,8 +43,7 @@ export default function PublicListingDetails() {
       setLoading(true);
       setErr("");
       try {
-        // ✅ UPDATED: baseURL already ends with /api/ so do NOT start with /
-        // This becomes: http://127.0.0.1:8000/api/public/listings/<id>/
+        // ✅ baseURL already ends with /api/ so do NOT start with /
         const res = await api.get(`public/listings/${id}/`);
 
         // handle shapes (just in case)
@@ -62,7 +62,6 @@ export default function PublicListingDetails() {
             `Failed to load property details for id=${id}. Check endpoint public/listings/${id}/`
           )
         );
-        // Don't auto redirect, let user see error
       } finally {
         setLoading(false);
       }
@@ -129,7 +128,7 @@ export default function PublicListingDetails() {
   const price =
     listing.price_per_month != null
       ? { value: listing.price_per_month, label: "/month" }
-      : listing.price_per_month != null
+      : listing.price_per_week != null
       ? { value: listing.price_per_week, label: "/week" }
       : listing.rent != null
       ? { value: listing.rent, label: "/month" }
@@ -268,7 +267,13 @@ export default function PublicListingDetails() {
                 <img
                   src={toImageSrc(url)}
                   alt={label}
-                  style={{ width: "100%", height: 140, objectFit: "cover", borderRadius: 10, border: "1px solid #ccc" }}
+                  style={{
+                    width: "100%",
+                    height: 140,
+                    objectFit: "cover",
+                    borderRadius: 10,
+                    border: "1px solid #ccc",
+                  }}
                   onError={(e) => {
                     e.currentTarget.onerror = null;
                     e.currentTarget.src = "/no-image.png";
@@ -279,6 +284,9 @@ export default function PublicListingDetails() {
           </div>
         </div>
       )}
+
+      {/* ✅ NEW: MAP + Nearby Services */}
+      <ListingMapPanel listing={listing} />
     </div>
   );
 }

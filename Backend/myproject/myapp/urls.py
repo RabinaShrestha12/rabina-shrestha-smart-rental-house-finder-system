@@ -17,6 +17,7 @@ from myapp.view.auth_views import (
 from myapp.view.public.public_views import (
     PublicListingListView,
     PublicListingDetailView,
+    PublicListingNearbyView,  # ✅ NEW
 )
 
 from myapp.view.public.owner_views import OwnerCreateListingView
@@ -30,7 +31,7 @@ from myapp.view.booking_views import (
     booking_messages,
     booking_send_message,
     owner_set_booking_status,
-
+    owner_set_booking_status,
     # ✅ NEW (to fix /api/messages/ 404)
     create_message_legacy,
 )
@@ -60,8 +61,9 @@ urlpatterns = [
     path("admin/users/<int:user_id>/", user_detail_crud),
     path("admin/send-email/", admin_send_email),
 
-    # ✅ Public listings
+     # ✅ Public listings
     path("public/listings/", PublicListingListView.as_view()),
+    path("public/listings/nearby/", PublicListingNearbyView.as_view()),  # ✅ NEW
     path("public/listings/<int:pk>/", PublicListingDetailView.as_view()),
 
     # ✅ Owner create listing
@@ -84,7 +86,7 @@ urlpatterns = [
     path("tenant/booking-requests/create/", tenant_create_booking_request),
     path("tenant/booking-requests/", tenant_my_booking_requests),
     path("owner/booking-requests/", owner_booking_inbox),
-
+    path("owner/booking-requests/<int:booking_id>/status/", owner_set_booking_status),
     path("booking-requests/<int:booking_id>/messages/", booking_messages),           # GET
     path("booking-requests/<int:booking_id>/messages/send/", booking_send_message),  # POST
 

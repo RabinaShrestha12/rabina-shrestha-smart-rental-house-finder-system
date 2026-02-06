@@ -81,12 +81,12 @@ class TenantSerializer(serializers.ModelSerializer):
 
 
 # =========================
-# LISTING SERIALIZER (+360 + owner info)
+# LISTING SERIALIZER (+360 + owner info + lat/lng + optional distance_km)
 # =========================
 class ListingSerializer(serializers.ModelSerializer):
     # owner info for frontend display
     owner_name = serializers.CharField(source="owner.username", read_only=True)
-    owner_email = serializers.EmailField(source="owner.email", read_only=True)
+    owner_email = serializers.EmailField(source="owner.email", read_only=True, allow_blank=True)
 
     # Absolute URLs
     image_url = serializers.SerializerMethodField()
@@ -102,6 +102,9 @@ class ListingSerializer(serializers.ModelSerializer):
     cubemap = serializers.SerializerMethodField()
     view_360_type = serializers.SerializerMethodField()
     has_360 = serializers.SerializerMethodField()
+
+    # ✅ distance_km (read-only). Your /nearby/ API will attach it dynamically.
+    distance_km = serializers.SerializerMethodField()
 
     # -------------------------
     # URL helpers
@@ -184,6 +187,37 @@ class ListingSerializer(serializers.ModelSerializer):
         return bool(getattr(obj, "pano_360", None)) or self._has_cubemap(obj)
 
     # -------------------------
+    # ✅ distance_km helper
+    # -------------------------
+    def get_distance_km(self, obj):
+        val = getattr(obj, "distance_km", None)
+        if val is None:
+            return None
+        try:
+            return round(float(val), 2)
+        except Exception:
+            return None
+
+    # -------------------------
+    # ✅ validate lat/lng (important for map)
+    # -------------------------
+    def validate_latitude(self, value):
+        if value in ("", None):
+            return value
+        v = float(value)
+        if v < -90 or v > 90:
+            raise serializers.ValidationError("Latitude must be between -90 and 90.")
+        return value
+
+    def validate_longitude(self, value):
+        if value in ("", None):
+            return value
+        v = float(value)
+        if v < -180 or v > 180:
+            raise serializers.ValidationError("Longitude must be between -180 and 180.")
+        return value
+
+    # -------------------------
     # Optional: normalize uploads
     # -------------------------
     def _make_square(self, uploaded_file, size=1024):
@@ -235,6 +269,11 @@ class ListingSerializer(serializers.ModelSerializer):
             "property_type",
             "price_per_month",
             "location",
+
+            # ✅ coordinates for map + distance filter
+            "latitude",
+            "longitude",
+
             "electricity_bill",
             "owner_contact_number",
             "owner_contact_email",
@@ -246,6 +285,7 @@ class ListingSerializer(serializers.ModelSerializer):
             "pano_right",
             "pano_up",
             "pano_down",
+
             "image_url",
             "pano_url",
             "pano_front_url",
@@ -254,14 +294,26 @@ class ListingSerializer(serializers.ModelSerializer):
             "pano_right_url",
             "pano_up_url",
             "pano_down_url",
+
             "cubemap",
             "view_360_type",
             "has_360",
+
+            # computed by nearby endpoint
+            "distance_km",
+
             "is_available",
             "status",
             "created_at",
         ]
-        read_only_fields = ["id", "owner", "created_at", "owner_name", "owner_email"]
+        read_only_fields = [
+            "id",
+            "owner",
+            "created_at",
+            "owner_name",
+            "owner_email",
+            "distance_km",
+        ]
 
 
 # =========================
@@ -326,7 +378,6 @@ class BookingMessageSerializer(serializers.ModelSerializer):
             "created_at",
             "is_read",
         ]
-        # ✅ do NOT allow client to set request/sender directly
         read_only_fields = ["id", "request", "sender", "created_at", "is_read"]
 
 

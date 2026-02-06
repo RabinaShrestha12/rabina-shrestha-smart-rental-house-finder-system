@@ -1,3 +1,4 @@
+// src/pages/home/HomePublic.js
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
@@ -51,7 +52,6 @@ export default function HomePublic() {
   };
 
   // ✅ Send user to THEIR dashboard (admin/owner/tenant)
-  // IMPORTANT: your app routes are /admin, /owner, /tenant (not /admin/dashboard)
   const goToDashboardByRole = () => {
     const r = localStorage.getItem("role");
     if (r === "admin") return nav("/admin");
@@ -62,7 +62,8 @@ export default function HomePublic() {
   const loadListings = async () => {
     setLoading(true);
     try {
-      const res = await api.get("/public/listings/", {
+      // ✅ IMPORTANT: if baseURL already ends with /api/, do NOT start with "/"
+      const res = await api.get("public/listings/", {
         params: { q, location, type },
       });
       setListings(res.data || []);
@@ -162,6 +163,13 @@ export default function HomePublic() {
     ...btnBase,
     background:
       "linear-gradient(135deg, rgba(59,130,246,0.95) 0%, rgba(168,85,247,0.95) 100%)",
+    border: "1px solid rgba(255,255,255,0.18)",
+  };
+
+  const btnMap = {
+    ...btnBase,
+    background:
+      "linear-gradient(135deg, rgba(34,197,94,0.22) 0%, rgba(56,189,248,0.18) 100%)",
     border: "1px solid rgba(255,255,255,0.18)",
   };
 
@@ -290,13 +298,20 @@ export default function HomePublic() {
         <div style={topBar}>
           <div>
             <h2 style={h1}>Smart Rental House Finder System</h2>
-            <p style={sub}>Browse properties publicly. Login is required to request booking.</p>
+            <p style={sub}>
+              Browse properties publicly. Login is required to request booking.
+            </p>
           </div>
 
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <button onClick={() => nav("/auth")} style={btnBase}>
               Login / Register
             </button>
+
+            <button onClick={() => nav("/map")} style={btnMap}>
+              🗺️ Search on Map
+            </button>
+
             <button onClick={handleAddProperty} style={btnPrimary}>
               Add Property (Owner)
             </button>
@@ -314,7 +329,9 @@ export default function HomePublic() {
                 placeholder="Search title"
                 style={input}
               />
-              <div style={smallHint}>Example: “room”, “house”, “near college”</div>
+              <div style={smallHint}>
+                Example: “room”, “house”, “near college”
+              </div>
             </div>
 
             <div>
@@ -330,7 +347,11 @@ export default function HomePublic() {
 
             <div>
               <div style={label}>Type</div>
-              <select value={type} onChange={(e) => setType(e.target.value)} style={input}>
+              <select
+                value={type}
+                onChange={(e) => setType(e.target.value)}
+                style={input}
+              >
                 <option value="">All</option>
                 <option value="room">Room</option>
                 <option value="house">House</option>
@@ -352,12 +373,16 @@ export default function HomePublic() {
         {/* Listings */}
         <div style={{ marginTop: 16 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <h3 style={{ margin: "10px 0", color: "#e5e7eb" }}>Available Listings</h3>
+            <h3 style={{ margin: "10px 0", color: "#e5e7eb" }}>
+              Available Listings
+            </h3>
             {!loading && <span style={tag}>{listings.length} found</span>}
           </div>
 
           {loading && <p style={{ color: "#e5e7eb" }}>Loading...</p>}
-          {!loading && listings.length === 0 && <p style={{ color: "#e5e7eb" }}>No listings found.</p>}
+          {!loading && listings.length === 0 && (
+            <p style={{ color: "#e5e7eb" }}>No listings found.</p>
+          )}
 
           <div className="listingGrid">
             {!loading &&
@@ -370,17 +395,25 @@ export default function HomePublic() {
                   item.pano_up_url &&
                   item.pano_down_url;
 
-                const thumb = toImageSrc(item.pano_front_url || item.image_url || item.image);
-                const booked = item.status === "booked" || item.is_available === false;
+                const thumb = toImageSrc(
+                  item.pano_front_url || item.image_url || item.image
+                );
+
+                // ✅ FIX: "Booked" ONLY depends on Listing.is_available
+                // - accepted -> is_available = false -> booked = true
+                // - rejected -> is_available = true -> booked = false
+                const booked = item.is_available === false;
 
                 const monthPriceRaw =
                   item.price_per_month ??
-                  (item.price_per_week ? weekToMonth(item.price_per_week) : null);
+                  (item.price_per_week
+                    ? weekToMonth(item.price_per_week)
+                    : null);
 
-                const monthPriceText = monthPriceRaw == null ? "-" : money(monthPriceRaw);
+                const monthPriceText =
+                  monthPriceRaw == null ? "-" : money(monthPriceRaw);
 
-                // ✅ Button label always "Booking" (unless booked)
-                let btnLabel = booked ? "Booked" : "Booking";
+                const btnLabel = booked ? "Booked" : "Booking";
                 const disabled = booked;
 
                 return (
@@ -389,11 +422,13 @@ export default function HomePublic() {
                     style={card}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.transform = "translateY(-3px)";
-                      e.currentTarget.style.boxShadow = "0 22px 70px rgba(0,0,0,0.50)";
+                      e.currentTarget.style.boxShadow =
+                        "0 22px 70px rgba(0,0,0,0.50)";
                     }}
                     onMouseLeave={(e) => {
                       e.currentTarget.style.transform = "translateY(0)";
-                      e.currentTarget.style.boxShadow = "0 16px 55px rgba(0,0,0,0.35)";
+                      e.currentTarget.style.boxShadow =
+                        "0 16px 55px rgba(0,0,0,0.35)";
                     }}
                   >
                     {/* Image */}
@@ -409,7 +444,10 @@ export default function HomePublic() {
                       />
 
                       {has360 && (
-                        <button onClick={() => nav(`/listing/${item.id}/360`)} style={overlay360}>
+                        <button
+                          onClick={() => nav(`/listing/${item.id}/360`)}
+                          style={overlay360}
+                        >
                           View 360°
                         </button>
                       )}
@@ -455,8 +493,18 @@ export default function HomePublic() {
                         {(item.description || "").length > 90 ? "..." : ""}
                       </p>
 
-                      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
-                        <button onClick={() => nav(`/listings/${item.id}`)} style={actionBtn}>
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: 10,
+                          flexWrap: "wrap",
+                          marginTop: 12,
+                        }}
+                      >
+                        <button
+                          onClick={() => nav(`/listings/${item.id}`)}
+                          style={actionBtn}
+                        >
                           Details
                         </button>
 
@@ -469,7 +517,10 @@ export default function HomePublic() {
                         </button>
 
                         {has360 && (
-                          <button onClick={() => nav(`/listing/${item.id}/360`)} style={actionBtn}>
+                          <button
+                            onClick={() => nav(`/listing/${item.id}/360`)}
+                            style={actionBtn}
+                          >
                             360°
                           </button>
                         )}

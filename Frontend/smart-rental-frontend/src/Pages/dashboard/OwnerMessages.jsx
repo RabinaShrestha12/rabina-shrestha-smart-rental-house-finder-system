@@ -15,12 +15,14 @@ export default function OwnerMessages() {
   const [loading, setLoading] = useState(true);
   const [requests, setRequests] = useState([]);
 
-  const [active, setActive] = useState(null); // selected booking request object
+  const [active, setActive] = useState(null);
   const [chatLoading, setChatLoading] = useState(false);
   const [messages, setMessages] = useState([]);
 
   const [reply, setReply] = useState("");
   const [sending, setSending] = useState(false);
+
+  const [updatingStatus, setUpdatingStatus] = useState(false);
 
   // ---------------------------
   // Guard
@@ -38,7 +40,7 @@ export default function OwnerMessages() {
   }, [role, nav]);
 
   // ---------------------------
-  // Helpers (robust for any serializer shape)
+  // Helpers
   // ---------------------------
   const arrify = (data) =>
     Array.isArray(data) ? data : Array.isArray(data?.results) ? data.results : [];
@@ -62,11 +64,7 @@ export default function OwnerMessages() {
     "Property";
 
   const getFirstMessage = (b) =>
-    b?.first_message ||
-    b?.message ||
-    b?.text ||
-    b?.latest_message ||
-    "";
+    b?.first_message || b?.message || b?.text || b?.latest_message || "";
 
   const getCreatedAt = (b) => b?.created_at || b?.created || b?.date || "";
 
@@ -89,24 +87,26 @@ export default function OwnerMessages() {
     fallback;
 
   // ---------------------------
-  // Load owner inbox
+  // Load inbox
   // ---------------------------
-  const loadInbox = async () => {
+  const loadInbox = async (keepActiveId = null) => {
     setLoading(true);
     try {
-      // ✅ Backend endpoint
-      // GET /api/owner/booking-requests/
       const res = await api.get("owner/booking-requests/");
       const list = arrify(res.data);
       setRequests(list);
 
-      // Auto-select first request
-      if (list.length && !active) {
-        setActive(list[0]);
+      const wantedId = keepActiveId ?? getBookingId(active);
+      if (wantedId) {
+        const found = list.find((x) => String(getBookingId(x)) === String(wantedId));
+        setActive(found || list[0] || null);
+      } else {
+        setActive(list[0] || null);
       }
     } catch (e) {
       setToast({ type: "error", msg: axiosErr(e, "Failed to load booking requests.") });
       setRequests([]);
+      setActive(null);
     } finally {
       setLoading(false);
     }
@@ -119,8 +119,6 @@ export default function OwnerMessages() {
     if (!bookingId) return;
     setChatLoading(true);
     try {
-      // ✅ Backend endpoint:
-      // GET /api/booking-requests/<booking_id>/messages/
       const res = await api.get(`booking-requests/${bookingId}/messages/`);
       setMessages(arrify(res.data));
     } catch (e) {
@@ -136,7 +134,6 @@ export default function OwnerMessages() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // when active changes -> load messages
   useEffect(() => {
     const id = getBookingId(active);
     if (id) loadChat(id);
@@ -159,16 +156,10 @@ export default function OwnerMessages() {
 
     setSending(true);
     try {
-      // ✅ Backend endpoint:
-      // POST /api/booking-requests/<booking_id>/messages/send/
-      // body: { "text": "Hello" }
-      await api.post(`booking-requests/${bookingId}/messages/send/`, {
-        text: reply.trim(),
-      });
-
+      await api.post(`booking-requests/${bookingId}/messages/send/`, { text: reply.trim() });
       setReply("");
-      await loadChat(bookingId); // refresh chat
-      await loadInbox(); // refresh list (optional)
+      await loadChat(bookingId);
+      await loadInbox(bookingId);
       setToast({ type: "success", msg: "Reply sent ✅" });
     } catch (e) {
       setToast({ type: "error", msg: axiosErr(e, "Failed to send reply.") });
@@ -178,21 +169,33 @@ export default function OwnerMessages() {
   };
 
   // ---------------------------
-  // Accept / Reject
+  // ✅ Accept / Reject (FIXED)
+  // Backend endpoint you HAVE:
+  // POST /api/owner/booking-requests/<id>/status/
+  // body: { status: "accepted" | "rejected" }
   // ---------------------------
   const setStatus = async (newStatus) => {
     const bookingId = getBookingId(active);
     if (!bookingId) return;
 
+    setUpdatingStatus(true);
     try {
-      // POST /api/owner/booking-requests/<booking_id>/status/
-      // body: { status: "accepted" | "rejected" }
       await api.post(`owner/booking-requests/${bookingId}/status/`, { status: newStatus });
 
-      setToast({ type: "success", msg: `Request ${newStatus} ✅` });
-      await loadInbox();
+      setToast({
+        type: "success",
+        msg:
+          newStatus === "accepted"
+            ? "Accepted ✅ Listing removed from home page."
+            : "Rejected ✅ Listing will show again if not booked.",
+      });
+
+      await loadInbox(bookingId);
+      await loadChat(bookingId);
     } catch (e) {
       setToast({ type: "error", msg: axiosErr(e, "Failed to update status.") });
+    } finally {
+      setUpdatingStatus(false);
     }
   };
 
@@ -203,7 +206,6 @@ export default function OwnerMessages() {
 
   const sortedRequests = useMemo(() => {
     const list = [...(requests || [])];
-    // newest first if created_at exists
     list.sort((a, b) => String(b?.created_at || "").localeCompare(String(a?.created_at || "")));
     return list;
   }, [requests]);
@@ -221,7 +223,7 @@ export default function OwnerMessages() {
             ← Back Dashboard
           </button>
           <button
-            onClick={loadInbox}
+            onClick={() => loadInbox(activeId)}
             className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm hover:bg-white/10 transition"
           >
             Refresh
@@ -311,15 +313,17 @@ export default function OwnerMessages() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => setStatus("accepted")}
-                    className="rounded-2xl border border-green-500/30 bg-green-500/10 px-4 py-2 text-sm text-green-200 hover:bg-green-500/15 transition"
+                    disabled={updatingStatus}
+                    className="rounded-2xl border border-green-500/30 bg-green-500/10 px-4 py-2 text-sm text-green-200 hover:bg-green-500/15 transition disabled:opacity-60"
                   >
-                    Accept
+                    {updatingStatus ? "Working..." : "Accept"}
                   </button>
                   <button
                     onClick={() => setStatus("rejected")}
-                    className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-200 hover:bg-red-500/15 transition"
+                    disabled={updatingStatus}
+                    className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-200 hover:bg-red-500/15 transition disabled:opacity-60"
                   >
-                    Reject
+                    {updatingStatus ? "Working..." : "Reject"}
                   </button>
                 </div>
               </div>
@@ -338,17 +342,12 @@ export default function OwnerMessages() {
                       const created = formatDate(m?.created_at || m?.created || "");
 
                       return (
-                        <div
-                          key={m?.id ?? idx}
-                          className="rounded-2xl border border-white/10 bg-white/5 p-3"
-                        >
+                        <div key={m?.id ?? idx} className="rounded-2xl border border-white/10 bg-white/5 p-3">
                           <div className="flex items-center justify-between gap-2">
                             <div className="text-xs font-semibold text-slate-200">{sender}</div>
                             <div className="text-[11px] text-slate-400">{created}</div>
                           </div>
-                          <div className="mt-1 text-sm text-slate-100 whitespace-pre-wrap">
-                            {text || "—"}
-                          </div>
+                          <div className="mt-1 text-sm text-slate-100 whitespace-pre-wrap">{text || "—"}</div>
                         </div>
                       );
                     })}

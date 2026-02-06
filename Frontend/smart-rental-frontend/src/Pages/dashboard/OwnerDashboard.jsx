@@ -1,10 +1,32 @@
 // src/pages/dashboard/OwnerDashboard.jsx
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import { useAuth } from "../../auth/AuthContext";
 import Shell from "../../components/Shell";
 import Toast from "../../components/Toast";
+import LocationPicker from "../../components/LocationPicker";
+
+function kmOrM(meters) {
+  if (meters == null || Number.isNaN(Number(meters))) return "";
+  const m = Number(meters);
+  if (m < 1000) return `${Math.round(m)} m`;
+  return `${(m / 1000).toFixed(2)} km`;
+}
+
+function haversineMeters(lat1, lon1, lat2, lon2) {
+  const toRad = (d) => (d * Math.PI) / 180;
+  const R = 6371000;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) *
+      Math.cos(toRad(lat2)) *
+      Math.sin(dLon / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
 
 export default function OwnerDashboard() {
   const { role, email, logout } = useAuth();
@@ -12,14 +34,13 @@ export default function OwnerDashboard() {
 
   const [toast, setToast] = useState({ type: "info", msg: "" });
 
-  // profile (your backend owner_profile returns { owner: {...}, listings: [...] })
+  // profile
   const [profile, setProfile] = useState(null);
 
   // show/hide property form
   const [showAddProperty, setShowAddProperty] = useState(false);
 
-  // booking requests inbox (acts like messages)
-  const [msgCount, setMsgCount] = useState(0);
+  // booking requests inbox
   const [requests, setRequests] = useState([]);
   const [loadingMsgs, setLoadingMsgs] = useState(false);
 
@@ -33,7 +54,12 @@ export default function OwnerDashboard() {
     electricity_bill: "",
     owner_contact_number: "",
     owner_contact_email: "",
+    latitude: "",
+    longitude: "",
   });
+
+  // map-picked marker
+  const [picked, setPicked] = useState(null); // {lat, lng}
 
   // Cover + 360 files
   const [coverImage, setCoverImage] = useState(null);
@@ -48,15 +74,77 @@ export default function OwnerDashboard() {
 
   const [posting, setPosting] = useState(false);
 
-  // =========================
-  // ✅ VALIDATION HELPERS
-  // =========================
+  // Address details (Nominatim)
+  const [geoLoading, setGeoLoading] = useState(false);
+  const [place, setPlace] = useState({
+    display: "",
+    road: "",
+    suburb: "",
+    city: "",
+    state: "",
+    country: "",
+    postcode: "",
+  });
+
+  // Nearby places (Overpass)
+  const [nearbyLoading, setNearbyLoading] = useState(false);
+  const [radius, setRadius] = useState(1200); // meters
+  const [nearby, setNearby] = useState({
+    schools: [],
+    colleges: [],
+    hospitals: [],
+    markets: [],
+    bus: [],
+    atms: [],
+  });
+
+  // Avoid spamming APIs on repeated clicks quickly
+  const inFlightRef = useRef({ nominatim: null, overpass: null });
+
+  // ---------------------------
+  // Helpers
+  // ---------------------------
+  const arrify = (data) =>
+    Array.isArray(data) ? data : Array.isArray(data?.results) ? data.results : [];
+
+  const getBookingId = (b) => b?.id ?? b?.booking_id ?? b?.pk;
+
+  const getStatus = (b) => (b?.status ?? b?.state ?? "pending").toLowerCase();
+
+  const getTenantEmail = (b) =>
+    b?.tenant_email ||
+    b?.tenant?.email ||
+    b?.tenant_username ||
+    b?.tenant?.username ||
+    "Tenant";
+
+  const getListingTitle = (b) =>
+    b?.listing_title ||
+    b?.listing?.title ||
+    b?.property_title ||
+    b?.property?.title ||
+    "Property";
+
+  const getFirstMessage = (b) =>
+    b?.first_message || b?.message || b?.text || b?.latest_message || "";
+
+  const formatDate = (s) => {
+    if (!s) return "";
+    try {
+      const d = new Date(s);
+      if (isNaN(d.getTime())) return String(s);
+      return d.toLocaleString();
+    } catch {
+      return String(s);
+    }
+  };
+
+  // ---------------------------
+  // Validation helpers
+  // ---------------------------
   const isEmail = (v) =>
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || "").trim());
-
-  const isPhone = (v) =>
-    /^[0-9+\-\s]{7,20}$/.test(String(v || "").trim());
-
+  const isPhone = (v) => /^[0-9+\-\s]{7,20}$/.test(String(v || "").trim());
   const isPositiveNumber = (v) => {
     const n = Number(v);
     return !Number.isNaN(n) && n > 0;
@@ -88,10 +176,11 @@ export default function OwnerDashboard() {
     if (!coverImage) errors.push("Cover image is required.");
 
     const missing = missing360Sides();
-    if (missing.length)
+    if (missing.length) {
       errors.push(
         `All 6 photos for 360° view required. Missing: ${missing.join(", ")}`
       );
+    }
 
     const okImage = (f) => f && f.type && f.type.startsWith("image/");
     if (coverImage && !okImage(coverImage))
@@ -101,32 +190,28 @@ export default function OwnerDashboard() {
       if (f && !okImage(f)) errors.push(`${k.toUpperCase()} must be an image file.`);
     });
 
+    if (!form.latitude || !form.longitude) {
+      errors.push(
+        "Please pick the property location on the map (latitude/longitude required)."
+      );
+    }
+
     return { ok: errors.length === 0, errors };
   }, [form, coverImage, pano]);
 
-  // =========================
-  // ✅ LOAD PROFILE + INBOX
-  // =========================
+  // ---------------------------
+  // Guard + Load profile + inbox
+  // ---------------------------
   useEffect(() => {
     const token = localStorage.getItem("access");
-    if (!token) {
-      nav("/auth", { replace: true });
-      return;
-    }
-    if (role !== "owner") {
-      nav("/unauthorized", { replace: true });
-      return;
-    }
+    if (!token) return nav("/auth", { replace: true });
+    if (role !== "owner") return nav("/unauthorized", { replace: true });
 
     const loadProfile = async () => {
       try {
-        // ✅ Your urls.py uses: path("owner-profile/", owner_profile)
         const res = await api.get("owner-profile/");
-
-        // owner_profile_views returns { owner: {...}, listings: [...] }
-        // but in some versions you might return owner fields directly
         const data = res.data || {};
-        const ownerObj = data.owner || data; // supports both formats
+        const ownerObj = data.owner || data;
         setProfile(ownerObj);
       } catch (err) {
         const msg =
@@ -140,15 +225,10 @@ export default function OwnerDashboard() {
     const loadInbox = async () => {
       setLoadingMsgs(true);
       try {
-        // ✅ Use booking inbox endpoint (NOT /owner/messages/)
         const res = await api.get("owner/booking-requests/");
-        const list = res.data || [];
-        const arr = Array.isArray(list) ? list : list.results || [];
-        setRequests(arr);
-        setMsgCount(Array.isArray(list) ? list.length : (list.count || arr.length));
-      } catch (err) {
+        setRequests(arrify(res.data));
+      } catch {
         setRequests([]);
-        setMsgCount(0);
       } finally {
         setLoadingMsgs(false);
       }
@@ -163,16 +243,255 @@ export default function OwnerDashboard() {
     nav("/auth", { replace: true });
   };
 
-  // ---- FORM HANDLERS ----
+  // ---------------------------
+  // Form handlers
+  // ---------------------------
   const onChange = (e) =>
     setForm((s) => ({ ...s, [e.target.name]: e.target.value }));
+  const onPanoChange = (side, file) => setPano((s) => ({ ...s, [side]: file }));
 
-  const onPanoChange = (side, file) =>
-    setPano((s) => ({ ...s, [side]: file }));
+  // ---------------------------
+  // Reverse Geocode (Nominatim)
+  // ---------------------------
+  async function reverseGeocode(lat, lng) {
+    if (inFlightRef.current.nominatim?.abort)
+      inFlightRef.current.nominatim.abort();
+    const ctrl = new AbortController();
+    inFlightRef.current.nominatim = ctrl;
 
-  // =========================
-  // ✅ SUBMIT PROPERTY
-  // =========================
+    setGeoLoading(true);
+    try {
+      const url =
+        `https://nominatim.openstreetmap.org/reverse?format=jsonv2` +
+        `&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`;
+
+      const res = await fetch(url, {
+        signal: ctrl.signal,
+        headers: { Accept: "application/json" },
+      });
+
+      const data = await res.json();
+      const a = data?.address || {};
+
+      const p = {
+        display: data?.display_name || "",
+        road: a.road || a.highway || "",
+        suburb: a.suburb || a.neighbourhood || a.quarter || "",
+        city: a.city || a.town || a.village || a.municipality || "",
+        state: a.state || "",
+        country: a.country || "",
+        postcode: a.postcode || "",
+      };
+      setPlace(p);
+
+      const nice = [p.road, p.suburb, p.city, p.state, p.country]
+        .filter(Boolean)
+        .join(", ");
+      setForm((prev) => ({ ...prev, location: nice || prev.location }));
+    } catch {
+      setPlace({
+        display: "",
+        road: "",
+        suburb: "",
+        city: "",
+        state: "",
+        country: "",
+        postcode: "",
+      });
+    } finally {
+      setGeoLoading(false);
+    }
+  }
+
+  // ---------------------------
+  // Nearby Places (Overpass)
+  // ---------------------------
+  function normalizeOverpassElement(el) {
+    const lat = el?.lat ?? el?.center?.lat;
+    const lon = el?.lon ?? el?.center?.lon;
+    if (lat == null || lon == null) return null;
+
+    const tags = el.tags || {};
+    const name =
+      tags.name ||
+      tags["name:en"] ||
+      tags.brand ||
+      tags.operator ||
+      tags.amenity ||
+      tags.shop ||
+      tags.highway ||
+      "Unknown";
+
+    return {
+      id: `${el.type}/${el.id}`,
+      lat: Number(lat),
+      lng: Number(lon),
+      name: String(name),
+      kind:
+        tags.amenity ||
+        tags.shop ||
+        tags.highway ||
+        tags.tourism ||
+        tags.leisure ||
+        "",
+      tags,
+    };
+  }
+
+  async function fetchNearbyPlaces(lat, lng, radMeters) {
+    if (inFlightRef.current.overpass?.abort) inFlightRef.current.overpass.abort();
+    const ctrl = new AbortController();
+    inFlightRef.current.overpass = ctrl;
+
+    setNearbyLoading(true);
+    try {
+      const latNum = Number(lat);
+      const lngNum = Number(lng);
+      const r = Number(radMeters);
+
+      const q = `
+[out:json][timeout:25];
+(
+  node(around:${r},${latNum},${lngNum})["amenity"="school"];
+  way(around:${r},${latNum},${lngNum})["amenity"="school"];
+  relation(around:${r},${latNum},${lngNum})["amenity"="school"];
+
+  node(around:${r},${latNum},${lngNum})["amenity"="college"];
+  way(around:${r},${latNum},${lngNum})["amenity"="college"];
+  relation(around:${r},${latNum},${lngNum})["amenity"="college"];
+
+  node(around:${r},${latNum},${lngNum})["amenity"="university"];
+  way(around:${r},${latNum},${lngNum})["amenity"="university"];
+  relation(around:${r},${latNum},${lngNum})["amenity"="university"];
+
+  node(around:${r},${latNum},${lngNum})["amenity"="hospital"];
+  way(around:${r},${latNum},${lngNum})["amenity"="hospital"];
+  relation(around:${r},${latNum},${lngNum})["amenity"="hospital"];
+
+  node(around:${r},${latNum},${lngNum})["amenity"="clinic"];
+  way(around:${r},${latNum},${lngNum})["amenity"="clinic"];
+  relation(around:${r},${latNum},${lngNum})["amenity"="clinic"];
+
+  node(around:${r},${latNum},${lngNum})["shop"="supermarket"];
+  way(around:${r},${latNum},${lngNum})["shop"="supermarket"];
+  relation(around:${r},${latNum},${lngNum})["shop"="supermarket"];
+
+  node(around:${r},${latNum},${lngNum})["amenity"="marketplace"];
+  way(around:${r},${latNum},${lngNum})["amenity"="marketplace"];
+  relation(around:${r},${latNum},${lngNum})["amenity"="marketplace"];
+
+  node(around:${r},${latNum},${lngNum})["highway"="bus_stop"];
+  way(around:${r},${latNum},${lngNum})["highway"="bus_stop"];
+  relation(around:${r},${latNum},${lngNum})["highway"="bus_stop"];
+
+  node(around:${r},${latNum},${lngNum})["amenity"="atm"];
+  way(around:${r},${latNum},${lngNum})["amenity"="atm"];
+  relation(around:${r},${latNum},${lngNum})["amenity"="atm"];
+);
+out center;
+      `.trim();
+
+      const res = await fetch("https://overpass-api.de/api/interpreter", {
+        method: "POST",
+        signal: ctrl.signal,
+        headers: { "Content-Type": "text/plain" },
+        body: q,
+      });
+
+      const json = await res.json();
+      const els = (json?.elements || [])
+        .map(normalizeOverpassElement)
+        .filter(Boolean)
+        .map((x) => ({
+          ...x,
+          distance_m: haversineMeters(latNum, lngNum, x.lat, x.lng),
+        }))
+        .sort((a, b) => a.distance_m - b.distance_m);
+
+      const schools = [];
+      const colleges = [];
+      const hospitals = [];
+      const markets = [];
+      const bus = [];
+      const atms = [];
+
+      for (const it of els) {
+        const t = it.tags || {};
+        const amenity = t.amenity;
+        const shop = t.shop;
+        const highway = t.highway;
+
+        if (amenity === "school") schools.push(it);
+        else if (amenity === "college" || amenity === "university") colleges.push(it);
+        else if (amenity === "hospital" || amenity === "clinic") hospitals.push(it);
+        else if (shop === "supermarket" || amenity === "marketplace") markets.push(it);
+        else if (highway === "bus_stop") bus.push(it);
+        else if (amenity === "atm") atms.push(it);
+      }
+
+      setNearby({
+        schools: schools.slice(0, 10),
+        colleges: colleges.slice(0, 10),
+        hospitals: hospitals.slice(0, 10),
+        markets: markets.slice(0, 10),
+        bus: bus.slice(0, 10),
+        atms: atms.slice(0, 10),
+      });
+    } catch {
+      setNearby({ schools: [], colleges: [], hospitals: [], markets: [], bus: [], atms: [] });
+    } finally {
+      setNearbyLoading(false);
+    }
+  }
+
+  // Map pick handler
+  const onPick = ({ lat, lng }) => {
+    const lat6 = Number(lat).toFixed(6);
+    const lng6 = Number(lng).toFixed(6);
+
+    setPicked({ lat: Number(lat6), lng: Number(lng6) });
+
+    setForm((p) => ({
+      ...p,
+      latitude: lat6,
+      longitude: lng6,
+    }));
+
+    reverseGeocode(lat6, lng6);
+    fetchNearbyPlaces(lat6, lng6, radius);
+  };
+
+  const clearPicked = () => {
+    setPicked(null);
+    setForm((p) => ({ ...p, latitude: "", longitude: "" }));
+    setPlace({
+      display: "",
+      road: "",
+      suburb: "",
+      city: "",
+      state: "",
+      country: "",
+      postcode: "",
+    });
+    setNearby({
+      schools: [],
+      colleges: [],
+      hospitals: [],
+      markets: [],
+      bus: [],
+      atms: [],
+    });
+  };
+
+  useEffect(() => {
+    if (!form.latitude || !form.longitude) return;
+    fetchNearbyPlaces(form.latitude, form.longitude, radius);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [radius]);
+
+  // ---------------------------
+  // Submit property
+  // ---------------------------
   const submitProperty = async (e) => {
     e.preventDefault();
 
@@ -195,6 +514,9 @@ export default function OwnerDashboard() {
     fd.append("owner_contact_email", form.owner_contact_email || "");
     fd.append("image", coverImage);
 
+    fd.append("latitude", Number(form.latitude).toFixed(6));
+    fd.append("longitude", Number(form.longitude).toFixed(6));
+
     fd.append("pano_front", pano.front);
     fd.append("pano_back", pano.back);
     fd.append("pano_left", pano.left);
@@ -208,10 +530,7 @@ export default function OwnerDashboard() {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
-      setToast({
-        type: "success",
-        msg: "Property posted successfully! It will show on homepage.",
-      });
+      setToast({ type: "success", msg: "Property posted successfully! ✅" });
 
       setForm({
         title: "",
@@ -222,15 +541,19 @@ export default function OwnerDashboard() {
         electricity_bill: "",
         owner_contact_number: "",
         owner_contact_email: "",
+        latitude: "",
+        longitude: "",
       });
 
       setCoverImage(null);
       setPano({ front: null, back: null, left: null, right: null, up: null, down: null });
+      clearPicked();
       setShowAddProperty(false);
     } catch (err) {
       const msg =
         err?.response?.data?.detail ||
         err?.response?.data?.error ||
+        (err?.response?.data && JSON.stringify(err.response.data)) ||
         "Failed to post property.";
       setToast({ type: "error", msg });
     } finally {
@@ -238,134 +561,215 @@ export default function OwnerDashboard() {
     }
   };
 
-  // =========================
-  // ✅ TOP BUTTONS
-  // =========================
-  const TopButtons = (
-    <div className="flex flex-wrap gap-3">
-      <button
-        onClick={() => nav("/")}
-        className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm hover:bg-white/10 transition"
-      >
-        🏠 Home
-      </button>
+  // ---------------------------
+  // Derived UI info
+  // ---------------------------
+  const pendingCount = useMemo(
+    () => (requests || []).filter((r) => getStatus(r) === "pending").length,
+    [requests]
+  );
 
-      <button
-        onClick={() => nav("/owner/my-properties")}
-        className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm hover:bg-white/10 transition"
-      >
-        🏘️ My Property Details
-      </button>
+  const latestRequests = useMemo(() => {
+    const list = [...(requests || [])];
+    list.sort((a, b) => String(b?.created_at || "").localeCompare(String(a?.created_at || "")));
+    return list.slice(0, 3);
+  }, [requests]);
 
-      <button
-        onClick={() => setShowAddProperty((s) => !s)}
-        className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm hover:bg-white/10 transition"
-      >
-        {showAddProperty ? "Close Add Property" : "➕ Add Property Details"}
-      </button>
-
-      <button
-        onClick={() => nav("/owner/messages")}
-        className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm hover:bg-white/10 transition flex items-center gap-2"
-        title="View booking requests + messages"
-      >
-        📩 Tenant Messages
-        <span className="ml-1 rounded-full bg-blue-600/80 px-2 py-[2px] text-xs text-white">
-          {loadingMsgs ? "..." : msgCount}
-        </span>
-      </button>
-
-      <button
-        onClick={handleLogout}
-        className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm hover:bg-white/10 transition"
-      >
-        Logout
-      </button>
+  const NearbySection = ({ title, items }) => (
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+      <div className="text-sm font-semibold text-slate-200">{title}</div>
+      {items.length === 0 ? (
+        <div className="mt-2 text-sm text-slate-300">No results found.</div>
+      ) : (
+        <div className="mt-3 grid gap-2">
+          {items.map((it) => (
+            <div key={it.id} className="rounded-xl border border-white/10 bg-black/20 p-3">
+              <div className="text-sm text-white font-semibold">{it.name}</div>
+              <div className="mt-1 text-xs text-slate-300">
+                {it.kind ? `Type: ${it.kind} • ` : ""}
+                Distance: {kmOrM(it.distance_m)}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 
-  // Helpers to show preview nicely
-  const getTenantEmail = (b) => b?.tenant_email || b?.tenant?.email || "Tenant";
-  const getListingTitle = (b) => b?.listing_title || b?.listing?.title || "Property";
-  const getFirstMessage = (b) => b?.first_message || b?.message || b?.text || "";
-
   return (
-    <Shell
-      title="Owner Dashboard"
-      subtitle={`Welcome ${email || "Owner"}. Manage your profile and properties.`}
-      right={TopButtons}
-    >
+    <Shell title="" subtitle="" right={null}>
       <Toast
         type={toast.type}
         message={toast.msg}
         onClose={() => setToast({ type: "info", msg: "" })}
       />
 
-      {/* PROFILE CARD */}
-      <div className="rounded-3xl border border-white/10 bg-black/20 p-6 mb-6">
-        <h2 className="text-lg font-semibold text-white">My Profile</h2>
-
-        {!profile ? (
-          <p className="mt-2 text-sm text-slate-300">Loading...</p>
-        ) : (
-          <div className="mt-4 text-sm text-slate-200 grid gap-2">
-            <div><b>Owner ID:</b> {profile.id ?? "-"}</div>
-            <div><b>Username:</b> {profile.username ?? "-"}</div>
-            <div><b>Email:</b> {profile.email ?? email ?? "-"}</div>
-            <div><b>Phone:</b> {profile.phone ?? "-"}</div>
-            <div><b>Address:</b> {profile.address ?? "-"}</div>
+      {/* ✅ CLEAN HEADER (NOW: WIDER + ONE-ROW ACTIONS) */}
+      <div className="mb-6 rounded-3xl border border-white/10 bg-black/20 p-5">
+        <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
+          <div className="min-w-0">
+            <div className="text-2xl font-extrabold text-white">Owner Dashboard</div>
+            <div className="mt-1 text-sm text-slate-300">
+              Welcome <span className="text-slate-200">{email || "Owner"}</span>. Manage your profile and properties.
+            </div>
           </div>
-        )}
+
+          {/* ✅ Single row always (scroll if needed, never wraps) */}
+          <div className="w-full lg:w-auto">
+            <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap pb-1 lg:pb-0">
+              <button
+                onClick={() => nav("/")}
+                className="shrink-0 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-100 hover:bg-white/10 transition"
+              >
+                🏠 Home
+              </button>
+
+              <button
+                onClick={() => nav("/owner/my-properties")}
+                className="shrink-0 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-100 hover:bg-white/10 transition"
+                title="If your route is different, change it here"
+              >
+                🏘️ My Property Details
+              </button>
+
+              <button
+                onClick={() => setShowAddProperty((s) => !s)}
+                className="shrink-0 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-100 hover:bg-white/10 transition"
+              >
+                {showAddProperty ? "✖ Close Add Property" : "➕ Add Property"}
+              </button>
+
+              <button
+                onClick={() => nav("/owner/messages")}
+                className="shrink-0 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-100 hover:bg-white/10 transition"
+                title="View booking requests + chat"
+              >
+                💬 Messages
+                <span className="ml-2 inline-flex min-w-[22px] items-center justify-center rounded-full bg-blue-500/80 px-2 py-[2px] text-[11px] font-bold text-white">
+                  {loadingMsgs ? "..." : pendingCount}
+                </span>
+              </button>
+
+              <button
+                onClick={handleLogout}
+                className="shrink-0 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-100 hover:bg-white/10 transition"
+              >
+                Logout
+              </button>
+
+            </div>
+
+            <div className="mt-1 text-[11px] text-slate-400 lg:hidden">
+              Tip: swipe left/right for more actions
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* ✅ QUICK INBOX PREVIEW */}
-      <div className="rounded-3xl border border-white/10 bg-black/20 p-6 mb-6">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <h2 className="text-lg font-semibold text-white">Latest Tenant Requests</h2>
-          <button
-            onClick={() => nav("/owner/messages")}
-            className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm hover:bg-white/10 transition"
-          >
-            View All
-          </button>
+      {/* ✅ CONTENT GRID */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        {/* Profile */}
+        <div className="rounded-3xl border border-white/10 bg-black/20 p-6">
+          <div className="text-lg font-semibold text-white">My Profile</div>
+
+          {!profile ? (
+            <p className="mt-2 text-sm text-slate-300">Loading...</p>
+          ) : (
+            <div className="mt-4 text-sm text-slate-200 grid gap-2">
+              <div>
+                <b>Owner ID:</b> {profile.id ?? "-"}
+              </div>
+              <div>
+                <b>Username:</b> {profile.username ?? "-"}
+              </div>
+              <div>
+                <b>Email:</b> {profile.email ?? email ?? "-"}
+              </div>
+              <div>
+                <b>Phone:</b> {profile.phone ?? "-"}
+              </div>
+              <div>
+                <b>Address:</b> {profile.address ?? "-"}
+              </div>
+            </div>
+          )}
         </div>
 
-        {loadingMsgs ? (
-          <p className="mt-2 text-sm text-slate-300">Loading requests...</p>
-        ) : requests.length === 0 ? (
-          <p className="mt-2 text-sm text-slate-300">No requests yet.</p>
-        ) : (
-          <div className="mt-4 grid gap-3">
-            {requests.slice(0, 3).map((b, idx) => (
-              <div key={b.id || idx} className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                <div className="text-sm text-white font-semibold">
-                  {getListingTitle(b)} • #{b.id}
-                </div>
-
-                <div className="mt-1 text-sm text-slate-200">
-                  {(getFirstMessage(b) || "").slice(0, 140)}
-                  {(getFirstMessage(b) || "").length > 140 ? "..." : ""}
-                </div>
-
-                <div className="mt-2 text-xs text-slate-400">
-                  From: {getTenantEmail(b)} • Status: {b.status || "pending"}
-                </div>
-              </div>
-            ))}
+        {/* Latest requests */}
+        <div className="rounded-3xl border border-white/10 bg-black/20 p-6">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="text-lg font-semibold text-white">Latest Tenant Requests</div>
+            <button
+              onClick={() => nav("/owner/messages")}
+              className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm hover:bg-white/10 transition text-slate-100"
+            >
+              View All
+            </button>
           </div>
-        )}
+
+          {loadingMsgs ? (
+            <p className="mt-2 text-sm text-slate-300">Loading requests...</p>
+          ) : latestRequests.length === 0 ? (
+            <p className="mt-2 text-sm text-slate-300">No requests yet.</p>
+          ) : (
+            <div className="mt-4 grid gap-3">
+              {latestRequests.map((b, idx) => {
+                const st = getStatus(b);
+                const badge =
+                  st === "accepted"
+                    ? "bg-green-500/15 text-green-200 border-green-500/20"
+                    : st === "rejected"
+                    ? "bg-red-500/15 text-red-200 border-red-500/20"
+                    : "bg-blue-500/15 text-blue-200 border-blue-500/20";
+
+                return (
+                  <button
+                    key={getBookingId(b) ?? idx}
+                    onClick={() => nav("/owner/messages")}
+                    className="text-left rounded-2xl border border-white/10 bg-white/5 p-4 hover:bg-white/10 transition"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-sm text-white font-semibold line-clamp-1">
+                        {getListingTitle(b)} • #{getBookingId(b) ?? "—"}
+                      </div>
+                      <span className={`text-[11px] border px-2 py-[2px] rounded-full ${badge}`}>
+                        {st}
+                      </span>
+                    </div>
+
+                    <div className="mt-1 text-xs text-slate-300 line-clamp-1">
+                      From: {getTenantEmail(b)}
+                    </div>
+
+                    <div className="mt-2 text-xs text-slate-200/90 line-clamp-2">
+                      {getFirstMessage(b) || "—"}
+                    </div>
+
+                    <div className="mt-2 text-[11px] text-slate-400">
+                      {formatDate(b?.created_at || b?.created || "")}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* ✅ ADD PROPERTY CARD */}
+      {/* ✅ ADD PROPERTY */}
       {showAddProperty && (
-        <div className="rounded-3xl border border-white/10 bg-black/20 p-6">
-          <h2 className="text-lg font-semibold text-white">Post a Property (with 360° photos)</h2>
-          <p className="mt-1 text-sm text-slate-300">
-            Upload 1 cover image + 6 photos (front, back, left, right, up, down).
-          </p>
+        <div className="mt-6 rounded-3xl border border-white/10 bg-black/20 p-6">
+          <div className="flex flex-col gap-1">
+            <div className="text-lg font-semibold text-white">
+              Post a Property (with 360° photos)
+            </div>
+            <div className="text-sm text-slate-300">
+              Upload 1 cover image + 6 photos (front, back, left, right, up, down). Pick the location on map.
+            </div>
+          </div>
 
           {!validation.ok && (
-            <div className="mt-3 rounded-2xl border border-red-500/20 bg-red-500/10 p-4">
+            <div className="mt-4 rounded-2xl border border-red-500/20 bg-red-500/10 p-4">
               <div className="text-sm font-semibold text-red-200">Please fix these requirements:</div>
               <ul className="mt-2 list-disc pl-5 text-sm text-red-100/90 space-y-1">
                 {validation.errors.map((e, i) => (
@@ -377,7 +781,7 @@ export default function OwnerDashboard() {
 
           <form onSubmit={submitProperty} className="mt-4 grid gap-3">
             <input
-              className="rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-white"
+              className="rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-white outline-none focus:border-white/20"
               name="title"
               placeholder="Title (e.g., 2 Bedroom House near City)"
               value={form.title}
@@ -386,7 +790,7 @@ export default function OwnerDashboard() {
             />
 
             <textarea
-              className="rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-white"
+              className="rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-white outline-none focus:border-white/20"
               name="description"
               placeholder="Description"
               value={form.description}
@@ -396,7 +800,7 @@ export default function OwnerDashboard() {
 
             <div className="grid md:grid-cols-2 gap-3">
               <select
-                className="rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-white"
+                className="rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-white outline-none focus:border-white/20"
                 name="property_type"
                 value={form.property_type}
                 onChange={onChange}
@@ -407,9 +811,9 @@ export default function OwnerDashboard() {
               </select>
 
               <input
-                className="rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-white"
+                className="rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-white outline-none focus:border-white/20"
                 name="location"
-                placeholder="Location (Suburb / City)"
+                placeholder="Location (auto filled from map, you can edit)"
                 value={form.location}
                 onChange={onChange}
                 required
@@ -418,7 +822,7 @@ export default function OwnerDashboard() {
 
             <div className="grid md:grid-cols-2 gap-3">
               <input
-                className="rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-white"
+                className="rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-white outline-none focus:border-white/20"
                 name="price_per_month"
                 type="number"
                 placeholder="Price per month"
@@ -428,7 +832,7 @@ export default function OwnerDashboard() {
               />
 
               <input
-                className="rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-white"
+                className="rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-white outline-none focus:border-white/20"
                 name="electricity_bill"
                 placeholder="Electricity bill (optional)"
                 value={form.electricity_bill}
@@ -438,7 +842,7 @@ export default function OwnerDashboard() {
 
             <div className="grid md:grid-cols-2 gap-3">
               <input
-                className="rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-white"
+                className="rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-white outline-none focus:border-white/20"
                 name="owner_contact_number"
                 placeholder="Contact number"
                 value={form.owner_contact_number}
@@ -446,7 +850,7 @@ export default function OwnerDashboard() {
                 required
               />
               <input
-                className="rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-white"
+                className="rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-white outline-none focus:border-white/20"
                 name="owner_contact_email"
                 placeholder="Contact email (optional)"
                 value={form.owner_contact_email}
@@ -454,22 +858,132 @@ export default function OwnerDashboard() {
               />
             </div>
 
+            {/* MAP */}
             <div className="mt-2">
-              <label className="text-sm text-slate-200">Cover image *</label>
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="text-sm font-semibold text-slate-200">📍 Pick Property Location *</div>
+                <button
+                  type="button"
+                  onClick={clearPicked}
+                  className="rounded-xl border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-200 hover:bg-white/10 transition"
+                >
+                  Clear Pin
+                </button>
+              </div>
+
+              <div className="mt-1 text-xs text-slate-300">
+                Click on the map to place the pin. Address + nearby facilities will load automatically.
+              </div>
+
+              <div className="mt-3 rounded-2xl border border-white/10 overflow-hidden">
+                <LocationPicker value={picked} onChange={onPick} height={320} />
+              </div>
+
+              <div className="mt-3 grid md:grid-cols-2 gap-3">
+                <input
+                  className="rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-white"
+                  value={form.latitude}
+                  readOnly
+                  placeholder="Latitude"
+                />
+                <input
+                  className="rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-white"
+                  value={form.longitude}
+                  readOnly
+                  placeholder="Longitude"
+                />
+              </div>
+
+              {/* Address details */}
+              <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div className="text-sm font-semibold text-slate-200">
+                  🧭 Location Details {geoLoading ? "(loading...)" : ""}
+                </div>
+
+                {!place.display && !geoLoading ? (
+                  <div className="mt-2 text-sm text-slate-300">
+                    Click the map to load road / city details.
+                  </div>
+                ) : (
+                  <div className="mt-3 grid gap-2 text-sm text-slate-200">
+                    <div>
+                      <b>Full:</b> {place.display || "-"}
+                    </div>
+                    <div>
+                      <b>Road:</b> {place.road || "-"}
+                    </div>
+                    <div>
+                      <b>Suburb:</b> {place.suburb || "-"}
+                    </div>
+                    <div>
+                      <b>City:</b> {place.city || "-"}
+                    </div>
+                    <div>
+                      <b>State:</b> {place.state || "-"}
+                    </div>
+                    <div>
+                      <b>Postcode:</b> {place.postcode || "-"}
+                    </div>
+                    <div>
+                      <b>Country:</b> {place.country || "-"}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Nearby places */}
+              <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div className="text-sm font-semibold text-slate-200">
+                    🏫 Nearby Facilities {nearbyLoading ? "(loading...)" : ""}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-300">Radius</span>
+                    <select
+                      value={radius}
+                      onChange={(e) => setRadius(Number(e.target.value))}
+                      className="rounded-xl bg-black/30 border border-white/10 px-2 py-1 text-xs text-slate-100"
+                    >
+                      <option value={800}>800 m</option>
+                      <option value={1200}>1.2 km</option>
+                      <option value={2000}>2 km</option>
+                      <option value={3000}>3 km</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="mt-3 grid md:grid-cols-2 gap-3">
+                  <NearbySection title="Schools" items={nearby.schools} />
+                  <NearbySection title="Colleges / Universities" items={nearby.colleges} />
+                  <NearbySection title="Hospitals / Clinics" items={nearby.hospitals} />
+                  <NearbySection title="Markets / Supermarkets" items={nearby.markets} />
+                  <NearbySection title="Bus Stops" items={nearby.bus} />
+                  <NearbySection title="ATMs" items={nearby.atms} />
+                </div>
+
+                <div className="mt-2 text-xs text-slate-400">
+                  Note: Results depend on OpenStreetMap data availability for that area.
+                </div>
+              </div>
+            </div>
+
+            {/* Images */}
+            <div className="mt-2 rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="text-sm font-semibold text-slate-200">🖼️ Cover image *</div>
               <input
-                className="mt-1 block w-full text-slate-200"
+                className="mt-2 block w-full text-slate-200"
                 type="file"
                 accept="image/*"
                 onChange={(e) => setCoverImage(e.target.files?.[0] || null)}
               />
             </div>
 
-            <div className="mt-2">
-              <h3 className="text-sm font-semibold text-slate-200">360° Photos (6 sides) *</h3>
-
-              <div className="mt-2 grid md:grid-cols-3 gap-3">
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="text-sm font-semibold text-slate-200">🧊 360° Photos (6 sides) *</div>
+              <div className="mt-3 grid md:grid-cols-3 gap-3">
                 {["front", "back", "left", "right", "up", "down"].map((side) => (
-                  <div key={side} className="rounded-xl border border-white/10 bg-white/5 p-3">
+                  <div key={side} className="rounded-xl border border-white/10 bg-black/20 p-3">
                     <div className="text-xs text-slate-200 mb-2">{side.toUpperCase()}</div>
                     <input
                       type="file"
@@ -485,13 +999,17 @@ export default function OwnerDashboard() {
             <button
               type="submit"
               disabled={posting}
-              className="mt-4 rounded-2xl bg-blue-600 px-4 py-2 text-white hover:bg-blue-500 transition disabled:opacity-60"
+              className="mt-2 rounded-2xl bg-blue-600 px-4 py-3 text-white hover:bg-blue-500 transition disabled:opacity-60"
             >
               {posting ? "Posting..." : "Post Property"}
             </button>
           </form>
         </div>
       )}
+
+      <div className="mt-8 text-center text-xs text-slate-400">
+        Smart Rental • React + Django + JWT
+      </div>
     </Shell>
   );
 }

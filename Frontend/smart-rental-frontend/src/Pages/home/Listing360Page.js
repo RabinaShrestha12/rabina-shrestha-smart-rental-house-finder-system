@@ -1,8 +1,32 @@
+// src/pages/home/Listing360Page.js
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import Cubemap360 from "../../components/Cubemap360";
 import Panorama360 from "../../components/Panorama360";
+
+// ✅ Set your backend base (change if deployed)
+const BACKEND = "http://127.0.0.1:8000";
+
+// ✅ Make sure /media/... becomes http://127.0.0.1:8000/media/...
+function toAbsUrl(value) {
+  if (!value) return "";
+  const s = String(value).trim();
+
+  // already absolute
+  if (s.startsWith("http://") || s.startsWith("https://")) return s;
+
+  // if backend returns "/media/http://..." (rare)
+  if (s.startsWith("/media/http://") || s.startsWith("/media/https://")) {
+    return s.replace(/^\/media\//, "");
+  }
+
+  // normal media path
+  if (s.startsWith("/")) return `${BACKEND}${s}`;
+
+  // fallback
+  return `${BACKEND}/${s}`;
+}
 
 function FacesGrid({ faces }) {
   const items = [
@@ -22,11 +46,15 @@ function FacesGrid({ faces }) {
           style={{ border: "1px solid #ddd", borderRadius: 10, overflow: "hidden" }}
         >
           <div style={{ padding: 8, fontWeight: 700 }}>{label}</div>
+
           {url ? (
             <img
               src={url}
               alt={label}
               style={{ width: "100%", height: 180, objectFit: "cover", display: "block" }}
+              onError={(e) => {
+                e.currentTarget.style.display = "none";
+              }}
             />
           ) : (
             <div style={{ padding: 12, color: "red" }}>❌ Missing</div>
@@ -40,6 +68,7 @@ function FacesGrid({ faces }) {
 export default function Listing360Page() {
   const { id } = useParams();
   const nav = useNavigate();
+
   const [listing, setListing] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -66,22 +95,32 @@ export default function Listing360Page() {
     };
   }, [id, nav]);
 
-  const pano = listing?.pano_url || null;
-  const cube = listing?.cubemap || null;
+  // ✅ Prefer ONE panorama image (after conversion)
+  const pano = useMemo(() => toAbsUrl(listing?.pano_url || listing?.panorama_360), [listing]);
 
-  // Build faces even if incomplete (helps debugging)
+  // ✅ Cubemap fallback (6 faces)
+  const cube = listing?.cubemap || listing?.cubemap_faces || null;
+
   const faces = useMemo(() => {
     if (!cube) return null;
 
-    return {
+    const f = {
       pano_front: cube.front ?? cube.pano_front ?? cube.panoFront,
       pano_back: cube.back ?? cube.pano_back ?? cube.panoBack,
       pano_left: cube.left ?? cube.pano_left ?? cube.panoLeft,
       pano_right: cube.right ?? cube.pano_right ?? cube.panoRight,
-
-      // accept up/down or top/bottom from backend
       pano_up: cube.up ?? cube.top ?? cube.pano_up ?? cube.pano_top,
       pano_down: cube.down ?? cube.bottom ?? cube.pano_down ?? cube.pano_bottom,
+    };
+
+    // ✅ Make them absolute URLs
+    return {
+      pano_front: toAbsUrl(f.pano_front),
+      pano_back: toAbsUrl(f.pano_back),
+      pano_left: toAbsUrl(f.pano_left),
+      pano_right: toAbsUrl(f.pano_right),
+      pano_up: toAbsUrl(f.pano_up),
+      pano_down: toAbsUrl(f.pano_down),
     };
   }, [cube]);
 
@@ -97,7 +136,7 @@ export default function Listing360Page() {
     return missing;
   }, [faces]);
 
-  const hasCube = missingFaces.length === 0;
+  const hasCube = faces && missingFaces.length === 0;
 
   if (loading) return <div style={{ padding: 20 }}>Loading...</div>;
   if (!listing) return null;
@@ -111,7 +150,23 @@ export default function Listing360Page() {
       <h2 style={{ marginTop: 0 }}>{listing.title}</h2>
       <p style={{ marginTop: 0, opacity: 0.8 }}>{listing.location}</p>
 
-      <h3>All 6 images (Preview)</h3>
+      {/* ✅ 360 VIEW FIRST (because this page is for 360) */}
+      <h3 style={{ marginTop: 18 }}>360 View</h3>
+      <div style={{ width: "100%", height: "70vh", borderRadius: 12, overflow: "hidden" }}>
+        {/* ✅ Prefer Panorama if available (your “converted” single file) */}
+        {pano ? (
+          <Panorama360 panoramaUrl={pano} height="70vh" />
+        ) : hasCube ? (
+          <Cubemap360 faces={faces} height="70vh" />
+        ) : (
+          <div style={{ padding: 20, border: "1px solid #ddd", borderRadius: 10 }}>
+            360 view not uploaded for this listing.
+          </div>
+        )}
+      </div>
+
+      {/* ✅ Preview faces only for debugging */}
+      <h3 style={{ marginTop: 18 }}>360 Photos (6 sides) Preview</h3>
       {faces ? (
         <>
           <FacesGrid faces={faces} />
@@ -124,33 +179,6 @@ export default function Listing360Page() {
       ) : (
         <div style={{ color: "red" }}>❌ Cubemap not found in API</div>
       )}
-
-      <h3 style={{ marginTop: 18 }}>360 View</h3>
-      <div style={{ width: "100%", height: "70vh", borderRadius: 12, overflow: "hidden" }}>
-        {/* Prefer Cubemap if complete. Otherwise fallback to Panorama if exists */}
-        {hasCube ? (
-          <Cubemap360 faces={faces} height="70vh" />
-        ) : pano ? (
-          <Panorama360 panoramaUrl={pano} height="70vh" />
-        ) : (
-          <div style={{ padding: 20, border: "1px solid #ddd", borderRadius: 10 }}>
-            360 view not uploaded for this listing.
-          </div>
-        )}
-      </div>
-
-      <pre style={{ marginTop: 16, background: "#f7f7f7", padding: 10, borderRadius: 8 }}>
-        {JSON.stringify(
-          {
-            pano_url: listing?.pano_url,
-            cubemap: listing?.cubemap,
-            built_faces: faces,
-            missing_faces: missingFaces,
-          },
-          null,
-          2
-        )}
-      </pre>
     </div>
   );
 }
