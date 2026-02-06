@@ -4,6 +4,9 @@ import { useNavigate, useParams } from "react-router-dom";
 import api from "../../api/axios";
 import ListingMapPanel from "../../components/ListingMapPanel";
 
+// ✅ NEW: Reviews
+import ReviewsBox from "../../components/ReviewsBox";
+
 const BACKEND = "http://127.0.0.1:8000";
 
 function toImageSrc(value) {
@@ -232,22 +235,42 @@ export default function PublicListingDetails() {
           <h2 style={{ marginTop: 0 }}>{listing.title || "Property"}</h2>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <div><b>Type:</b> {listing.property_type || "—"}</div>
-            <div><b>Location:</b> {listing.location || listing.address || "—"}</div>
-            <div><b>Price:</b> ${price.value}{price.label}</div>
-            {listing.electricity_bill && <div><b>Electricity:</b> {listing.electricity_bill}</div>}
-            {listing.owner_contact_number && <div><b>Owner phone:</b> {listing.owner_contact_number}</div>}
-            {listing.owner_contact_email && <div><b>Owner email:</b> {listing.owner_contact_email}</div>}
+            <div>
+              <b>Type:</b> {listing.property_type || "—"}
+            </div>
+            <div>
+              <b>Location:</b> {listing.location || listing.address || "—"}
+            </div>
+            <div>
+              <b>Price:</b> ${price.value}
+              {price.label}
+            </div>
+            {listing.electricity_bill && (
+              <div>
+                <b>Electricity:</b> {listing.electricity_bill}
+              </div>
+            )}
+            {listing.owner_contact_number && (
+              <div>
+                <b>Owner phone:</b> {listing.owner_contact_number}
+              </div>
+            )}
+            {listing.owner_contact_email && (
+              <div>
+                <b>Owner email:</b> {listing.owner_contact_email}
+              </div>
+            )}
           </div>
 
           <div style={{ marginTop: 12 }}>
             <b>Description</b>
-            <p style={{ marginTop: 6, lineHeight: 1.5 }}>
-              {listing.description || "No description."}
-            </p>
+            <p style={{ marginTop: 6, lineHeight: 1.5 }}>{listing.description || "No description."}</p>
           </div>
         </div>
       </div>
+
+      {/* ✅ NEW: REVIEWS */}
+      <ReviewsBox listingId={id} canReview={role === "tenant"} />
 
       {/* 360 images preview */}
       {has360 && (
@@ -285,7 +308,7 @@ export default function PublicListingDetails() {
         </div>
       )}
 
-      {/* ✅ NEW: MAP + Nearby Services */}
+      {/* ✅ MAP + Nearby Services */}
       <ListingMapPanel listing={listing} />
     </div>
   );

@@ -417,3 +417,34 @@ class BookingRequestListSerializer(serializers.ModelSerializer):
             "created_at": m.created_at,
             "sender": m.sender.username,
         }
+from .models import Review, MaintenanceRequest, Notification, Reminder, ListingFacility
+
+class ReviewSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Review
+        fields = "__all__"
+        read_only_fields = ["id", "created_at", "owner", "tenant"]
+
+class MaintenanceRequestSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MaintenanceRequest
+        fields = "__all__"
+        read_only_fields = ["id", "created_at", "updated_at", "owner", "tenant"]
+
+class NotificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Notification
+        fields = "__all__"
+        read_only_fields = ["id", "created_at", "user"]
+
+class ReminderSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Reminder
+        fields = "__all__"
+        read_only_fields = ["id", "created_at", "user"]
+
+class ListingFacilitySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ListingFacility
+        fields = "__all__"
+        read_only_fields = ["id"]

@@ -8,7 +8,7 @@ import PublicListings from "./pages/home/PublicListings";
 import PublicListingDetails from "./pages/home/PublicListingDetails";
 import Listing360Page from "./pages/home/Listing360Page";
 
-// ✅ NEW: MAP SEARCH
+// ✅ MAP SEARCH
 import MapSearch from "./pages/home/MapSearch";
 
 // AUTH
@@ -35,12 +35,22 @@ import OwnerListingEdit from "./pages/dashboard/OwnerListingEdit";
 // ✅ OWNER MESSAGES PAGE
 import OwnerMessages from "./pages/dashboard/OwnerMessages";
 
-// ✅ NEW ADMIN PAGE (Email UI)
+// ✅ ADMIN PAGE (Email UI)
 import EmailBroadcast from "./pages/dashboard/EmailBroadcast";
 
 // OWNER / TENANT
 import OwnerAddListing from "./pages/home/OwnerAddListing";
 import TenantBookPage from "./pages/home/TenantBookPage";
+
+// ✅ NEW FEATURES
+import BudgetSplitCalculator from "./pages/tools/BudgetSplitCalculator";
+
+// 2) Maintenance/Emergency pages (protected)
+import TenantMaintenance from "./pages/tenant/TenantMaintenance";
+import OwnerMaintenance from "./pages/owner/OwnerMaintenance";
+
+// 3) Reminders page (protected)
+import RemindersPage from "./pages/common/RemindersPage";
 
 // COMMON
 import Unauthorized from "./pages/Unauthorized";
@@ -52,25 +62,32 @@ import ProtectedRoute from "./auth/ProtectedRoute";
 export default function App() {
   return (
     <Routes>
-      {/* PUBLIC */}
+      {/* ======================
+          PUBLIC
+      ====================== */}
       <Route path="/" element={<HomePublic />} />
       <Route path="/listings" element={<PublicListings />} />
       <Route path="/listings/:id" element={<PublicListingDetails />} />
       <Route path="/public/listings/:id" element={<PublicListingDetails />} />
       <Route path="/listing/:id/360" element={<Listing360Page />} />
 
-      {/* ✅ MAP SEARCH (public route; uses browser location) */}
+      {/* ✅ MAP SEARCH */}
       <Route path="/map" element={<MapSearch />} />
 
-      {/* AUTH */}
+      {/* ✅ TOOL */}
+      <Route path="/tools/budget-split" element={<BudgetSplitCalculator />} />
+
+      {/* ======================
+          AUTH
+      ====================== */}
       <Route path="/auth" element={<UserAuth />} />
       <Route path="/otp" element={<Otp />} />
       <Route path="/super-admin-login-9382" element={<AdminLogin />} />
-
-      {/* ✅ HIDDEN: ADMIN SETUP */}
       <Route path="/setup-admin-9x2k" element={<AdminSetup />} />
 
-      {/* OWNER */}
+      {/* ======================
+          OWNER (Protected)
+      ====================== */}
       <Route
         path="/owner"
         element={
@@ -116,7 +133,6 @@ export default function App() {
         }
       />
 
-      {/* ✅ Owner Messages */}
       <Route
         path="/owner/messages"
         element={
@@ -126,7 +142,18 @@ export default function App() {
         }
       />
 
-      {/* TENANT */}
+      <Route
+        path="/owner/maintenance"
+        element={
+          <ProtectedRoute allowRoles={["owner"]}>
+            <OwnerMaintenance />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* ======================
+          TENANT (Protected)
+      ====================== */}
       <Route
         path="/tenant"
         element={
@@ -136,7 +163,6 @@ export default function App() {
         }
       />
 
-      {/* ✅ Tenant Inbox (needed for replies + ?open= ) */}
       <Route
         path="/tenant/inbox"
         element={
@@ -155,7 +181,18 @@ export default function App() {
         }
       />
 
-      {/* ADMIN */}
+      <Route
+        path="/tenant/maintenance"
+        element={
+          <ProtectedRoute allowRoles={["tenant"]}>
+            <TenantMaintenance />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* ======================
+          ADMIN (Protected)
+      ====================== */}
       <Route
         path="/admin"
         element={
@@ -174,7 +211,21 @@ export default function App() {
         }
       />
 
-      {/* COMMON */}
+      {/* ======================
+          COMMON (Protected)
+      ====================== */}
+      <Route
+        path="/reminders"
+        element={
+          <ProtectedRoute allowRoles={["admin", "owner", "tenant"]}>
+            <RemindersPage />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* ======================
+          COMMON
+      ====================== */}
       <Route path="/unauthorized" element={<Unauthorized />} />
       <Route path="*" element={<NotFound />} />
     </Routes>

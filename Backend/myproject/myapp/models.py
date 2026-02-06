@@ -240,3 +240,127 @@ class BookingMessage(models.Model):
 
     def __str__(self):
         return f"BookingMessage(req={self.request_id}, sender={self.sender_id})"
+
+
+
+
+        # =========================
+# ✅ REVIEWS / RATINGS
+# =========================
+class Review(models.Model):
+    listing = models.ForeignKey(Listing, on_delete=models.CASCADE, related_name="reviews")
+
+    # ✅ IMPORTANT: use USER (same as BookingRequest.tenant)
+    tenant = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="reviews_written",
+    )
+
+    # ✅ IMPORTANT: use USER (same as Listing.owner)
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="reviews_received",
+    )
+
+    rating = models.PositiveSmallIntegerField(default=5)  # 1..5
+    comment = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("listing", "tenant")  # one review per tenant per listing
+
+    def __str__(self):
+        return f"Review(listing={self.listing_id}, tenant={self.tenant_id}, rating={self.rating})"
+
+
+# =========================
+# ✅ MAINTENANCE / EMERGENCY REQUESTS
+# =========================
+class MaintenanceRequest(models.Model):
+    STATUS = (
+        ("open", "Open"),
+        ("in_progress", "In Progress"),
+        ("resolved", "Resolved"),
+        ("rejected", "Rejected"),
+    )
+    PRIORITY = (
+        ("low", "Low"),
+        ("medium", "Medium"),
+        ("high", "High"),
+        ("emergency", "Emergency"),
+    )
+    CATEGORY = (
+        ("plumbing", "Plumbing"),
+        ("electrical", "Electrical"),
+        ("cleaning", "Cleaning"),
+        ("internet", "Internet/WiFi"),
+        ("other", "Other"),
+    )
+
+    listing = models.ForeignKey("Listing", on_delete=models.CASCADE, related_name="maintenance_requests")
+    tenant = models.ForeignKey("Tenant", on_delete=models.CASCADE, related_name="maintenance_requests")
+    owner = models.ForeignKey("Owner", on_delete=models.CASCADE, related_name="maintenance_requests")
+
+    category = models.CharField(max_length=30, choices=CATEGORY, default="other")
+    priority = models.CharField(max_length=20, choices=PRIORITY, default="medium")
+    status = models.CharField(max_length=20, choices=STATUS, default="open")
+
+    title = models.CharField(max_length=120, default="")
+    description = models.TextField(default="")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+# =========================
+# ✅ IN-APP NOTIFICATIONS
+# =========================
+class Notification(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notifications")
+    title = models.CharField(max_length=140, default="")
+    message = models.TextField(default="")
+    link = models.CharField(max_length=255, blank=True, default="")  # optional frontend route like "/tenant/requests"
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+# =========================
+# ✅ REMINDERS (rent/water/electricity)
+# =========================
+class Reminder(models.Model):
+    TYPE = (
+        ("rent", "Rent"),
+        ("water", "Water"),
+        ("electricity", "Electricity"),
+        ("other", "Other"),
+    )
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="reminders")
+    reminder_type = models.CharField(max_length=20, choices=TYPE, default="rent")
+    title = models.CharField(max_length=140, default="")
+    amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    due_date = models.DateField()
+    repeat_monthly = models.BooleanField(default=False)
+    is_done = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+# =========================
+# ✅ NEARBY FACILITIES (basic/manual)
+# =========================
+class ListingFacility(models.Model):
+    KIND = (
+        ("bus_stop", "Bus Stop"),
+        ("college", "College/University"),
+        ("office", "Office"),
+        ("market", "Market/Grocery"),
+        ("hospital", "Hospital/Clinic"),
+        ("atm", "ATM/Bank"),
+        ("other", "Other"),
+    )
+    listing = models.ForeignKey("Listing", on_delete=models.CASCADE, related_name="facilities")
+    kind = models.CharField(max_length=30, choices=KIND, default="other")
+    name = models.CharField(max_length=120, default="")
+    distance_m = models.PositiveIntegerField(null=True, blank=True)
+    address = models.CharField(max_length=200, blank=True, default="")

@@ -10,21 +10,59 @@ export default function TenantBookPage() {
   const [loading, setLoading] = useState(false);
 
   const sendRequest = async () => {
+    const token = localStorage.getItem("access");
+    const role = localStorage.getItem("role");
+
+    if (!token) {
+      alert("Login required. Please login first.");
+      navigate("/auth");
+      return;
+    }
+    if (role !== "tenant") {
+      alert("Only tenant can send booking request.");
+      navigate("/unauthorized");
+      return;
+    }
+    if (!message.trim()) {
+      alert("Please write a message.");
+      return;
+    }
+
     setLoading(true);
     try {
-      // ✅ baseURL already has /api so DO NOT add /api here
-      const res = await api.post(`/tenant/request-booking/${listing_id}/`, {
-        message,
-      });
+      // ✅ correct endpoint from urls.py
+      const res = await api.post(
+        "tenant/booking-requests/create/",
+        {
+          listing: Number(listing_id),
+          message: message.trim(),
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
 
       alert(res.data?.message || "✅ Request sent to owner!");
-      navigate("/");
+      navigate(`/public/listings/${listing_id}`);
     } catch (e) {
+      console.log("BOOKING ERROR:", e?.response?.status, e?.response?.data);
+
       const errMsg =
-        e?.response?.data?.error ||
         e?.response?.data?.detail ||
-        "❌ Request failed (login required)";
+        e?.response?.data?.error ||
+        e?.response?.data?.message ||
+        (typeof e?.response?.data === "string" ? e.response.data : "") ||
+        "❌ Request failed";
+
       alert(errMsg);
+
+      if (e?.response?.status === 401) {
+        localStorage.removeItem("access");
+        localStorage.removeItem("refresh");
+        localStorage.removeItem("role");
+        alert("Session expired. Please login again.");
+        navigate("/auth");
+      }
     } finally {
       setLoading(false);
     }

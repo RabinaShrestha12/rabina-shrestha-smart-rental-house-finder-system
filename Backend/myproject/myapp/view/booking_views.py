@@ -27,7 +27,9 @@ def is_tenant(user):
 # =====================================================
 # ✅ TENANT: Create booking request
 # POST /api/tenant/booking-requests/create/
-# body: { "listing_id": 1, "first_message": "Hi..." }
+# body supports:
+#   { "listing_id": 1, "first_message": "Hi..." }
+#   { "listing": 1, "message": "Hi..." }   ✅ (frontend friendly)
 # =====================================================
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
@@ -35,7 +37,16 @@ def tenant_create_booking_request(request):
     if not is_tenant(request.user):
         return Response({"detail": "Only TENANT can request booking."}, status=status.HTTP_403_FORBIDDEN)
 
-    ser = BookingRequestCreateSerializer(data=request.data, context={"request": request})
+    data = request.data.copy()
+
+    # ✅ accept both field formats
+    if "listing_id" not in data and "listing" in data:
+        data["listing_id"] = data.get("listing")
+
+    if "first_message" not in data and "message" in data:
+        data["first_message"] = data.get("message")
+
+    ser = BookingRequestCreateSerializer(data=data, context={"request": request})
     if not ser.is_valid():
         return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -96,11 +107,9 @@ def booking_messages(request, booking_id):
     except BookingRequest.DoesNotExist:
         return Response({"detail": "Booking request not found."}, status=status.HTTP_404_NOT_FOUND)
 
-    # allow only tenant or listing owner
     if booking.tenant_id != request.user.id and booking.listing.owner_id != request.user.id:
         return Response({"detail": "Not allowed."}, status=status.HTTP_403_FORBIDDEN)
 
-    # ✅ If your BookingMessage FK has related_name="messages"
     msgs = booking.messages.select_related("sender").order_by("created_at")
     return Response(BookingMessageSerializer(msgs, many=True, context={"request": request}).data)
 
@@ -128,7 +137,6 @@ def booking_send_message(request, booking_id):
     if booking.tenant_id != request.user.id and booking.listing.owner_id != request.user.id:
         return Response({"detail": "Not allowed."}, status=status.HTTP_403_FORBIDDEN)
 
-    # ✅ Create message (robust: supports common field names)
     try:
         msg = BookingMessage.objects.create(request=booking, sender=request.user, text=text)
     except TypeError:
@@ -144,10 +152,6 @@ def booking_send_message(request, booking_id):
 # ✅ OWNER: Accept / Reject booking
 # POST /api/owner/booking-requests/<booking_id>/status/
 # body: { "status": "accepted" } or { "status": "rejected" }
-#
-# ✅ IMPORTANT:
-# - accepted -> listing.is_available = False (remove from home)
-# - rejected -> if no accepted booking exists -> listing.is_available = True (show again)
 # =====================================================
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
@@ -157,14 +161,12 @@ def owner_set_booking_status(request, booking_id):
 
     new_status = request.data.get("status")
 
-    # support both constant + raw strings
     accepted_val = getattr(BookingRequest, "STATUS_ACCEPTED", "accepted")
     rejected_val = getattr(BookingRequest, "STATUS_REJECTED", "rejected")
 
     if new_status not in [accepted_val, rejected_val, "accepted", "rejected"]:
         return Response({"detail": "status must be 'accepted' or 'rejected'."}, status=status.HTTP_400_BAD_REQUEST)
 
-    # normalize
     if new_status == "accepted":
         new_status = accepted_val
     if new_status == "rejected":
@@ -185,12 +187,10 @@ def owner_set_booking_status(request, booking_id):
         booking.decided_at = timezone.now()
         booking.save(update_fields=["status", "decided_at"])
 
-        # ✅ Update listing availability for public pages
         if new_status == accepted_val:
             listing.is_available = False
             listing.save(update_fields=["is_available"])
 
-            # Optional: reject other requests for same listing
             BookingRequest.objects.filter(listing=listing).exclude(id=booking.id).exclude(
                 status=rejected_val
             ).update(status=rejected_val, decided_at=timezone.now())
@@ -210,7 +210,7 @@ def owner_set_booking_status(request, booking_id):
 
 
 # =====================================================
-# ✅ FIX for your old frontend call:
+# ✅ Legacy endpoint:
 # POST /api/messages/
 # body: { "booking_id": 3, "text": "hello" }
 # =====================================================
@@ -230,7 +230,6 @@ def create_message_legacy(request):
     except BookingRequest.DoesNotExist:
         return Response({"detail": "Booking request not found."}, status=status.HTTP_404_NOT_FOUND)
 
-    # allow only tenant or listing owner
     if booking.tenant_id != request.user.id and booking.listing.owner_id != request.user.id:
         return Response({"detail": "Not allowed."}, status=status.HTTP_403_FORBIDDEN)
 
