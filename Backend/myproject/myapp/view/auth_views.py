@@ -1,4 +1,7 @@
 # Backend/myproject/myapp/view/auth_views.py
+# ✅ Supports: admin / owner / tenant / provider signup with OTP
+# ✅ Auto-creates role profile rows: Owner / Tenant / ServiceProviderProfile
+# ✅ Fix: Tenant/Owner models do NOT have address/phone (those are in User)
 
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
@@ -18,8 +21,7 @@ from django.contrib.auth.hashers import make_password, check_password
 from datetime import timedelta
 import random
 
-# ✅ IMPORTANT: include Tenant/Owner here
-from ..models import PendingSignup, PendingSignupOTP, Tenant, Owner
+from ..models import PendingSignup, PendingSignupOTP, Tenant, Owner, ServiceProviderProfile
 
 User = get_user_model()
 
@@ -80,27 +82,31 @@ def send_otp_email(to_email, code):
 
 def ensure_role_profile(user):
     """
-    ✅ Create Tenant/Owner row linked to the user (if missing).
-    Call this after user.save() or role updates.
+    ✅ Create Tenant/Owner/Provider profile row linked to the user (if missing).
+    IMPORTANT:
+    - address/phone are stored in User model (NOT in Tenant/Owner)
+    - Tenant/Owner only have: user + location
     """
-    if getattr(user, "role", None) == "tenant":
-        Tenant.objects.get_or_create(
+    role = getattr(user, "role", None)
+
+    if role == "tenant":
+        Tenant.objects.get_or_create(user=user, defaults={"location": ""})
+
+    elif role == "owner":
+        Owner.objects.get_or_create(user=user, defaults={"location": ""})
+
+    elif role == "provider":
+        ServiceProviderProfile.objects.get_or_create(
             user=user,
             defaults={
-                "address": getattr(user, "address", "") or "",
+                "category": "other",
+                "service_area": "",
                 "phone": getattr(user, "phone", "") or "",
-                "location": "",
+                "availability": "available",
+                "bio": "",
             },
         )
-    elif getattr(user, "role", None) == "owner":
-        Owner.objects.get_or_create(
-            user=user,
-            defaults={
-                "address": getattr(user, "address", "") or "",
-                "phone": getattr(user, "phone", "") or "",
-                "location": "",
-            },
-        )
+    # admin: no profile table needed
 
 
 # =========================================================
@@ -113,7 +119,7 @@ def register_user(request):
 
     email = (data.get("email") or "").strip().lower()
     password = data.get("password")
-    role = data.get("role")  # owner/tenant ONLY
+    role = (data.get("role") or "").strip().lower()  # owner/tenant/provider
     address = data.get("address", "")
     phone = data.get("phone", "")
 
@@ -124,14 +130,14 @@ def register_user(request):
     if not email or not password:
         return Response({"error": "email and password are required"}, status=status.HTTP_400_BAD_REQUEST)
 
-    if role not in ["owner", "tenant"]:
-        return Response({"error": "role must be owner/tenant"}, status=status.HTTP_400_BAD_REQUEST)
+    if role not in ["owner", "tenant", "provider"]:
+        return Response({"error": "role must be owner/tenant/provider"}, status=status.HTTP_400_BAD_REQUEST)
 
     # ✅ If real user already exists
     if User.objects.filter(email__iexact=email).exists():
         return Response({"error": "Email already exists. Please login."}, status=status.HTTP_400_BAD_REQUEST)
 
-    # ✅ If pending signup exists -> resend OTP
+    # ✅ If pending signup exists -> resend OTP (latest)
     existing_pending = PendingSignup.objects.filter(email__iexact=email, is_used=False).order_by("-created_at").first()
     if existing_pending:
         code = generate_otp_code()
@@ -139,7 +145,7 @@ def register_user(request):
             pending=existing_pending,
             purpose="signup",
             code_hash=make_password(code),
-            expires_at=timezone.now() + timedelta(days=3650),  # no expiry
+            expires_at=timezone.now() + timedelta(days=3650),  # no expiry (your original behavior)
             is_used=False,
         )
         try:
@@ -183,7 +189,7 @@ def register_user(request):
         send_otp_email(email, code)
 
         return Response(
-            {"message": "OTP sent to email. Verify once to activate account.", "email": email},
+            {"message": "OTP sent to email. Verify once to activate account.", "email": email, "role": role},
             status=status.HTTP_201_CREATED,
         )
 
@@ -194,7 +200,7 @@ def register_user(request):
 
 
 # =========================================================
-# ✅ VERIFY OTP (creates real User) + ✅ creates Tenant/Owner row
+# ✅ VERIFY OTP (creates real User) + ✅ creates role profile row
 # =========================================================
 @api_view(["POST"])
 @permission_classes([AllowAny])
@@ -242,14 +248,15 @@ def verify_otp(request):
                 email=pending.email,
                 password=None,
             )
-            user.password = pending.password_hash  # already hashed
-            user.role = pending.role
+            # password_hash already hashed
+            user.password = pending.password_hash
+            user.role = pending.role  # owner/tenant/provider
             user.address = pending.address
             user.phone = pending.phone
             user.is_email_verified = True
             user.save()
 
-            # ✅ create Tenant/Owner profile
+            # ✅ create profile row
             ensure_role_profile(user)
 
             otp.is_used = True
@@ -262,7 +269,10 @@ def verify_otp(request):
         return Response(
             {
                 "message": "OTP verified. Account activated. You can login anytime now.",
-                "tokens": tokens,
+                # ✅ IMPORTANT: return top-level access/refresh (frontend expects these)
+                "access": tokens["access"],
+                "refresh": tokens["refresh"],
+                "tokens": tokens,  # keep for compatibility
                 "role": user.role,
                 "user_id": user.id,
                 "email": user.email,
@@ -276,7 +286,7 @@ def verify_otp(request):
 
 
 # =========================================================
-# ✅ LOGIN (ADMIN + OWNER + TENANT) - email+password
+# ✅ LOGIN (ADMIN + OWNER + TENANT + PROVIDER) - email+password
 # =========================================================
 @api_view(["POST"])
 @permission_classes([AllowAny])
@@ -297,17 +307,23 @@ def login_user(request):
     if not user or not user.check_password(password):
         return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
 
-    # ✅ Only require verification for owner/tenant (admin is registered as verified)
-    if getattr(user, "role", None) in ["owner", "tenant"] and getattr(user, "is_email_verified", False) is False:
+    # ✅ Require verification for owner/tenant/provider
+    if getattr(user, "role", None) in ["owner", "tenant", "provider"] and getattr(user, "is_email_verified", False) is False:
         return Response({"error": "Email not verified. Please verify signup OTP first."}, status=status.HTTP_403_FORBIDDEN)
+
+    # ✅ Ensure profile exists (safe)
+    ensure_role_profile(user)
 
     tokens = get_tokens_for_user(user)
 
     return Response(
         {
             "message": "Login successful",
+            # ✅ IMPORTANT: top-level access/refresh (frontend expects these)
+            "access": tokens["access"],
+            "refresh": tokens["refresh"],
             "tokens": tokens,
-            "role": user.role,  # admin/owner/tenant
+            "role": user.role,  # admin/owner/tenant/provider
             "user_id": user.id,
             "email": user.email,
             "username": user.username,
@@ -363,6 +379,8 @@ def register_admin(request):
         return Response(
             {
                 "message": "Admin registered",
+                "access": tokens["access"],
+                "refresh": tokens["refresh"],
                 "tokens": tokens,
                 "user_id": admin.id,
                 "role": admin.role,
@@ -377,7 +395,7 @@ def register_admin(request):
 
 
 # =========================================================
-# ADMIN LOGIN (Optional now - you can keep)
+# ADMIN LOGIN (Optional)
 # =========================================================
 @api_view(["POST"])
 @permission_classes([AllowAny])
@@ -401,6 +419,8 @@ def login_admin(request):
     return Response(
         {
             "message": "Admin login successful",
+            "access": tokens["access"],
+            "refresh": tokens["refresh"],
             "tokens": tokens,
             "role": user.role,
             "user_id": user.id,
@@ -441,6 +461,15 @@ def list_tenants(request):
     return Response(list(tenants), status=status.HTTP_200_OK)
 
 
+@api_view(["GET"])
+@permission_classes([IsAdminRole])
+def list_providers(request):
+    providers = User.objects.filter(role="provider").values(
+        "id", "username", "email", "role", "address", "phone", "created_at"
+    )
+    return Response(list(providers), status=status.HTTP_200_OK)
+
+
 # =========================================================
 # ADMIN: USER DETAIL CRUD
 # =========================================================
@@ -479,9 +508,9 @@ def user_detail_crud(request, user_id):
         user.address = data.get("address", user.address)
 
         if "role" in data:
-            new_role = data.get("role")
-            if new_role not in ["owner", "tenant", "admin"]:
-                return Response({"error": "role must be owner/tenant/admin"}, status=status.HTTP_400_BAD_REQUEST)
+            new_role = (data.get("role") or "").strip().lower()
+            if new_role not in ["owner", "tenant", "admin", "provider"]:
+                return Response({"error": "role must be owner/tenant/admin/provider"}, status=status.HTTP_400_BAD_REQUEST)
             user.role = new_role
 
         if "phone" in data:

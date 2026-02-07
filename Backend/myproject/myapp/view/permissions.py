@@ -1,16 +1,17 @@
 from rest_framework.permissions import BasePermission
 
+class IsTenantRole(BasePermission):
+    def has_permission(self, request, view):
+        return bool(request.user and request.user.is_authenticated and getattr(request.user, "role", "") == "tenant")
 
 class IsOwnerRole(BasePermission):
     def has_permission(self, request, view):
-        return request.user.is_authenticated and getattr(request.user, "role", "") == "owner"
+        return bool(request.user and request.user.is_authenticated and getattr(request.user, "role", "") == "owner")
 
-
-class IsTenantRole(BasePermission):
+class IsProviderRole(BasePermission):
     def has_permission(self, request, view):
-        return request.user.is_authenticated and getattr(request.user, "role", "") == "tenant"
+        return bool(request.user and request.user.is_authenticated and getattr(request.user, "role", "") == "provider")
 
-
-class IsOwnerOfBookingListing(BasePermission):
-    def has_object_permission(self, request, view, obj):
-        return request.user.is_authenticated and obj.listing.owner_id == request.user.id
+class IsAdminRole(BasePermission):
+    def has_permission(self, request, view):
+        return bool(request.user and request.user.is_authenticated and getattr(request.user, "role", "") == "admin")

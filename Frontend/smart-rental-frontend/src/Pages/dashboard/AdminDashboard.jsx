@@ -1,183 +1,257 @@
-import { useEffect, useState } from "react";
+// src/pages/dashboard/AdminDashboard.jsx
+import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import { useAuth } from "../../auth/AuthContext";
 import Shell from "../../components/Shell";
 import Toast from "../../components/Toast";
 
+function isHtml(x) {
+  return (
+    typeof x === "string" &&
+    x.trim().toLowerCase().includes("<!doctype html")
+  );
+}
+
+function safeArr(data) {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.results)) return data.results;
+  if (Array.isArray(data?.owners)) return data.owners;
+  if (Array.isArray(data?.tenants)) return data.tenants;
+  return [];
+}
+
+async function getFirstWorking(endpoints) {
+  let lastErr = null;
+  for (const ep of endpoints) {
+    try {
+      const res = await api.get(ep);
+      if (isHtml(res?.data)) throw new Error("API returned HTML (wrong URL)");
+      return res.data;
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr || new Error("No endpoint worked");
+}
+
 export default function AdminDashboard() {
-  const { auth, logout } = useAuth();
-  const email = auth?.email || "";
+  const nav = useNavigate();
+  const { logout, email, role } = useAuth();
 
   const [toast, setToast] = useState({ type: "info", msg: "" });
   const [owners, setOwners] = useState([]);
   const [tenants, setTenants] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      try {
-        // ✅ IMPORTANT: NO leading "/" or axios will drop /api/
-        // ✅ FIXED: These must match Django urls.py:
-        //     path("admin/owners/", list_owners)
-        //     path("admin/tenants/", list_tenants)
-        const [ownersRes, tenantsRes] = await Promise.all([
-          api.get("admin/owners/"),
-          api.get("admin/tenants/"),
+  const showToast = (type, msg) => setToast({ type, msg });
+
+  const handleLogout = () => {
+    logout();
+    nav("/super-admin-login-9382", { replace: true });
+  };
+
+  const loadData = async () => {
+    setLoading(true);
+    setOwners([]);
+    setTenants([]);
+    setToast({ type: "info", msg: "" });
+
+    try {
+      // ✅ Try common admin endpoints (change/add yours here if needed)
+      const adminData = await getFirstWorking([
+        "admin/dashboard/",
+        "admin/dashboard",
+        "admin/users/",
+        "admin/users",
+      ]);
+
+      // backend might return { owners:[], tenants:[] }
+      if (adminData?.owners || adminData?.tenants) {
+        setOwners(safeArr(adminData?.owners));
+        setTenants(safeArr(adminData?.tenants));
+      } else if (Array.isArray(adminData)) {
+        // backend might return a mixed list of users with role field
+        const list = adminData;
+        setOwners(list.filter((u) => String(u?.role || "").toLowerCase() === "owner"));
+        setTenants(list.filter((u) => String(u?.role || "").toLowerCase() === "tenant"));
+      } else if (adminData?.results) {
+        const list = safeArr(adminData);
+        setOwners(list.filter((u) => String(u?.role || "").toLowerCase() === "owner"));
+        setTenants(list.filter((u) => String(u?.role || "").toLowerCase() === "tenant"));
+      } else {
+        // If adminData was not that shape, try owners & tenants separately
+        const ownersData = await getFirstWorking([
+          "admin/owners/",
+          "admin/owners",
+          "owners/",
+          "owners",
         ]);
 
-        const ownersList = Array.isArray(ownersRes.data)
-          ? ownersRes.data
-          : ownersRes.data?.results || [];
+        const tenantsData = await getFirstWorking([
+          "admin/tenants/",
+          "admin/tenants",
+          "tenants/",
+          "tenants",
+        ]);
 
-        const tenantsList = Array.isArray(tenantsRes.data)
-          ? tenantsRes.data
-          : tenantsRes.data?.results || [];
-
-        setOwners(ownersList);
-        setTenants(tenantsList);
-      } catch (err) {
-        const status = err?.response?.status;
-        const data = err?.response?.data;
-
-        const msg =
-          data?.detail ||
-          data?.error ||
-          (typeof data === "string" ? data : "") ||
-          `Failed to load users (status: ${status || "?"}).`;
-
-        // Default error message
-        setToast({ type: "error", msg });
-
-        // Helpful hints based on status
-        if (status === 401) {
-          setToast({
-            type: "error",
-            msg: "Unauthorized (401). Admin token missing/expired. Please login again.",
-          });
-        }
-        if (status === 403) {
-          setToast({
-            type: "error",
-            msg: "Forbidden (403). Your account is not admin or role permission failed.",
-          });
-        }
-        if (status === 404) {
-          setToast({
-            type: "error",
-            msg: "Not found (404). Check Django URL patterns for admin/owners and admin/tenants.",
-          });
-        }
-      } finally {
-        setLoading(false);
+        setOwners(safeArr(ownersData));
+        setTenants(safeArr(tenantsData));
       }
-    };
+    } catch (e) {
+      const msg =
+        e?.response?.data?.detail ||
+        e?.message ||
+        "Failed to load admin data (wrong API endpoint).";
+      showToast("error", msg);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    load();
-  }, []);
+  useEffect(() => {
+    // basic guard
+    if (String(role || "").toLowerCase() !== "admin") {
+      nav("/unauthorized", { replace: true });
+      return;
+    }
+    loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [role]);
+
+  const renderRows = (list) =>
+    list.map((u, idx) => (
+      <tr key={u?.id ?? u?.pk ?? idx} style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+        <td style={td}>{u?.id ?? u?.pk ?? "-"}</td>
+        <td style={td}>{u?.username ?? u?.name ?? "-"}</td>
+        <td style={td}>{u?.email ?? "-"}</td>
+        <td style={td}>
+          <span style={badge}>{String(u?.role || "").toLowerCase() || "-"}</span>
+        </td>
+      </tr>
+    ));
 
   return (
-    <Shell
-      title="Admin Dashboard"
-      subtitle={`Welcome ${email || "Admin"}. View owners and tenants.`}
-      right={
-        <button
-          onClick={logout}
-          className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm hover:bg-white/10 transition"
-        >
-          Logout
-        </button>
-      }
-    >
-      <Toast
-        type={toast.type}
-        message={toast.msg}
-        onClose={() => setToast({ type: "info", msg: "" })}
-      />
+    <Shell>
+      <div style={{ maxWidth: 1100, margin: "0 auto", padding: 16 }}>
+        <Toast
+          type={toast.type}
+          msg={toast.msg}
+          onClose={() => setToast({ type: "info", msg: "" })}
+        />
 
-      {loading && (
-        <div className="mb-4 text-sm text-slate-300">Loading users…</div>
-      )}
+        <div style={headerRow}>
+          <div>
+            <h2 style={{ margin: 0 }}>Admin Dashboard</h2>
+            <div style={{ opacity: 0.8, marginTop: 4 }}>
+              Welcome {email || "Admin"}. View owners and tenants.
+            </div>
+          </div>
 
-      {/* Owners */}
-      <div className="rounded-2xl border border-white/10 bg-black/30 p-5 mb-6">
-        <div className="text-sm font-medium">Owners</div>
-        <div className="mt-1 text-xs text-slate-300">List of owner accounts</div>
-
-        <div className="mt-4 overflow-auto">
-          <table className="w-full text-sm">
-            <thead className="text-xs text-slate-300">
-              <tr className="border-b border-white/10">
-                <th className="py-3 text-left">ID</th>
-                <th className="py-3 text-left">Username</th>
-                <th className="py-3 text-left">Email</th>
-                <th className="py-3 text-left">Role</th>
-              </tr>
-            </thead>
-            <tbody className="text-slate-200">
-              {owners.map((u) => (
-                <tr key={u.id} className="border-b border-white/5">
-                  <td className="py-3">{u.id}</td>
-                  <td className="py-3">{u.username}</td>
-                  <td className="py-3">{u.email}</td>
-                  <td className="py-3">
-                    <span className="rounded-full bg-indigo-500/15 border border-indigo-400/20 px-3 py-1 text-xs">
-                      {u.role}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-              {!loading && !owners.length && (
-                <tr>
-                  <td className="py-4 text-slate-400" colSpan={4}>
-                    No owners found.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+          <button style={btn} onClick={handleLogout}>
+            Logout
+          </button>
         </div>
-      </div>
 
-      {/* Tenants */}
-      <div className="rounded-2xl border border-white/10 bg-black/30 p-5">
-        <div className="text-sm font-medium">Tenants</div>
-        <div className="mt-1 text-xs text-slate-300">List of tenant accounts</div>
+        <div style={{ marginTop: 16 }}>
+          <button style={btnGhost} onClick={loadData}>
+            Refresh
+          </button>
+        </div>
 
-        <div className="mt-4 overflow-auto">
-          <table className="w-full text-sm">
-            <thead className="text-xs text-slate-300">
-              <tr className="border-b border-white/10">
-                <th className="py-3 text-left">ID</th>
-                <th className="py-3 text-left">Username</th>
-                <th className="py-3 text-left">Email</th>
-                <th className="py-3 text-left">Role</th>
-              </tr>
-            </thead>
-            <tbody className="text-slate-200">
-              {tenants.map((u) => (
-                <tr key={u.id} className="border-b border-white/5">
-                  <td className="py-3">{u.id}</td>
-                  <td className="py-3">{u.username}</td>
-                  <td className="py-3">{u.email}</td>
-                  <td className="py-3">
-                    <span className="rounded-full bg-indigo-500/15 border border-indigo-400/20 px-3 py-1 text-xs">
-                      {u.role}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-              {!loading && !tenants.length && (
+        <div style={card}>
+          <h3 style={{ marginTop: 0 }}>Owners</h3>
+          {loading ? (
+            <div style={{ opacity: 0.85 }}>Loading…</div>
+          ) : owners.length === 0 ? (
+            <div style={{ opacity: 0.75 }}>No owners found.</div>
+          ) : (
+            <table style={table}>
+              <thead>
                 <tr>
-                  <td className="py-4 text-slate-400" colSpan={4}>
-                    No tenants found.
-                  </td>
+                  <th style={th}>ID</th>
+                  <th style={th}>Username</th>
+                  <th style={th}>Email</th>
+                  <th style={th}>Role</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>{renderRows(owners)}</tbody>
+            </table>
+          )}
+        </div>
+
+        <div style={card}>
+          <h3 style={{ marginTop: 0 }}>Tenants</h3>
+          {loading ? (
+            <div style={{ opacity: 0.85 }}>Loading…</div>
+          ) : tenants.length === 0 ? (
+            <div style={{ opacity: 0.75 }}>No tenants found.</div>
+          ) : (
+            <table style={table}>
+              <thead>
+                <tr>
+                  <th style={th}>ID</th>
+                  <th style={th}>Username</th>
+                  <th style={th}>Email</th>
+                  <th style={th}>Role</th>
+                </tr>
+              </thead>
+              <tbody>{renderRows(tenants)}</tbody>
+            </table>
+          )}
         </div>
       </div>
     </Shell>
   );
 }
+
+const headerRow = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 12,
+  flexWrap: "wrap",
+  border: "1px solid rgba(255,255,255,0.10)",
+  borderRadius: 16,
+  padding: 14,
+  background: "rgba(255,255,255,0.04)",
+};
+
+const card = {
+  marginTop: 16,
+  border: "1px solid rgba(255,255,255,0.10)",
+  borderRadius: 16,
+  padding: 14,
+  background: "rgba(255,255,255,0.04)",
+};
+
+const btn = {
+  padding: "10px 14px",
+  borderRadius: 12,
+  border: "1px solid rgba(255,255,255,0.15)",
+  background: "rgba(255,255,255,0.06)",
+  color: "white",
+  cursor: "pointer",
+  fontWeight: 700,
+};
+
+const btnGhost = {
+  padding: "10px 14px",
+  borderRadius: 12,
+  border: "1px solid rgba(255,255,255,0.15)",
+  background: "rgba(255,255,255,0.06)",
+  color: "white",
+  cursor: "pointer",
+  fontWeight: 700,
+};
+
+const table = { width: "100%", borderCollapse: "collapse", marginTop: 10 };
+const th = { textAlign: "left", fontSize: 12, opacity: 0.8, padding: "10px 8px" };
+const td = { padding: "10px 8px", fontSize: 13 };
+const badge = {
+  display: "inline-block",
+  padding: "4px 10px",
+  borderRadius: 999,
+  border: "1px solid rgba(255,255,255,0.18)",
+  background: "rgba(124,58,237,0.25)",
+};

@@ -1,3 +1,4 @@
+# myapp/models.py
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.conf import settings
@@ -12,6 +13,7 @@ class User(AbstractUser):
         ("admin", "Admin"),
         ("owner", "Owner"),
         ("tenant", "Tenant"),
+        ("provider", "Service Provider"),
     )
 
     role = models.CharField(max_length=20, choices=USER_TYPE, blank=True, default="tenant")
@@ -33,7 +35,7 @@ class User(AbstractUser):
 class PendingSignup(models.Model):
     email = models.EmailField(db_index=True)
     username = models.CharField(max_length=150)
-    role = models.CharField(max_length=20)  # admin/owner/tenant
+    role = models.CharField(max_length=20)  # admin/owner/tenant/provider
 
     password_hash = models.CharField(max_length=128)
 
@@ -73,26 +75,22 @@ class PendingSignupOTP(models.Model):
 
 
 # =========================
-# OWNER / TENANT TABLES
+# OWNER / TENANT PROFILES (optional tables, but user link MUST NOT be null)
 # =========================
 class Owner(models.Model):
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="owner",
-        null=True,       # ✅ TEMP (fix migration issue)
-        blank=True,      # ✅ TEMP
     )
-
-    address = models.CharField(max_length=100, blank=True, default="")
-    phone = models.CharField(max_length=30, blank=True, default="")
+    # optional extra fields (User already has address/phone)
     location = models.CharField(max_length=200, blank=True, default="")
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"Owner({self.user.username if self.user else 'unlinked'})"
+        return f"Owner({self.user.username})"
 
 
 class Tenant(models.Model):
@@ -100,19 +98,56 @@ class Tenant(models.Model):
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="tenant",
-        null=True,       # ✅ TEMP (fix migration issue)
-        blank=True,      # ✅ TEMP
     )
-
-    address = models.CharField(max_length=100, blank=True, default="")
-    phone = models.CharField(max_length=30, blank=True, default="")
     location = models.CharField(max_length=200, blank=True, default="")
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"Tenant({self.user.username if self.user else 'unlinked'})"
+        return f"Tenant({self.user.username})"
+
+
+# =========================
+# SERVICE PROVIDER PROFILE (for provider dashboard & filtering)
+# =========================
+class ServiceProviderProfile(models.Model):
+    CATEGORY_CHOICES = (
+        ("plumbing", "Plumbing"),
+        ("electrical", "Electrical"),
+        ("cleaning", "Cleaning"),
+        ("internet", "Internet/WiFi"),
+        ("gas", "Gas"),
+        ("hvac", "AC / Heating"),
+        ("pest_control", "Pest Control"),
+        ("carpentry", "Carpentry"),
+        ("painting", "Painting"),
+        ("other", "Other"),
+    )
+
+    AVAILABILITY_CHOICES = (
+        ("available", "Available"),
+        ("busy", "Busy"),
+        ("offline", "Offline"),
+    )
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="provider_profile",
+    )
+
+    category = models.CharField(max_length=30, choices=CATEGORY_CHOICES, default="other")
+    service_area = models.CharField(max_length=120, blank=True, default="")
+    phone = models.CharField(max_length=30, blank=True, default="")
+    availability = models.CharField(max_length=20, choices=AVAILABILITY_CHOICES, default="available")
+    bio = models.TextField(blank=True, default="")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.user.username} ({self.category}) - {self.availability}"
 
 
 # =========================
@@ -125,6 +160,7 @@ class Listing(models.Model):
         ("apartment", "Apartment"),
     ]
 
+    # ✅ keep simple: owner is a User with role="owner"
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -137,7 +173,7 @@ class Listing(models.Model):
     property_type = models.CharField(max_length=20, choices=PROPERTY_TYPE_CHOICES, default="room")
     price_per_month = models.DecimalField(max_digits=10, decimal_places=2)
     location = models.CharField(max_length=255)
-    # in Listing model
+
     latitude = models.DecimalField(max_digits=12, decimal_places=8, null=True, blank=True)
     longitude = models.DecimalField(max_digits=12, decimal_places=8, null=True, blank=True)
 
@@ -182,7 +218,7 @@ class Listing(models.Model):
 
 
 # =========================
-# OPTION 1 BOOKING + CHAT SYSTEM
+# BOOKING + CHAT (Tenant <-> Owner)
 # =========================
 class BookingRequest(models.Model):
     STATUS_PENDING = "pending"
@@ -242,22 +278,18 @@ class BookingMessage(models.Model):
         return f"BookingMessage(req={self.request_id}, sender={self.sender_id})"
 
 
-
-
-        # =========================
-# ✅ REVIEWS / RATINGS
+# =========================
+# REVIEWS / RATINGS
 # =========================
 class Review(models.Model):
     listing = models.ForeignKey(Listing, on_delete=models.CASCADE, related_name="reviews")
 
-    # ✅ IMPORTANT: use USER (same as BookingRequest.tenant)
     tenant = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="reviews_written",
     )
 
-    # ✅ IMPORTANT: use USER (same as Listing.owner)
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -269,14 +301,17 @@ class Review(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ("listing", "tenant")  # one review per tenant per listing
+        constraints = [
+            models.UniqueConstraint(fields=["listing", "tenant"], name="uniq_review_listing_tenant")
+        ]
 
     def __str__(self):
         return f"Review(listing={self.listing_id}, tenant={self.tenant_id}, rating={self.rating})"
 
 
 # =========================
-# ✅ MAINTENANCE / EMERGENCY REQUESTS
+# ✅ OWNER -> PROVIDER MAINTENANCE JOB/REQUEST
+# (Owner does NOT need to pick listing; listing is optional)
 # =========================
 class MaintenanceRequest(models.Model):
     STATUS = (
@@ -296,12 +331,38 @@ class MaintenanceRequest(models.Model):
         ("electrical", "Electrical"),
         ("cleaning", "Cleaning"),
         ("internet", "Internet/WiFi"),
+        ("gas", "Gas"),
+        ("hvac", "AC / Heating"),
+        ("pest_control", "Pest Control"),
+        ("carpentry", "Carpentry"),
+        ("painting", "Painting"),
         ("other", "Other"),
     )
 
-    listing = models.ForeignKey("Listing", on_delete=models.CASCADE, related_name="maintenance_requests")
-    tenant = models.ForeignKey("Tenant", on_delete=models.CASCADE, related_name="maintenance_requests")
-    owner = models.ForeignKey("Owner", on_delete=models.CASCADE, related_name="maintenance_requests")
+    # ✅ created by owner
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="owner_maintenance_requests",
+    )
+
+    # ✅ optional: connect to listing if you want (not required)
+    listing = models.ForeignKey(
+        "Listing",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="maintenance_requests",
+    )
+
+    # ✅ optional: assign provider profile
+    assigned_provider = models.ForeignKey(
+        "ServiceProviderProfile",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="jobs",
+    )
 
     category = models.CharField(max_length=30, choices=CATEGORY, default="other")
     priority = models.CharField(max_length=20, choices=PRIORITY, default="medium")
@@ -313,21 +374,72 @@ class MaintenanceRequest(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    def __str__(self):
+        return f"MaintenanceRequest#{self.id} ({self.category})"
+
 
 # =========================
-# ✅ IN-APP NOTIFICATIONS
+# ✅ OWNER <-> PROVIDER IN-APP MESSAGES (Provider Inbox)
+# =========================
+class ProviderMessage(models.Model):
+    maintenance = models.ForeignKey(
+        MaintenanceRequest,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="messages",
+    )
+
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="provider_messages_sent",
+    )
+
+    provider = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="provider_messages_received",
+    )
+
+    # who sent THIS message (owner or provider)
+    sender = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="provider_messages_as_sender",
+    )
+
+    text = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_read = models.BooleanField(default=False)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["provider", "-created_at"]),
+            models.Index(fields=["owner", "-created_at"]),
+        ]
+
+    def __str__(self):
+        return f"ProviderMessage#{self.id} to provider={self.provider_id}"
+
+
+# =========================
+# IN-APP NOTIFICATIONS
 # =========================
 class Notification(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notifications")
     title = models.CharField(max_length=140, default="")
     message = models.TextField(default="")
-    link = models.CharField(max_length=255, blank=True, default="")  # optional frontend route like "/tenant/requests"
+    link = models.CharField(max_length=255, blank=True, default="")
     is_read = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    def __str__(self):
+        return f"Notification({self.user_id}) {self.title}"
+
 
 # =========================
-# ✅ REMINDERS (rent/water/electricity)
+# REMINDERS
 # =========================
 class Reminder(models.Model):
     TYPE = (
@@ -345,9 +457,12 @@ class Reminder(models.Model):
     is_done = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    def __str__(self):
+        return f"Reminder({self.user_id}) {self.title}"
+
 
 # =========================
-# ✅ NEARBY FACILITIES (basic/manual)
+# NEARBY FACILITIES
 # =========================
 class ListingFacility(models.Model):
     KIND = (
@@ -364,3 +479,7 @@ class ListingFacility(models.Model):
     name = models.CharField(max_length=120, default="")
     distance_m = models.PositiveIntegerField(null=True, blank=True)
     address = models.CharField(max_length=200, blank=True, default="")
+
+    def __str__(self):
+        return f"{self.kind}: {self.name}"
+

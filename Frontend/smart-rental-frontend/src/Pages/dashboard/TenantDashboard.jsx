@@ -1,5 +1,4 @@
-// src/pages/dashboard/TenantDashboard.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../auth/AuthContext";
 import Shell from "../../components/Shell";
@@ -34,24 +33,6 @@ export default function TenantDashboard() {
   const [sending, setSending] = useState(false);
   const [toast, setToast] = useState({ type: "info", msg: "" });
 
-  // ✅ Notifications
-  const [showNotifs, setShowNotifs] = useState(false);
-  const [notifs, setNotifs] = useState([]);
-  const [notifsLoading, setNotifsLoading] = useState(false);
-  const [notifsError, setNotifsError] = useState("");
-
-  // ✅ Maintenance (tenant help)
-  const [showHelp, setShowHelp] = useState(false);
-  const [helpListing, setHelpListing] = useState(null);
-  const [helpType, setHelpType] = useState("plumbing");
-  const [helpMsg, setHelpMsg] = useState("");
-  const [helpSending, setHelpSending] = useState(false);
-
-  // ✅ Tenant maintenance list (optional)
-  const [myMaint, setMyMaint] = useState([]);
-  const [myMaintLoading, setMyMaintLoading] = useState(false);
-  const [myMaintError, setMyMaintError] = useState("");
-
   useEffect(() => {
     if (!isAuthed) {
       nav("/auth", { replace: true });
@@ -71,10 +52,12 @@ export default function TenantDashboard() {
   const safeArr = (data) =>
     Array.isArray(data) ? data : Array.isArray(data?.results) ? data.results : [];
 
-  const getId = (item) => item?.id ?? item?.pk ?? item?.listing_id ?? item?.property_id;
+  const getId = (item) =>
+    item?.id ?? item?.pk ?? item?.listing_id ?? item?.property_id;
 
   const getTitle = (x) => x?.title || x?.property_name || x?.name || "Property";
-  const getAddress = (x) => x?.address || x?.location || x?.city || x?.area || "—";
+  const getAddress = (x) =>
+    x?.address || x?.location || x?.city || x?.area || "—";
   const getRent = (x) => x?.rent ?? x?.price ?? x?.monthly_rent ?? null;
 
   const getImage = (x) =>
@@ -96,7 +79,6 @@ export default function TenantDashboard() {
 
   const axiosErr = (e, fallback) =>
     e?.response?.data?.detail ||
-    e?.response?.data?.error ||
     e?.response?.data?.message ||
     (typeof e?.response?.data === "string" ? e.response.data : "") ||
     e?.message ||
@@ -148,6 +130,11 @@ export default function TenantDashboard() {
     setToast({ type: "info", msg: "" });
   };
 
+  /**
+   * ✅ IMPORTANT CHANGE
+   * 1) Create a booking request thread
+   * 2) Then go to Tenant Inbox and open the thread so tenant can see owner replies
+   */
   const sendMessage = async () => {
     const listingId = selected ? getId(selected) : null;
 
@@ -164,6 +151,7 @@ export default function TenantDashboard() {
     setToast({ type: "info", msg: "" });
 
     try {
+      // ✅ Create booking request (server should also store first message)
       const res = await api.post("tenant/booking-requests/create/", {
         listing_id: listingId,
         first_message: msg.trim(),
@@ -181,6 +169,7 @@ export default function TenantDashboard() {
       setMsg("");
       setOpen(false);
 
+      // ✅ go to inbox (and open this chat if bookingId exists)
       if (bookingId) nav(`/tenant/inbox?open=${bookingId}`);
       else nav(`/tenant/inbox`);
     } catch (e) {
@@ -189,154 +178,6 @@ export default function TenantDashboard() {
       setSending(false);
     }
   };
-
-  // -------------------------
-  // ✅ Notifications
-  // -------------------------
-  const getNotifId = (n, idx) => n?.id ?? n?.pk ?? `${idx}`;
-  const isUnread = (n) =>
-    n?.is_read === false || n?.read === false || n?.seen === false;
-
-  const unreadCount = useMemo(() => (notifs || []).filter(isUnread).length, [notifs]);
-
-  const loadNotifs = async () => {
-    setNotifsLoading(true);
-    setNotifsError("");
-    try {
-      const endpoints = ["notifications/", "notification/", "tenant/notifications/", "notifications/tenant/"];
-      let data = null;
-      let lastErr = null;
-
-      for (const ep of endpoints) {
-        try {
-          const res = await api.get(ep);
-          data = res.data;
-          lastErr = null;
-          break;
-        } catch (e) {
-          lastErr = e;
-        }
-      }
-
-      if (lastErr && data == null) {
-        setNotifsError(axiosErr(lastErr, "Notifications API not found."));
-        setNotifs([]);
-      } else {
-        setNotifs(safeArr(data));
-      }
-    } finally {
-      setNotifsLoading(false);
-    }
-  };
-
-  const markNotifRead = async (id) => {
-    const endpoints = ["notifications/mark-read/", "notifications/read/", "notification/read/"];
-    for (const ep of endpoints) {
-      try {
-        await api.post(ep, { id });
-        setNotifs((prev) =>
-          (prev || []).map((n) =>
-            String(getNotifId(n)) === String(id)
-              ? { ...n, is_read: true, read: true, seen: true }
-              : n
-          )
-        );
-        return;
-      } catch {
-        // try next
-      }
-    }
-  };
-
-  useEffect(() => {
-    if (showNotifs) loadNotifs();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showNotifs]);
-
-  // -------------------------
-  // ✅ Maintenance: tenant create + list
-  // -------------------------
-  const loadMyMaintenance = async () => {
-    setMyMaintLoading(true);
-    setMyMaintError("");
-    try {
-      const endpoints = ["maintenance/my/", "tenant/maintenance/", "maintenance/tenant/", "maintenance/requests/my/"];
-      let data = null;
-      let lastErr = null;
-
-      for (const ep of endpoints) {
-        try {
-          const res = await api.get(ep);
-          data = res.data;
-          lastErr = null;
-          break;
-        } catch (e) {
-          lastErr = e;
-        }
-      }
-
-      if (lastErr && data == null) {
-        setMyMaintError(axiosErr(lastErr, "Maintenance API not found."));
-        setMyMaint([]);
-      } else {
-        setMyMaint(safeArr(data));
-      }
-    } finally {
-      setMyMaintLoading(false);
-    }
-  };
-
-  const submitHelp = async () => {
-    const listingId = helpListing ? getId(helpListing) : null;
-    if (!listingId) {
-      setToast({ type: "error", msg: "Please select a listing first." });
-      return;
-    }
-    if (!helpMsg.trim()) {
-      setToast({ type: "error", msg: "Please write your problem message." });
-      return;
-    }
-
-    setHelpSending(true);
-    try {
-      const endpoints = ["maintenance/create/", "tenant/maintenance/create/", "maintenance/request/", "maintenance/requests/create/"];
-      let ok = false;
-
-      for (const ep of endpoints) {
-        try {
-          await api.post(ep, {
-            listing: listingId,
-            listing_id: listingId,
-            category: helpType,
-            issue_type: helpType,
-            message: helpMsg.trim(),
-            description: helpMsg.trim(),
-          });
-          ok = true;
-          break;
-        } catch {
-          // try next
-        }
-      }
-
-      if (!ok) {
-        setToast({ type: "error", msg: "Help request failed. Check backend maintenance endpoint." });
-        return;
-      }
-
-      setToast({ type: "success", msg: "Help request sent ✅ Owner will be notified." });
-      setHelpMsg("");
-      setShowHelp(false);
-      loadMyMaintenance();
-    } finally {
-      setHelpSending(false);
-    }
-  };
-
-  useEffect(() => {
-    if (isAuthed && role === "tenant") loadMyMaintenance();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthed, role]);
 
   const ownerName =
     selected?.owner_name || selected?.owner?.name || selected?.owner || "Owner";
@@ -348,32 +189,13 @@ export default function TenantDashboard() {
       title="Tenant Dashboard"
       subtitle={`Welcome ${email || "Tenant"}.`}
       right={
-        <div className="flex gap-2 flex-wrap">
-          <button
-            onClick={() => setShowNotifs((s) => !s)}
-            className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm hover:bg-white/10 transition"
-            title="Notifications"
-          >
-            🔔 Notifications
-            <span className="ml-2 inline-flex min-w-[22px] items-center justify-center rounded-full bg-purple-500/80 px-2 py-[2px] text-[11px] font-bold text-white">
-              {notifsLoading ? "..." : unreadCount}
-            </span>
-          </button>
-
-          <button
-            onClick={() => setShowHelp(true)}
-            className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm hover:bg-white/10 transition"
-          >
-            🔧 Request Help
-          </button>
-
+        <div className="flex gap-2">
           <button
             onClick={() => nav("/tenant/inbox")}
             className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm hover:bg-white/10 transition"
           >
             📩 My Inbox
           </button>
-
           <button
             onClick={handleLogout}
             className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm hover:bg-white/10 transition"
@@ -383,192 +205,6 @@ export default function TenantDashboard() {
         </div>
       }
     >
-      {/* Notifications Panel */}
-      {showNotifs && (
-        <div className="mb-4 rounded-2xl border border-white/10 bg-black/30 p-5">
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <div className="font-semibold text-white">🔔 Notifications</div>
-            <div className="flex gap-2">
-              <button
-                onClick={loadNotifs}
-                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10 transition"
-              >
-                Refresh
-              </button>
-              <button
-                onClick={() => setShowNotifs(false)}
-                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10 transition"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-
-          {notifsError ? (
-            <div className="mt-3 rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
-              {notifsError}
-            </div>
-          ) : notifsLoading ? (
-            <div className="mt-3 text-sm text-slate-300">Loading...</div>
-          ) : (notifs?.length ?? 0) === 0 ? (
-            <div className="mt-3 text-sm text-slate-300">No notifications.</div>
-          ) : (
-            <div className="mt-3 grid gap-2">
-              {(notifs || []).map((n, idx) => {
-                const id = getNotifId(n, idx);
-                const unread = isUnread(n);
-                const title = n?.title || n?.type || "Notification";
-                const body = n?.message || n?.body || n?.text || "";
-                const created = n?.created_at || n?.created || n?.timestamp || "";
-                return (
-                  <div
-                    key={id}
-                    className={`rounded-xl border p-3 ${
-                      unread ? "border-purple-500/25 bg-purple-500/10" : "border-white/10 bg-white/5"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="text-sm font-semibold text-white line-clamp-1">{title}</div>
-                        <div className="mt-1 text-sm text-slate-200/90 whitespace-pre-wrap">{body || "—"}</div>
-                        <div className="mt-2 text-[11px] text-slate-400">{created ? new Date(created).toLocaleString() : ""}</div>
-                      </div>
-                      {unread ? (
-                        <button
-                          onClick={() => markNotifRead(id)}
-                          className="shrink-0 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs hover:bg-white/10 transition"
-                        >
-                          Read
-                        </button>
-                      ) : (
-                        <span className="text-[11px] text-slate-400">Read</span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Help Request Modal */}
-      {showHelp && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
-          onClick={() => setShowHelp(false)}
-        >
-          <div
-            className="w-full max-w-2xl rounded-2xl border border-white/10 bg-slate-950 p-5"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="text-lg font-semibold text-white">🔧 Request Maintenance Help</div>
-                <div className="mt-1 text-sm text-slate-300">
-                  Select property + issue type + message. Owner will receive it.
-                </div>
-              </div>
-
-              <button
-                onClick={() => setShowHelp(false)}
-                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm hover:bg-white/10 transition"
-              >
-                Close
-              </button>
-            </div>
-
-            <div className="mt-4 grid gap-3">
-              <select
-                value={helpListing ? String(getId(helpListing)) : ""}
-                onChange={(e) => {
-                  const id = e.target.value;
-                  const found = (listings || []).find((x) => String(getId(x)) === String(id));
-                  setHelpListing(found || null);
-                }}
-                className="appearance-none rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-white outline-none focus:border-white/20"
-              >
-                <option value="">Select a listing</option>
-                {(listings || []).map((x) => (
-                  <option key={getId(x)} value={getId(x)}>
-                    {getTitle(x)} - {getAddress(x)}
-                  </option>
-                ))}
-              </select>
-
-              <select
-                value={helpType}
-                onChange={(e) => setHelpType(e.target.value)}
-                className="appearance-none rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-white outline-none focus:border-white/20"
-              >
-                <option value="plumbing">Plumbing</option>
-                <option value="electricity">Electricity</option>
-                <option value="cleaning">Cleaning</option>
-                <option value="wifi">Wi-Fi</option>
-                <option value="other">Other</option>
-              </select>
-
-              <textarea
-                value={helpMsg}
-                onChange={(e) => setHelpMsg(e.target.value)}
-                rows={4}
-                className="w-full rounded-2xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-white outline-none focus:border-white/20"
-                placeholder="Describe the problem..."
-              />
-
-              <div className="flex gap-2">
-                <button
-                  onClick={submitHelp}
-                  disabled={helpSending}
-                  className="rounded-2xl border border-white/10 bg-white/10 px-4 py-2 text-sm hover:bg-white/15 transition disabled:opacity-60"
-                >
-                  {helpSending ? "Sending..." : "Send Help Request"}
-                </button>
-
-                <button
-                  onClick={loadMyMaintenance}
-                  className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm hover:bg-white/10 transition"
-                >
-                  Refresh My Requests
-                </button>
-              </div>
-
-              {myMaintError ? (
-                <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-200">
-                  {myMaintError}
-                </div>
-              ) : myMaintLoading ? (
-                <div className="text-sm text-slate-300">Loading your requests...</div>
-              ) : (
-                <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                  <div className="text-sm font-semibold text-white">My Maintenance Requests</div>
-                  {(myMaint?.length ?? 0) === 0 ? (
-                    <div className="mt-2 text-sm text-slate-300">No requests yet.</div>
-                  ) : (
-                    <div className="mt-3 grid gap-2">
-                      {myMaint.slice(0, 5).map((r, idx) => (
-                        <div key={r?.id ?? r?.pk ?? idx} className="rounded-xl border border-white/10 bg-black/20 p-3">
-                          <div className="text-sm text-white font-semibold">
-                            {r?.listing_title || r?.listing?.title || "Property"}
-                          </div>
-                          <div className="mt-1 text-xs text-slate-300">
-                            Status: {String(r?.status ?? r?.state ?? "pending")}
-                          </div>
-                          <div className="mt-2 text-sm text-slate-200/90 whitespace-pre-wrap">
-                            {r?.message || r?.description || "—"}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Main listing section (your existing code) */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div className="text-sm text-slate-300">
           Browse listings, view details, and contact owners.
@@ -633,8 +269,12 @@ export default function TenantDashboard() {
                   />
 
                   <div className="mt-3 flex items-start justify-between gap-2">
-                    <div className="font-semibold text-sm line-clamp-1">{getTitle(item)}</div>
-                    <div className="text-xs text-slate-300">Rs {currency(getRent(item))}</div>
+                    <div className="font-semibold text-sm line-clamp-1">
+                      {getTitle(item)}
+                    </div>
+                    <div className="text-xs text-slate-300">
+                      Rs {currency(getRent(item))}
+                    </div>
                   </div>
 
                   <div className="mt-2 text-xs text-slate-300 line-clamp-2">
@@ -665,7 +305,7 @@ export default function TenantDashboard() {
         )}
       </div>
 
-      {/* Contact Modal (your existing) */}
+      {/* Contact Modal */}
       {open && selected && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
@@ -678,7 +318,9 @@ export default function TenantDashboard() {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-lg font-semibold">{getTitle(selected)}</div>
-                <div className="mt-1 text-sm text-slate-300">{getAddress(selected)}</div>
+                <div className="mt-1 text-sm text-slate-300">
+                  {getAddress(selected)}
+                </div>
               </div>
 
               <button
@@ -699,7 +341,9 @@ export default function TenantDashboard() {
 
               <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                 <div className="text-sm font-semibold">Rent</div>
-                <div className="mt-1 text-slate-200">Rs {currency(getRent(selected))}</div>
+                <div className="mt-1 text-slate-200">
+                  Rs {currency(getRent(selected))}
+                </div>
               </div>
             </div>
 

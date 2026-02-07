@@ -1,58 +1,69 @@
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-
-from ..models import Notification, Reminder
-from ..serializers import NotificationSerializer, ReminderSerializer
+from rest_framework import status
 
 
+# =========================
+# NOTIFICATIONS (placeholder)
+# =========================
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def my_notifications(request):
-    qs = Notification.objects.filter(user=request.user).order_by("-created_at")[:50]
-    return Response(NotificationSerializer(qs, many=True).data)
-
-
-@api_view(["PATCH"])
-@permission_classes([IsAuthenticated])
-def mark_notification_read(request, notif_id):
-    try:
-        n = Notification.objects.get(id=notif_id, user=request.user)
-    except Notification.DoesNotExist:
-        return Response({"detail": "Not found."}, status=404)
-
-    n.is_read = True
-    n.save(update_fields=["is_read"])
-    return Response({"ok": True})
+    """
+    Return logged-in user's notifications.
+    Placeholder implementation so URLs work.
+    """
+    # Later: query Notification model here
+    return Response([], status=status.HTTP_200_OK)
 
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
+def mark_notification_read(request, notif_id):
+    """
+    Mark a notification as read (placeholder).
+    """
+    # Later: update Notification model row by notif_id and user
+    return Response({"ok": True, "notif_id": notif_id}, status=status.HTTP_200_OK)
+
+
+# =========================
+# REMINDERS (placeholder)
+# =========================
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
 def create_reminder(request):
-    serializer = ReminderSerializer(data=request.data)
-    if serializer.is_valid():
-        obj = serializer.save(user=request.user)
-        return Response(ReminderSerializer(obj).data, status=201)
-    return Response(serializer.errors, status=400)
+    """
+    Create a reminder (placeholder).
+    """
+    data = request.data or {}
+    # Later: create Reminder model row
+    return Response(
+        {"ok": True, "message": "Reminder created (placeholder)", "data": data},
+        status=status.HTTP_201_CREATED,
+    )
 
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def my_reminders(request):
-    qs = Reminder.objects.filter(user=request.user).order_by("due_date")
-    return Response(ReminderSerializer(qs, many=True).data)
+    """
+    Return logged-in user's reminders (placeholder).
+    """
+    # Later: query Reminder model here
+    return Response([], status=status.HTTP_200_OK)
 
 
-@api_view(["PATCH"])
+@api_view(["PUT", "PATCH"])
 @permission_classes([IsAuthenticated])
 def update_reminder(request, reminder_id):
-    try:
-        r = Reminder.objects.get(id=reminder_id, user=request.user)
-    except Reminder.DoesNotExist:
-        return Response({"detail": "Not found."}, status=404)
-
-    serializer = ReminderSerializer(r, data=request.data, partial=True)
-    if serializer.is_valid():
-        obj = serializer.save()
-        return Response(ReminderSerializer(obj).data)
-    return Response(serializer.errors, status=400)
+    """
+    Update a reminder (placeholder).
+    """
+    data = request.data or {}
+    # Later: update Reminder model row
+    return Response(
+        {"ok": True, "reminder_id": reminder_id, "updated": data},
+        status=status.HTTP_200_OK,
+    )

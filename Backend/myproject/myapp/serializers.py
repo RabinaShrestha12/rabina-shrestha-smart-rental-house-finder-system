@@ -8,7 +8,20 @@ from django.core.files.base import ContentFile
 from PIL import Image, ImageOps
 from rest_framework import serializers
 
-from .models import Owner, Tenant, Listing, BookingRequest, BookingMessage
+from .models import (
+    Owner,
+    Tenant,
+    ServiceProviderProfile,
+    Listing,
+    BookingRequest,
+    BookingMessage,
+    Review,
+    MaintenanceRequest,
+    ProviderMessage,
+    Notification,
+    Reminder,
+    ListingFacility,
+)
 
 User = get_user_model()
 
@@ -37,11 +50,14 @@ class UserSerializer(serializers.ModelSerializer):
 
 # =========================
 # OWNER / TENANT SERIALIZERS (linked tables)
+# NOTE: Owner/Tenant models now only have: user + location + created/updated
 # =========================
 class OwnerSerializer(serializers.ModelSerializer):
     user_id = serializers.IntegerField(source="user.id", read_only=True)
     username = serializers.CharField(source="user.username", read_only=True, default=None)
     email = serializers.EmailField(source="user.email", read_only=True, default=None)
+    phone = serializers.CharField(source="user.phone", read_only=True, default="")
+    address = serializers.CharField(source="user.address", read_only=True, default="")
 
     class Meta:
         model = Owner
@@ -56,13 +72,15 @@ class OwnerSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "user_id", "username", "email", "created_at", "updated_at"]
+        read_only_fields = ["id", "user_id", "username", "email", "address", "phone", "created_at", "updated_at"]
 
 
 class TenantSerializer(serializers.ModelSerializer):
     user_id = serializers.IntegerField(source="user.id", read_only=True)
     username = serializers.CharField(source="user.username", read_only=True, default=None)
     email = serializers.EmailField(source="user.email", read_only=True, default=None)
+    phone = serializers.CharField(source="user.phone", read_only=True, default="")
+    address = serializers.CharField(source="user.address", read_only=True, default="")
 
     class Meta:
         model = Tenant
@@ -77,6 +95,32 @@ class TenantSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
+        read_only_fields = ["id", "user_id", "username", "email", "address", "phone", "created_at", "updated_at"]
+
+
+# =========================
+# SERVICE PROVIDER PROFILE SERIALIZER
+# =========================
+class ServiceProviderProfileSerializer(serializers.ModelSerializer):
+    user_id = serializers.IntegerField(source="user.id", read_only=True)
+    username = serializers.CharField(source="user.username", read_only=True, default=None)
+    email = serializers.EmailField(source="user.email", read_only=True, default=None)
+
+    class Meta:
+        model = ServiceProviderProfile
+        fields = [
+            "id",
+            "user_id",
+            "username",
+            "email",
+            "category",
+            "service_area",
+            "phone",
+            "availability",
+            "bio",
+            "created_at",
+            "updated_at",
+        ]
         read_only_fields = ["id", "user_id", "username", "email", "created_at", "updated_at"]
 
 
@@ -84,11 +128,9 @@ class TenantSerializer(serializers.ModelSerializer):
 # LISTING SERIALIZER (+360 + owner info + lat/lng + optional distance_km)
 # =========================
 class ListingSerializer(serializers.ModelSerializer):
-    # owner info for frontend display
     owner_name = serializers.CharField(source="owner.username", read_only=True)
     owner_email = serializers.EmailField(source="owner.email", read_only=True, allow_blank=True)
 
-    # Absolute URLs
     image_url = serializers.SerializerMethodField()
     pano_url = serializers.SerializerMethodField()
 
@@ -103,12 +145,8 @@ class ListingSerializer(serializers.ModelSerializer):
     view_360_type = serializers.SerializerMethodField()
     has_360 = serializers.SerializerMethodField()
 
-    # ✅ distance_km (read-only). Your /nearby/ API will attach it dynamically.
     distance_km = serializers.SerializerMethodField()
 
-    # -------------------------
-    # URL helpers
-    # -------------------------
     def _abs(self, request, filefield):
         if not filefield:
             return None
@@ -150,9 +188,6 @@ class ListingSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         return self._abs(request, obj.pano_down)
 
-    # -------------------------
-    # 360 helpers
-    # -------------------------
     def _has_cubemap(self, obj):
         return all(
             [
@@ -186,9 +221,6 @@ class ListingSerializer(serializers.ModelSerializer):
     def get_has_360(self, obj):
         return bool(getattr(obj, "pano_360", None)) or self._has_cubemap(obj)
 
-    # -------------------------
-    # ✅ distance_km helper
-    # -------------------------
     def get_distance_km(self, obj):
         val = getattr(obj, "distance_km", None)
         if val is None:
@@ -198,9 +230,6 @@ class ListingSerializer(serializers.ModelSerializer):
         except Exception:
             return None
 
-    # -------------------------
-    # ✅ validate lat/lng (important for map)
-    # -------------------------
     def validate_latitude(self, value):
         if value in ("", None):
             return value
@@ -217,9 +246,6 @@ class ListingSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Longitude must be between -180 and 180.")
         return value
 
-    # -------------------------
-    # Optional: normalize uploads
-    # -------------------------
     def _make_square(self, uploaded_file, size=1024):
         if not uploaded_file:
             return None
@@ -269,11 +295,8 @@ class ListingSerializer(serializers.ModelSerializer):
             "property_type",
             "price_per_month",
             "location",
-
-            # ✅ coordinates for map + distance filter
             "latitude",
             "longitude",
-
             "electricity_bill",
             "owner_contact_number",
             "owner_contact_email",
@@ -285,7 +308,6 @@ class ListingSerializer(serializers.ModelSerializer):
             "pano_right",
             "pano_up",
             "pano_down",
-
             "image_url",
             "pano_url",
             "pano_front_url",
@@ -294,14 +316,10 @@ class ListingSerializer(serializers.ModelSerializer):
             "pano_right_url",
             "pano_up_url",
             "pano_down_url",
-
             "cubemap",
             "view_360_type",
             "has_360",
-
-            # computed by nearby endpoint
             "distance_km",
-
             "is_available",
             "status",
             "created_at",
@@ -317,7 +335,7 @@ class ListingSerializer(serializers.ModelSerializer):
 
 
 # =========================
-# OPTION 1: Booking + Messages
+# Booking + Messages
 # =========================
 class BookingRequestCreateSerializer(serializers.Serializer):
     listing_id = serializers.IntegerField()
@@ -417,31 +435,129 @@ class BookingRequestListSerializer(serializers.ModelSerializer):
             "created_at": m.created_at,
             "sender": m.sender.username,
         }
-from .models import Review, MaintenanceRequest, Notification, Reminder, ListingFacility
 
+
+# =========================
+# Reviews
+# =========================
 class ReviewSerializer(serializers.ModelSerializer):
+    listing_title = serializers.CharField(source="listing.title", read_only=True)
+    tenant_username = serializers.CharField(source="tenant.username", read_only=True)
+    tenant_email = serializers.EmailField(source="tenant.email", read_only=True)
+    owner_username = serializers.CharField(source="owner.username", read_only=True)
+
     class Meta:
         model = Review
-        fields = "__all__"
+        fields = [
+            "id",
+            "listing",
+            "listing_title",
+            "tenant",
+            "tenant_username",
+            "tenant_email",
+            "owner",
+            "owner_username",
+            "rating",
+            "comment",
+            "created_at",
+        ]
         read_only_fields = ["id", "created_at", "owner", "tenant"]
 
+
+# =========================
+# ✅ Owner -> Provider Maintenance (listing optional)
+# =========================
 class MaintenanceRequestSerializer(serializers.ModelSerializer):
+    listing_title = serializers.CharField(source="listing.title", read_only=True, default=None)
+
+    assigned_provider_profile_id = serializers.IntegerField(
+        source="assigned_provider.id", read_only=True, default=None
+    )
+    assigned_provider_name = serializers.CharField(
+        source="assigned_provider.user.username", read_only=True, default=None
+    )
+
+    owner_username = serializers.CharField(source="owner.username", read_only=True)
+    owner_email = serializers.EmailField(source="owner.email", read_only=True)
+
     class Meta:
         model = MaintenanceRequest
-        fields = "__all__"
-        read_only_fields = ["id", "created_at", "updated_at", "owner", "tenant"]
+        fields = [
+            "id",
+            "owner",
+            "owner_username",
+            "owner_email",
+            "listing",
+            "listing_title",
+            "assigned_provider",
+            "assigned_provider_profile_id",
+            "assigned_provider_name",
+            "category",
+            "priority",
+            "status",
+            "title",
+            "description",
+            "created_at",
+            "updated_at",
+        ]
+        # ✅ owner comes from request.user in view
+        read_only_fields = ["id", "created_at", "updated_at", "owner", "owner_username", "owner_email"]
 
+
+# =========================
+# ✅ Provider Inbox / Chat
+# =========================
+class ProviderMessageSerializer(serializers.ModelSerializer):
+    owner_username = serializers.CharField(source="owner.username", read_only=True)
+    owner_email = serializers.EmailField(source="owner.email", read_only=True)
+
+    provider_username = serializers.CharField(source="provider.username", read_only=True)
+    provider_email = serializers.EmailField(source="provider.email", read_only=True)
+
+    sender_username = serializers.CharField(source="sender.username", read_only=True)
+    sender_role = serializers.CharField(source="sender.role", read_only=True)
+
+    maintenance_id = serializers.IntegerField(source="maintenance.id", read_only=True, default=None)
+
+    class Meta:
+        model = ProviderMessage
+        fields = [
+            "id",
+            "maintenance",
+            "maintenance_id",
+            "owner",
+            "owner_username",
+            "owner_email",
+            "provider",
+            "provider_username",
+            "provider_email",
+            "sender",
+            "sender_username",
+            "sender_role",
+            "text",
+            "created_at",
+            "is_read",
+        ]
+        # ✅ owner/provider/sender should be set in view based on logged in user
+        read_only_fields = ["id", "created_at", "owner", "provider", "sender", "is_read"]
+
+
+# =========================
+# Notification / Reminder / Facilities
+# =========================
 class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notification
         fields = "__all__"
         read_only_fields = ["id", "created_at", "user"]
 
+
 class ReminderSerializer(serializers.ModelSerializer):
     class Meta:
         model = Reminder
         fields = "__all__"
         read_only_fields = ["id", "created_at", "user"]
+
 
 class ListingFacilitySerializer(serializers.ModelSerializer):
     class Meta:

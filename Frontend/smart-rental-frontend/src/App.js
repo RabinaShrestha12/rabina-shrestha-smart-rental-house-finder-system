@@ -16,6 +16,9 @@ import UserAuth from "./pages/auth/UserAuth";
 import AdminLogin from "./pages/auth/AdminLogin";
 import Otp from "./pages/auth/Otp";
 
+// ✅ Service Provider Register Page
+import RegisterProvider from "./pages/auth/RegisterProvider";
+
 // ✅ HIDDEN ADMIN SETUP PAGE
 import AdminSetup from "./pages/admin/AdminSetup";
 
@@ -23,6 +26,7 @@ import AdminSetup from "./pages/admin/AdminSetup";
 import AdminDashboard from "./pages/dashboard/AdminDashboard";
 import OwnerDashboard from "./pages/dashboard/OwnerDashboard";
 import TenantDashboard from "./pages/dashboard/TenantDashboard";
+import ProviderDashboard from "./pages/dashboard/ProviderDashboard";
 
 // ✅ TENANT PAGES
 import TenantInbox from "./pages/dashboard/TenantInbox";
@@ -31,8 +35,6 @@ import TenantInbox from "./pages/dashboard/TenantInbox";
 import OwnerMyProperties from "./pages/dashboard/OwnerMyProperties";
 import OwnerListingDetail from "./pages/dashboard/OwnerListingDetail";
 import OwnerListingEdit from "./pages/dashboard/OwnerListingEdit";
-
-// ✅ OWNER MESSAGES PAGE
 import OwnerMessages from "./pages/dashboard/OwnerMessages";
 
 // ✅ ADMIN PAGE (Email UI)
@@ -45,16 +47,19 @@ import TenantBookPage from "./pages/home/TenantBookPage";
 // ✅ NEW FEATURES
 import BudgetSplitCalculator from "./pages/tools/BudgetSplitCalculator";
 
-// 2) Maintenance/Emergency pages (protected)
+// Maintenance/Emergency pages (protected)
 import TenantMaintenance from "./pages/tenant/TenantMaintenance";
-import OwnerMaintenance from "./pages/owner/OwnerMaintenance";
+import OwnerMaintenance from "./pages/owner/OwnerMaintenance"; // ✅ make sure file exists here
 
-// 3) Reminders page (protected)
+// Reminders page (protected)
 import RemindersPage from "./pages/common/RemindersPage";
 
 // COMMON
 import Unauthorized from "./pages/Unauthorized";
 import NotFound from "./pages/NotFound";
+
+// ✅ NEW: dashboard redirect by role
+import GoDashboard from "./pages/GoDashboard";
 
 // PROTECTED
 import ProtectedRoute from "./auth/ProtectedRoute";
@@ -77,6 +82,9 @@ export default function App() {
       {/* ✅ TOOL */}
       <Route path="/tools/budget-split" element={<BudgetSplitCalculator />} />
 
+      {/* ✅ AUTO REDIRECT TO CORRECT DASHBOARD */}
+      <Route path="/dashboard" element={<GoDashboard />} />
+
       {/* ======================
           AUTH
       ====================== */}
@@ -84,6 +92,9 @@ export default function App() {
       <Route path="/otp" element={<Otp />} />
       <Route path="/super-admin-login-9382" element={<AdminLogin />} />
       <Route path="/setup-admin-9x2k" element={<AdminSetup />} />
+
+      {/* ✅ PROVIDER REGISTER (Public) */}
+      <Route path="/register-provider" element={<RegisterProvider />} />
 
       {/* ======================
           OWNER (Protected)
@@ -191,6 +202,18 @@ export default function App() {
       />
 
       {/* ======================
+          PROVIDER (Protected)
+      ====================== */}
+      <Route
+        path="/provider"
+        element={
+          <ProtectedRoute allowRoles={["provider", "service_provider"]}>
+            <ProviderDashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* ======================
           ADMIN (Protected)
       ====================== */}
       <Route
@@ -217,7 +240,7 @@ export default function App() {
       <Route
         path="/reminders"
         element={
-          <ProtectedRoute allowRoles={["admin", "owner", "tenant"]}>
+          <ProtectedRoute allowRoles={["admin", "owner", "tenant", "provider", "service_provider"]}>
             <RemindersPage />
           </ProtectedRoute>
         }

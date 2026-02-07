@@ -21,7 +21,9 @@ function haversineMeters(lat1, lon1, lat2, lon2) {
   const dLon = toRad(lon2 - lon1);
   const a =
     Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+    Math.cos(toRad(lat1)) *
+      Math.cos(toRad(lat2)) *
+      Math.sin(dLon / 2) ** 2;
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 }
@@ -50,17 +52,11 @@ export default function OwnerDashboard() {
   const [reviewQuery, setReviewQuery] = useState("");
 
   // ✅ NOTIFICATIONS
-  const [showNotifs, setShowNotifs] = useState(false);
-  const [notifs, setNotifs] = useState([]);
-  const [notifsLoading, setNotifsLoading] = useState(false);
-  const [notifsError, setNotifsError] = useState("");
-
-  // ✅ MAINTENANCE (owner sees tenant help requests)
-  const [showMaintenance, setShowMaintenance] = useState(false);
-  const [maint, setMaint] = useState([]);
-  const [maintLoading, setMaintLoading] = useState(false);
-  const [maintError, setMaintError] = useState("");
-  const [maintQuery, setMaintQuery] = useState("");
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [notifLoading, setNotifLoading] = useState(false);
+  const [notifError, setNotifError] = useState("");
+  const [notifQuery, setNotifQuery] = useState("");
 
   // ---- PROPERTY FORM STATE ----
   const [form, setForm] = useState({
@@ -119,49 +115,26 @@ export default function OwnerDashboard() {
   // Avoid spamming APIs on repeated clicks quickly
   const inFlightRef = useRef({ nominatim: null, overpass: null });
 
-  // ✅ Fix dropdown “white list” on Windows/Chrome
-  const selectStyleFix = `
-    select option, select optgroup {
-      background-color: #0b1220 !important;
-      color: #ffffff !important;
-    }
-    select option:checked {
-      background-color: #1f2937 !important;
-      color: #ffffff !important;
-    }
-  `;
-
   // ---------------------------
   // Helpers
   // ---------------------------
   const arrify = (data) =>
     Array.isArray(data) ? data : Array.isArray(data?.results) ? data.results : [];
 
-  const axiosErr = (e, fallback) =>
-    e?.response?.data?.detail ||
-    e?.response?.data?.error ||
-    e?.response?.data?.message ||
-    (typeof e?.response?.data === "string" ? e.response.data : "") ||
-    e?.message ||
-    fallback;
-
   const getBookingId = (b) => b?.id ?? b?.booking_id ?? b?.pk;
   const getStatus = (b) => (b?.status ?? b?.state ?? "pending").toLowerCase();
-
   const getTenantEmail = (b) =>
     b?.tenant_email ||
     b?.tenant?.email ||
     b?.tenant_username ||
     b?.tenant?.username ||
     "Tenant";
-
   const getListingTitle = (b) =>
     b?.listing_title ||
     b?.listing?.title ||
     b?.property_title ||
     b?.property?.title ||
     "Property";
-
   const getFirstMessage = (b) =>
     b?.first_message || b?.message || b?.text || b?.latest_message || "";
 
@@ -205,31 +178,17 @@ export default function OwnerDashboard() {
     return "★".repeat(full) + "☆".repeat(5 - full);
   };
 
-  // ✅ Notification helpers (supports many backend shapes)
-  const getNotifId = (n, idx) => n?.id ?? n?.pk ?? `${idx}`;
-  const getNotifTitle = (n) => n?.title || n?.type || "Notification";
-  const getNotifBody = (n) => n?.message || n?.body || n?.text || "";
-  const getNotifCreated = (n) => n?.created_at || n?.created || n?.timestamp || "";
-  const isUnread = (n) =>
-    n?.is_read === false || n?.read === false || n?.seen === false;
-
-  // ✅ Maintenance helpers (supports many backend shapes)
-  const getMaintId = (m, idx) => m?.id ?? m?.pk ?? `${idx}`;
-  const getMaintStatus = (m) =>
-    String(m?.status ?? m?.state ?? "pending").toLowerCase();
-  const getMaintListing = (m) =>
-    m?.listing_title || m?.listing?.title || m?.property?.title || "Property";
-  const getMaintTenant = (m) =>
-    m?.tenant_email ||
-    m?.tenant?.email ||
-    m?.tenant_username ||
-    m?.tenant?.username ||
-    "Tenant";
-  const getMaintCategory = (m) =>
-    m?.category || m?.issue_type || m?.type || "Issue";
-  const getMaintMsg = (m) =>
-    m?.message || m?.description || m?.details || m?.text || "";
-  const getMaintCreated = (m) => m?.created_at || m?.created || m?.timestamp || "";
+  // ✅ Notification helpers
+  const getNotifId = (n, idx) => n?.id ?? n?.notification_id ?? n?.pk ?? `${idx}`;
+  const getNotifTitle = (n) => n?.title ?? n?.subject ?? n?.type ?? "Notification";
+  const getNotifBody = (n) => n?.message ?? n?.body ?? n?.text ?? n?.detail ?? "";
+  const getNotifCreatedAt = (n) =>
+    n?.created_at || n?.created || n?.timestamp || n?.date || "";
+  const isNotifUnread = (n) => {
+    const v = n?.is_read ?? n?.read ?? n?.seen;
+    if (v === undefined || v === null) return false;
+    return !Boolean(v);
+  };
 
   // ---------------------------
   // Validation helpers
@@ -269,7 +228,9 @@ export default function OwnerDashboard() {
 
     const missing = missing360Sides();
     if (missing.length) {
-      errors.push(`All 6 photos for 360° view required. Missing: ${missing.join(", ")}`);
+      errors.push(
+        `All 6 photos for 360° view required. Missing: ${missing.join(", ")}`
+      );
     }
 
     const okImage = (f) => f && f.type && f.type.startsWith("image/");
@@ -281,7 +242,9 @@ export default function OwnerDashboard() {
     });
 
     if (!form.latitude || !form.longitude) {
-      errors.push("Please pick the property location on the map (latitude/longitude required).");
+      errors.push(
+        "Please pick the property location on the map (latitude/longitude required)."
+      );
     }
 
     return { ok: errors.length === 0, errors };
@@ -302,7 +265,11 @@ export default function OwnerDashboard() {
         const ownerObj = data.owner || data;
         setProfile(ownerObj);
       } catch (err) {
-        setToast({ type: "error", msg: axiosErr(err, "Failed to load owner profile.") });
+        const m =
+          err?.response?.data?.detail ||
+          err?.response?.data?.error ||
+          "Failed to load owner profile.";
+        setToast({ type: "error", msg: m });
       }
     };
 
@@ -334,7 +301,13 @@ export default function OwnerDashboard() {
     setReviewsLoading(true);
     setReviewsError("");
     try {
-      const endpoints = ["owner/reviews/", "owner/reviews", "reviews/owner/", "reviews/owner"];
+      const endpoints = [
+        "owner/reviews/",
+        "owner/reviews",
+        "reviews/owner/",
+        "reviews/owner",
+      ];
+
       let data = null;
       let lastErr = null;
 
@@ -350,12 +323,11 @@ export default function OwnerDashboard() {
       }
 
       if (lastErr && data == null) {
-        setReviewsError(
-          axiosErr(
-            lastErr,
-            "Reviews API not found. Create GET /api/owner/reviews/ endpoint."
-          )
-        );
+        const m =
+          lastErr?.response?.data?.detail ||
+          lastErr?.response?.data?.error ||
+          "Reviews API not found. Please create GET /api/owner/reviews/.";
+        setReviewsError(m);
         setReviews([]);
       } else {
         setReviews(arrify(data));
@@ -373,11 +345,19 @@ export default function OwnerDashboard() {
   // ---------------------------
   // ✅ Notifications loader
   // ---------------------------
-  const loadNotifs = async () => {
-    setNotifsLoading(true);
-    setNotifsError("");
+  const loadNotifications = async () => {
+    setNotifLoading(true);
+    setNotifError("");
     try {
-      const endpoints = ["notifications/", "notification/", "owner/notifications/", "notifications/owner/"];
+      const endpoints = [
+        "owner/notifications/",
+        "owner/notifications",
+        "notifications/owner/",
+        "notifications/owner",
+        "notifications/",
+        "notifications",
+      ];
+
       let data = null;
       let lastErr = null;
 
@@ -393,116 +373,70 @@ export default function OwnerDashboard() {
       }
 
       if (lastErr && data == null) {
-        setNotifsError(
-          axiosErr(lastErr, "Notifications API not found. Add GET /api/notifications/")
-        );
-        setNotifs([]);
+        const m =
+          lastErr?.response?.data?.detail ||
+          lastErr?.response?.data?.error ||
+          "Notifications API not found. Please create GET /api/owner/notifications/.";
+        setNotifError(m);
+        setNotifications([]);
       } else {
-        setNotifs(arrify(data));
+        setNotifications(arrify(data));
       }
     } finally {
-      setNotifsLoading(false);
-    }
-  };
-
-  // mark read (tries common endpoints)
-  const markNotifRead = async (id) => {
-    if (!id) return;
-    const endpoints = ["notifications/mark-read/", "notifications/read/", "notification/read/"];
-    for (const ep of endpoints) {
-      try {
-        await api.post(ep, { id });
-        setNotifs((prev) =>
-          (prev || []).map((n) => (String(getNotifId(n)) === String(id) ? { ...n, is_read: true, read: true, seen: true } : n))
-        );
-        return;
-      } catch {
-        // try next
-      }
+      setNotifLoading(false);
     }
   };
 
   useEffect(() => {
-    if (showNotifs) loadNotifs();
+    if (showNotifications) loadNotifications();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showNotifs]);
+  }, [showNotifications]);
 
-  // ---------------------------
-  // ✅ Maintenance loader (owner)
-  // ---------------------------
-  const loadMaintenance = async () => {
-    setMaintLoading(true);
-    setMaintError("");
-    try {
-      const endpoints = ["maintenance/owner/", "owner/maintenance/", "maintenance/requests/owner/", "maintenance/requests/"];
-      let data = null;
-      let lastErr = null;
+  // mark notification read (optional)
+  const markNotificationRead = async (notif) => {
+    const id = notif?.id ?? notif?.notification_id ?? notif?.pk;
+    if (!id) return;
 
-      for (const ep of endpoints) {
-        try {
-          const res = await api.get(ep);
-          data = res.data;
-          lastErr = null;
-          break;
-        } catch (e) {
-          lastErr = e;
-        }
-      }
-
-      if (lastErr && data == null) {
-        setMaintError(axiosErr(lastErr, "Maintenance API not found. Add GET /api/maintenance/owner/"));
-        setMaint([]);
-      } else {
-        setMaint(arrify(data));
-      }
-    } finally {
-      setMaintLoading(false);
-    }
-  };
-
-  const updateMaintenanceStatus = async (reqId, newStatus) => {
-    if (!reqId) return;
     const endpoints = [
-      `maintenance/${reqId}/status/`,
-      `maintenance/${reqId}/update/`,
-      `maintenance/update/${reqId}/`,
-      `owner/maintenance/${reqId}/status/`,
+      `owner/notifications/${id}/read/`,
+      `owner/notifications/${id}/read`,
+      `notifications/${id}/read/`,
+      `notifications/${id}/read`,
+      `owner/notifications/${id}/`,
+      `notifications/${id}/`,
     ];
 
     for (const ep of endpoints) {
       try {
-        await api.patch(ep, { status: newStatus });
-        setMaint((prev) =>
-          (prev || []).map((m) =>
-            String(getMaintId(m)) === String(reqId) ? { ...m, status: newStatus } : m
-          )
+        await api.patch(ep, { is_read: true });
+        setNotifications((prev) =>
+          (prev || []).map((n) => {
+            const nid = n?.id ?? n?.notification_id ?? n?.pk;
+            if (String(nid) === String(id))
+              return { ...n, is_read: true, read: true, seen: true };
+            return n;
+          })
         );
-        setToast({ type: "success", msg: "Maintenance status updated ✅" });
         return;
       } catch {
         // try next
       }
     }
-
-    setToast({ type: "error", msg: "Could not update status. Check backend endpoint." });
   };
-
-  useEffect(() => {
-    if (showMaintenance) loadMaintenance();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showMaintenance]);
 
   // ---------------------------
   // Form handlers
   // ---------------------------
-  const onChange = (e) => setForm((s) => ({ ...s, [e.target.name]: e.target.value }));
+  const onChange = (e) =>
+    setForm((s) => ({ ...s, [e.target.name]: e.target.value }));
   const onPanoChange = (side, file) => setPano((s) => ({ ...s, [side]: file }));
 
   // ---------------------------
   // Reverse Geocode (Nominatim)
   // ---------------------------
   async function reverseGeocode(lat, lng) {
-    if (inFlightRef.current.nominatim?.abort) inFlightRef.current.nominatim.abort();
+    if (inFlightRef.current.nominatim?.abort)
+      inFlightRef.current.nominatim.abort();
     const ctrl = new AbortController();
     inFlightRef.current.nominatim = ctrl;
 
@@ -531,10 +465,20 @@ export default function OwnerDashboard() {
       };
       setPlace(p);
 
-      const nice = [p.road, p.suburb, p.city, p.state, p.country].filter(Boolean).join(", ");
+      const nice = [p.road, p.suburb, p.city, p.state, p.country]
+        .filter(Boolean)
+        .join(", ");
       setForm((prev) => ({ ...prev, location: nice || prev.location }));
     } catch {
-      setPlace({ display: "", road: "", suburb: "", city: "", state: "", country: "", postcode: "" });
+      setPlace({
+        display: "",
+        road: "",
+        suburb: "",
+        city: "",
+        state: "",
+        country: "",
+        postcode: "",
+      });
     } finally {
       setGeoLoading(false);
     }
@@ -564,7 +508,13 @@ export default function OwnerDashboard() {
       lat: Number(lat),
       lng: Number(lon),
       name: String(name),
-      kind: tags.amenity || tags.shop || tags.highway || tags.tourism || tags.leisure || "",
+      kind:
+        tags.amenity ||
+        tags.shop ||
+        tags.highway ||
+        tags.tourism ||
+        tags.leisure ||
+        "",
       tags,
     };
   }
@@ -633,7 +583,10 @@ out center;
       const els = (json?.elements || [])
         .map(normalizeOverpassElement)
         .filter(Boolean)
-        .map((x) => ({ ...x, distance_m: haversineMeters(latNum, lngNum, x.lat, x.lng) }))
+        .map((x) => ({
+          ...x,
+          distance_m: haversineMeters(latNum, lngNum, x.lat, x.lng),
+        }))
         .sort((a, b) => a.distance_m - b.distance_m);
 
       const schools = [];
@@ -650,9 +603,12 @@ out center;
         const highway = t.highway;
 
         if (amenity === "school") schools.push(it);
-        else if (amenity === "college" || amenity === "university") colleges.push(it);
-        else if (amenity === "hospital" || amenity === "clinic") hospitals.push(it);
-        else if (shop === "supermarket" || amenity === "marketplace") markets.push(it);
+        else if (amenity === "college" || amenity === "university")
+          colleges.push(it);
+        else if (amenity === "hospital" || amenity === "clinic")
+          hospitals.push(it);
+        else if (shop === "supermarket" || amenity === "marketplace")
+          markets.push(it);
         else if (highway === "bus_stop") bus.push(it);
         else if (amenity === "atm") atms.push(it);
       }
@@ -666,7 +622,14 @@ out center;
         atms: atms.slice(0, 10),
       });
     } catch {
-      setNearby({ schools: [], colleges: [], hospitals: [], markets: [], bus: [], atms: [] });
+      setNearby({
+        schools: [],
+        colleges: [],
+        hospitals: [],
+        markets: [],
+        bus: [],
+        atms: [],
+      });
     } finally {
       setNearbyLoading(false);
     }
@@ -679,7 +642,11 @@ out center;
 
     setPicked({ lat: Number(lat6), lng: Number(lng6) });
 
-    setForm((p) => ({ ...p, latitude: lat6, longitude: lng6 }));
+    setForm((p) => ({
+      ...p,
+      latitude: lat6,
+      longitude: lng6,
+    }));
 
     reverseGeocode(lat6, lng6);
     fetchNearbyPlaces(lat6, lng6, radius);
@@ -688,8 +655,23 @@ out center;
   const clearPicked = () => {
     setPicked(null);
     setForm((p) => ({ ...p, latitude: "", longitude: "" }));
-    setPlace({ display: "", road: "", suburb: "", city: "", state: "", country: "", postcode: "" });
-    setNearby({ schools: [], colleges: [], hospitals: [], markets: [], bus: [], atms: [] });
+    setPlace({
+      display: "",
+      road: "",
+      suburb: "",
+      city: "",
+      state: "",
+      country: "",
+      postcode: "",
+    });
+    setNearby({
+      schools: [],
+      colleges: [],
+      hospitals: [],
+      markets: [],
+      bus: [],
+      atms: [],
+    });
   };
 
   useEffect(() => {
@@ -705,7 +687,10 @@ out center;
     e.preventDefault();
 
     if (!validation.ok) {
-      setToast({ type: "error", msg: validation.errors[0] || "Please fix form errors." });
+      setToast({
+        type: "error",
+        msg: validation.errors[0] || "Please fix form errors.",
+      });
       return;
     }
 
@@ -752,18 +737,23 @@ out center;
       });
 
       setCoverImage(null);
-      setPano({ front: null, back: null, left: null, right: null, up: null, down: null });
+      setPano({
+        front: null,
+        back: null,
+        left: null,
+        right: null,
+        up: null,
+        down: null,
+      });
       clearPicked();
       setShowAddProperty(false);
     } catch (err) {
-      setToast({
-        type: "error",
-        msg:
-          err?.response?.data?.detail ||
-          err?.response?.data?.error ||
-          (err?.response?.data && JSON.stringify(err.response.data)) ||
-          "Failed to post property.",
-      });
+      const m =
+        err?.response?.data?.detail ||
+        err?.response?.data?.error ||
+        (err?.response?.data && JSON.stringify(err.response.data)) ||
+        "Failed to post property.";
+      setToast({ type: "error", msg: m });
     } finally {
       setPosting(false);
     }
@@ -779,7 +769,9 @@ out center;
 
   const latestRequests = useMemo(() => {
     const list = [...(requests || [])];
-    list.sort((a, b) => String(b?.created_at || "").localeCompare(String(a?.created_at || "")));
+    list.sort((a, b) =>
+      String(b?.created_at || "").localeCompare(String(a?.created_at || ""))
+    );
     return list.slice(0, 3);
   }, [requests]);
 
@@ -787,7 +779,9 @@ out center;
     const q = String(reviewQuery || "").trim().toLowerCase();
     const list = [...(reviews || [])];
     list.sort((a, b) =>
-      String(getReviewCreatedAt(b) || "").localeCompare(String(getReviewCreatedAt(a) || ""))
+      String(getReviewCreatedAt(b) || "").localeCompare(
+        String(getReviewCreatedAt(a) || "")
+      )
     );
     if (!q) return list;
     return list.filter((r) => {
@@ -798,20 +792,24 @@ out center;
     });
   }, [reviews, reviewQuery]);
 
-  const filteredMaint = useMemo(() => {
-    const q = String(maintQuery || "").trim().toLowerCase();
-    const list = [...(maint || [])];
-    list.sort((a, b) => String(getMaintCreated(b)).localeCompare(String(getMaintCreated(a))));
+  const filteredNotifs = useMemo(() => {
+    const q = String(notifQuery || "").trim().toLowerCase();
+    const list = [...(notifications || [])];
+    list.sort((a, b) =>
+      String(getNotifCreatedAt(b) || "").localeCompare(
+        String(getNotifCreatedAt(a) || "")
+      )
+    );
     if (!q) return list;
-    return list.filter((m) => {
-      const t = `${getMaintListing(m)} ${getMaintTenant(m)} ${getMaintCategory(m)} ${getMaintMsg(m)} ${getMaintStatus(m)}`.toLowerCase();
+    return list.filter((n) => {
+      const t = `${getNotifTitle(n)} ${getNotifBody(n)}`.toLowerCase();
       return t.includes(q);
     });
-  }, [maint, maintQuery]);
+  }, [notifications, notifQuery]);
 
-  const unreadCount = useMemo(
-    () => (notifs || []).filter((n) => isUnread(n)).length,
-    [notifs]
+  const unreadNotifCount = useMemo(
+    () => (notifications || []).filter((n) => isNotifUnread(n)).length,
+    [notifications]
   );
 
   const NearbySection = ({ title, items }) => (
@@ -822,7 +820,10 @@ out center;
       ) : (
         <div className="mt-3 grid gap-2">
           {items.map((it) => (
-            <div key={it.id} className="rounded-xl border border-white/10 bg-black/20 p-3">
+            <div
+              key={it.id}
+              className="rounded-xl border border-white/10 bg-black/20 p-3"
+            >
               <div className="text-sm text-white font-semibold">{it.name}</div>
               <div className="mt-1 text-xs text-slate-300">
                 {it.kind ? `Type: ${it.kind} • ` : ""}
@@ -837,117 +838,143 @@ out center;
 
   return (
     <Shell title="" subtitle="" right={null}>
-      <style>{selectStyleFix}</style>
-
       <Toast
         type={toast.type}
         message={toast.msg}
         onClose={() => setToast({ type: "info", msg: "" })}
       />
 
-      {/* HEADER */}
+      {/* ✅ CLEAN HEADER (FIXED ACTION BAR) */}
       <div className="mb-6 rounded-3xl border border-white/10 bg-black/20 p-5">
-        <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
+        {/* Top row: Title + Logout */}
+        <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <div className="text-2xl font-extrabold text-white">Owner Dashboard</div>
+            <div className="text-2xl font-extrabold text-white">
+              Owner Dashboard
+            </div>
             <div className="mt-1 text-sm text-slate-300">
-              Welcome <span className="text-slate-200">{email || "Owner"}</span>. Manage
+              Welcome{" "}
+              <span className="text-slate-200">{email || "Owner"}</span>. Manage
               your profile and properties.
             </div>
           </div>
 
-          <div className="w-full lg:w-auto">
-            <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap pb-1 lg:pb-0">
-              <button
-                onClick={() => nav("/")}
-                className="shrink-0 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-100 hover:bg-white/10 transition"
-              >
-                🏠 Home
-              </button>
+          {/* Logout always visible */}
+          <button
+            onClick={handleLogout}
+            className="shrink-0 rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-100 hover:bg-red-500/15 transition"
+          >
+            Logout
+          </button>
+        </div>
 
-              <button
-                onClick={() => nav("/owner/my-properties")}
-                className="shrink-0 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-100 hover:bg-white/10 transition"
-              >
-                🏘️ My Property Details
-              </button>
+        {/* Action bar: wrapped on desktop, scroll on mobile */}
+        <div className="mt-4">
+          <div className="flex gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible">
+            <button
+              onClick={() => nav("/")}
+              className="shrink-0 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-100 hover:bg-white/10 transition"
+            >
+              🏠 Home
+            </button>
 
-              <button
-                onClick={() => setShowAddProperty((s) => !s)}
-                className="shrink-0 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-100 hover:bg-white/10 transition"
-              >
-                {showAddProperty ? "✖ Close Add Property" : "➕ Add Property"}
-              </button>
+            <button
+              onClick={() => nav("/owner/my-properties")}
+              className="shrink-0 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-100 hover:bg-white/10 transition"
+            >
+              🏘️ My Properties
+            </button>
 
-              <button
-                onClick={() => nav("/owner/messages")}
-                className="shrink-0 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-100 hover:bg-white/10 transition"
-              >
-                💬 Messages
-                <span className="ml-2 inline-flex min-w-[22px] items-center justify-center rounded-full bg-blue-500/80 px-2 py-[2px] text-[11px] font-bold text-white">
-                  {loadingMsgs ? "..." : pendingCount}
-                </span>
-              </button>
+            <button
+              onClick={() => setShowAddProperty((s) => !s)}
+              className={`shrink-0 rounded-2xl border px-4 py-2 text-sm font-extrabold transition ${
+                showAddProperty
+                  ? "border-blue-400/40 bg-blue-500/15 text-blue-100 hover:bg-blue-500/20"
+                  : "border-white/10 bg-white/5 text-slate-100 hover:bg-white/10"
+              }`}
+            >
+              {showAddProperty ? "✖ Close Add Property" : "➕ Add Property"}
+            </button>
 
-              <button
-                onClick={() => setShowReviews((s) => !s)}
-                className="shrink-0 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-100 hover:bg-white/10 transition"
-              >
-                ⭐ Reviews
-                <span className="ml-2 inline-flex min-w-[22px] items-center justify-center rounded-full bg-amber-500/80 px-2 py-[2px] text-[11px] font-bold text-white">
-                  {reviewsLoading ? "..." : reviews?.length ?? 0}
-                </span>
-              </button>
+            <button
+              onClick={() => nav("/owner/messages")}
+              className="shrink-0 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-100 hover:bg-white/10 transition"
+              title="View booking requests + chat"
+            >
+              💬 Messages
+              <span className="ml-2 inline-flex min-w-[22px] items-center justify-center rounded-full bg-blue-500/80 px-2 py-[2px] text-[11px] font-extrabold text-white">
+                {loadingMsgs ? "..." : pendingCount}
+              </span>
+            </button>
 
-              {/* ✅ NEW: Notifications */}
-              <button
-                onClick={() => setShowNotifs((s) => !s)}
-                className="shrink-0 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-100 hover:bg-white/10 transition"
-                title="View notifications"
-              >
-                🔔 Notifications
-                <span className="ml-2 inline-flex min-w-[22px] items-center justify-center rounded-full bg-purple-500/80 px-2 py-[2px] text-[11px] font-bold text-white">
-                  {notifsLoading ? "..." : unreadCount}
-                </span>
-              </button>
+            <button
+              onClick={() => setShowReviews((s) => !s)}
+              className={`shrink-0 rounded-2xl border px-4 py-2 text-sm font-semibold transition ${
+                showReviews
+                  ? "border-amber-400/30 bg-amber-500/15 text-amber-100 hover:bg-amber-500/20"
+                  : "border-white/10 bg-white/5 text-slate-100 hover:bg-white/10"
+              }`}
+              title="See tenant reviews for your properties"
+            >
+              ⭐ Reviews
+              <span className="ml-2 inline-flex min-w-[22px] items-center justify-center rounded-full bg-amber-500/80 px-2 py-[2px] text-[11px] font-extrabold text-white">
+                {reviewsLoading ? "..." : reviews?.length ?? 0}
+              </span>
+            </button>
 
-              {/* ✅ NEW: Maintenance */}
-              <button
-                onClick={() => setShowMaintenance((s) => !s)}
-                className="shrink-0 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-100 hover:bg-white/10 transition"
-                title="Tenant help requests"
-              >
-                🔧 Maintenance
-                <span className="ml-2 inline-flex min-w-[22px] items-center justify-center rounded-full bg-emerald-500/80 px-2 py-[2px] text-[11px] font-bold text-white">
-                  {maintLoading ? "..." : maint?.length ?? 0}
-                </span>
-              </button>
+            <button
+              onClick={() => setShowNotifications((s) => !s)}
+              className={`shrink-0 rounded-2xl border px-4 py-2 text-sm font-semibold transition ${
+                showNotifications
+                  ? "border-purple-400/30 bg-purple-500/15 text-purple-100 hover:bg-purple-500/20"
+                  : "border-white/10 bg-white/5 text-slate-100 hover:bg-white/10"
+              }`}
+              title="Notifications (rent / water / electricity / system)"
+            >
+              🔔 Notifications
+              <span className="ml-2 inline-flex min-w-[22px] items-center justify-center rounded-full bg-purple-500/80 px-2 py-[2px] text-[11px] font-extrabold text-white">
+                {notifLoading ? "..." : unreadNotifCount}
+              </span>
+            </button>
 
-              <button
-                onClick={handleLogout}
-                className="shrink-0 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-100 hover:bg-white/10 transition"
-              >
-                Logout
-              </button>
-            </div>
+            <button
+              onClick={() => nav("/owner/maintenance")}
+              className="shrink-0 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-100 hover:bg-emerald-500/15 transition"
+              title="Open maintenance & service requests"
+            >
+              🧰 Maintenance
+            </button>
+          </div>
+
+          <div className="mt-1 text-[11px] text-slate-400 sm:hidden">
+            Tip: swipe left/right for more actions
           </div>
         </div>
       </div>
 
       {/* ✅ NOTIFICATIONS PANEL */}
-      {showNotifs && (
+      {showNotifications && (
         <div className="mb-6 rounded-3xl border border-white/10 bg-black/20 p-6">
           <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div className="text-lg font-semibold text-white">🔔 Notifications</div>
+            <div className="text-lg font-semibold text-white">
+              🔔 Notifications
+            </div>
+
             <div className="flex items-center gap-2">
+              <input
+                value={notifQuery}
+                onChange={(e) => setNotifQuery(e.target.value)}
+                placeholder="Search notifications"
+                className="w-[260px] max-w-[70vw] rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white outline-none focus:border-white/20"
+              />
               <button
-                onClick={loadNotifs}
+                onClick={loadNotifications}
                 className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-100 hover:bg-white/10 transition"
               >
                 Refresh
               </button>
               <button
-                onClick={() => setShowNotifs(false)}
+                onClick={() => setShowNotifications(false)}
                 className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-100 hover:bg-white/10 transition"
               >
                 Close
@@ -955,54 +982,57 @@ out center;
             </div>
           </div>
 
-          {notifsError ? (
+          {notifError ? (
             <div className="mt-4 rounded-2xl border border-red-500/20 bg-red-500/10 p-4">
-              <div className="text-sm font-semibold text-red-200">Notifications not loading</div>
-              <div className="mt-1 text-sm text-red-100/90">{notifsError}</div>
+              <div className="text-sm font-semibold text-red-200">
+                Notifications not loading
+              </div>
+              <div className="mt-1 text-sm text-red-100/90">{notifError}</div>
             </div>
-          ) : notifsLoading ? (
-            <div className="mt-4 text-sm text-slate-300">Loading notifications...</div>
-          ) : (notifs?.length ?? 0) === 0 ? (
-            <div className="mt-4 text-sm text-slate-300">No notifications.</div>
+          ) : notifLoading ? (
+            <div className="mt-4 text-sm text-slate-300">
+              Loading notifications...
+            </div>
+          ) : filteredNotifs.length === 0 ? (
+            <div className="mt-4 text-sm text-slate-300">
+              No notifications found.
+            </div>
           ) : (
             <div className="mt-4 grid gap-3">
-              {(notifs || []).map((n, idx) => {
-                const id = getNotifId(n, idx);
-                const unread = isUnread(n);
+              {filteredNotifs.map((n, idx) => {
+                const unread = isNotifUnread(n);
                 return (
-                  <div
-                    key={id}
-                    className={`rounded-2xl border p-4 ${
+                  <button
+                    key={getNotifId(n, idx)}
+                    onClick={() => markNotificationRead(n)}
+                    className={`text-left rounded-2xl border border-white/10 p-4 transition ${
                       unread
-                        ? "border-purple-500/25 bg-purple-500/10"
-                        : "border-white/10 bg-white/5"
+                        ? "bg-purple-500/10 hover:bg-purple-500/15"
+                        : "bg-white/5 hover:bg-white/10"
                     }`}
+                    title={unread ? "Click to mark as read" : "Read"}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="text-sm font-semibold text-white line-clamp-1">
+                        <div className="text-sm text-white font-semibold line-clamp-1">
                           {getNotifTitle(n)}
+                          {unread ? (
+                            <span className="ml-2 inline-flex items-center rounded-full bg-purple-500/70 px-2 py-[2px] text-[10px] font-bold text-white">
+                              NEW
+                            </span>
+                          ) : null}
                         </div>
-                        <div className="mt-1 text-sm text-slate-200/90 whitespace-pre-wrap">
+                        <div className="mt-2 text-sm text-slate-200/90 whitespace-pre-wrap">
                           {getNotifBody(n) || "—"}
                         </div>
-                        <div className="mt-2 text-[11px] text-slate-400">
-                          {formatDate(getNotifCreated(n))}
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <div className="text-[11px] text-slate-400">
+                          {formatDate(getNotifCreatedAt(n))}
                         </div>
                       </div>
-
-                      {unread ? (
-                        <button
-                          onClick={() => markNotifRead(id)}
-                          className="shrink-0 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-100 hover:bg-white/10 transition"
-                        >
-                          Mark read
-                        </button>
-                      ) : (
-                        <span className="shrink-0 text-[11px] text-slate-400">Read</span>
-                      )}
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -1010,105 +1040,13 @@ out center;
         </div>
       )}
 
-      {/* ✅ MAINTENANCE PANEL */}
-      {showMaintenance && (
-        <div className="mb-6 rounded-3xl border border-white/10 bg-black/20 p-6">
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div className="text-lg font-semibold text-white">🔧 Maintenance Requests</div>
-            <div className="flex items-center gap-2">
-              <input
-                value={maintQuery}
-                onChange={(e) => setMaintQuery(e.target.value)}
-                placeholder="Search (tenant / property / issue / status)"
-                className="w-[240px] max-w-[70vw] rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white outline-none focus:border-white/20"
-              />
-              <button
-                onClick={loadMaintenance}
-                className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-100 hover:bg-white/10 transition"
-              >
-                Refresh
-              </button>
-              <button
-                onClick={() => setShowMaintenance(false)}
-                className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-100 hover:bg-white/10 transition"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-
-          {maintError ? (
-            <div className="mt-4 rounded-2xl border border-red-500/20 bg-red-500/10 p-4">
-              <div className="text-sm font-semibold text-red-200">Maintenance not loading</div>
-              <div className="mt-1 text-sm text-red-100/90">{maintError}</div>
-            </div>
-          ) : maintLoading ? (
-            <div className="mt-4 text-sm text-slate-300">Loading maintenance requests...</div>
-          ) : filteredMaint.length === 0 ? (
-            <div className="mt-4 text-sm text-slate-300">No maintenance requests found.</div>
-          ) : (
-            <div className="mt-4 grid gap-3">
-              {filteredMaint.map((m, idx) => {
-                const id = getMaintId(m, idx);
-                const st = getMaintStatus(m);
-
-                const badge =
-                  st === "resolved" || st === "done"
-                    ? "bg-green-500/15 text-green-200 border-green-500/20"
-                    : st === "in_progress"
-                    ? "bg-amber-500/15 text-amber-200 border-amber-500/20"
-                    : "bg-blue-500/15 text-blue-200 border-blue-500/20";
-
-                return (
-                  <div key={id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="text-sm font-semibold text-white line-clamp-1">
-                          {getMaintListing(m)}
-                        </div>
-                        <div className="mt-1 text-xs text-slate-300">
-                          From: {getMaintTenant(m)} • Issue: {getMaintCategory(m)}
-                        </div>
-                      </div>
-
-                      <span className={`text-[11px] border px-2 py-[2px] rounded-full ${badge}`}>
-                        {st}
-                      </span>
-                    </div>
-
-                    <div className="mt-3 text-sm text-slate-200/90 whitespace-pre-wrap">
-                      {getMaintMsg(m) || "—"}
-                    </div>
-
-                    <div className="mt-2 text-[11px] text-slate-400">
-                      {formatDate(getMaintCreated(m))}
-                    </div>
-
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                      <select
-                        value={st}
-                        onChange={(e) => updateMaintenanceStatus(id, e.target.value)}
-                        className="appearance-none rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-xs text-slate-100"
-                      >
-                        <option value="pending">pending</option>
-                        <option value="in_progress">in_progress</option>
-                        <option value="resolved">resolved</option>
-                        <option value="done">done</option>
-                      </select>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ✅ REVIEWS PANEL (same as you had) */}
+      {/* ✅ REVIEWS PANEL */}
       {showReviews && (
         <div className="mb-6 rounded-3xl border border-white/10 bg-black/20 p-6">
           <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div className="text-lg font-semibold text-white">⭐ Tenant Reviews</div>
+            <div className="text-lg font-semibold text-white">
+              ⭐ Tenant Reviews
+            </div>
 
             <div className="flex items-center gap-2">
               <input
@@ -1134,7 +1072,9 @@ out center;
 
           {reviewsError ? (
             <div className="mt-4 rounded-2xl border border-red-500/20 bg-red-500/10 p-4">
-              <div className="text-sm font-semibold text-red-200">Reviews not loading</div>
+              <div className="text-sm font-semibold text-red-200">
+                Reviews not loading
+              </div>
               <div className="mt-1 text-sm text-red-100/90">{reviewsError}</div>
             </div>
           ) : reviewsLoading ? (
@@ -1147,7 +1087,10 @@ out center;
                 const rating = getReviewRating(r);
                 const stars = starString(rating);
                 return (
-                  <div key={getReviewId(r, idx)} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <div
+                    key={getReviewId(r, idx)}
+                    className="rounded-2xl border border-white/10 bg-white/5 p-4"
+                  >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="text-sm text-white font-semibold line-clamp-1">
@@ -1162,7 +1105,9 @@ out center;
                         {rating != null ? (
                           <div className="text-sm font-semibold text-amber-200">
                             {stars}{" "}
-                            <span className="text-slate-300 font-normal">({Number(rating)}/5)</span>
+                            <span className="text-slate-300 font-normal">
+                              ({Number(rating)}/5)
+                            </span>
                           </div>
                         ) : (
                           <div className="text-xs text-slate-400">No rating</div>
@@ -1176,6 +1121,17 @@ out center;
                     <div className="mt-3 text-sm text-slate-200/90 whitespace-pre-wrap">
                       {getReviewComment(r) || "—"}
                     </div>
+
+                    {r?.owner_reply ? (
+                      <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3">
+                        <div className="text-xs font-semibold text-slate-200">
+                          Owner reply
+                        </div>
+                        <div className="mt-1 text-sm text-slate-200/90 whitespace-pre-wrap">
+                          {String(r.owner_reply)}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 );
               })}
@@ -1184,26 +1140,41 @@ out center;
         </div>
       )}
 
-      {/* ✅ CONTENT GRID (same as your code) */}
+      {/* ✅ CONTENT GRID */}
       <div className="grid gap-4 lg:grid-cols-2">
+        {/* Profile */}
         <div className="rounded-3xl border border-white/10 bg-black/20 p-6">
           <div className="text-lg font-semibold text-white">My Profile</div>
+
           {!profile ? (
             <p className="mt-2 text-sm text-slate-300">Loading...</p>
           ) : (
             <div className="mt-4 text-sm text-slate-200 grid gap-2">
-              <div><b>Owner ID:</b> {profile.id ?? "-"}</div>
-              <div><b>Username:</b> {profile.username ?? "-"}</div>
-              <div><b>Email:</b> {profile.email ?? email ?? "-"}</div>
-              <div><b>Phone:</b> {profile.phone ?? "-"}</div>
-              <div><b>Address:</b> {profile.address ?? "-"}</div>
+              <div>
+                <b>Owner ID:</b> {profile.id ?? "-"}
+              </div>
+              <div>
+                <b>Username:</b> {profile.username ?? "-"}
+              </div>
+              <div>
+                <b>Email:</b> {profile.email ?? email ?? "-"}
+              </div>
+              <div>
+                <b>Phone:</b> {profile.phone ?? "-"}
+              </div>
+              <div>
+                <b>Address:</b> {profile.address ?? "-"}
+              </div>
             </div>
           )}
         </div>
 
+        {/* Latest requests */}
         <div className="rounded-3xl border border-white/10 bg-black/20 p-6">
           <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div className="text-lg font-semibold text-white">Latest Tenant Requests</div>
+            <div className="text-lg font-semibold text-white">
+              Latest Tenant Requests
+            </div>
             <button
               onClick={() => nav("/owner/messages")}
               className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm hover:bg-white/10 transition text-slate-100"
@@ -1237,7 +1208,9 @@ out center;
                       <div className="text-sm text-white font-semibold line-clamp-1">
                         {getListingTitle(b)} • #{getBookingId(b) ?? "—"}
                       </div>
-                      <span className={`text-[11px] border px-2 py-[2px] rounded-full ${badge}`}>
+                      <span
+                        className={`text-[11px] border px-2 py-[2px] rounded-full ${badge}`}
+                      >
                         {st}
                       </span>
                     </div>
@@ -1261,13 +1234,196 @@ out center;
         </div>
       </div>
 
-      {/* ✅ ADD PROPERTY (same as your code, keep it) */}
+      {/* ✅ ADD PROPERTY */}
       {showAddProperty && (
         <div className="mt-6 rounded-3xl border border-white/10 bg-black/20 p-6">
-          {/* ... keep your existing Add Property form exactly as you already have ... */}
-          <div className="text-sm text-slate-300">
-            (Your property form is unchanged. Keep your same form code here.)
+          <div className="flex flex-col gap-1">
+            <div className="text-lg font-semibold text-white">
+              Post a Property (with 360° photos)
+            </div>
+            <div className="text-sm text-slate-300">
+              Upload 1 cover image + 6 photos (front, back, left, right, up,
+              down). Pick the location on map.
+            </div>
           </div>
+
+          {!validation.ok && (
+            <div className="mt-4 rounded-2xl border border-red-500/20 bg-red-500/10 p-4">
+              <div className="text-sm font-semibold text-red-200">
+                Please fix these requirements:
+              </div>
+              <ul className="mt-2 list-disc pl-5 text-sm text-red-100/90 space-y-1">
+                {validation.errors.map((e, i) => (
+                  <li key={i}>{e}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <form onSubmit={submitProperty} className="mt-4 grid gap-3">
+            <input
+              className="rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-white outline-none focus:border-white/20"
+              name="title"
+              placeholder="Title (e.g., 2 Bedroom House near City)"
+              value={form.title}
+              onChange={onChange}
+              required
+            />
+
+            <textarea
+              className="rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-white outline-none focus:border-white/20"
+              name="description"
+              placeholder="Description"
+              value={form.description}
+              onChange={onChange}
+              rows={3}
+            />
+
+            <div className="grid md:grid-cols-2 gap-3">
+              <select
+                className="rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-white outline-none focus:border-white/20"
+                name="property_type"
+                value={form.property_type}
+                onChange={onChange}
+              >
+                <option value="house">House</option>
+                <option value="room">Room</option>
+                <option value="apartment">Apartment</option>
+              </select>
+
+              <input
+                className="rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-white outline-none focus:border-white/20"
+                name="location"
+                placeholder="Location (auto filled from map, you can edit)"
+                value={form.location}
+                onChange={onChange}
+                required
+              />
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-3">
+              <input
+                className="rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-white outline-none focus:border-white/20"
+                name="price_per_month"
+                type="number"
+                placeholder="Price per month"
+                value={form.price_per_month}
+                onChange={onChange}
+                required
+              />
+
+              <input
+                className="rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-white outline-none focus:border-white/20"
+                name="electricity_bill"
+                placeholder="Electricity bill (optional)"
+                value={form.electricity_bill}
+                onChange={onChange}
+              />
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-3">
+              <input
+                className="rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-white outline-none focus:border-white/20"
+                name="owner_contact_number"
+                placeholder="Contact number"
+                value={form.owner_contact_number}
+                onChange={onChange}
+                required
+              />
+              <input
+                className="rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-white outline-none focus:border-white/20"
+                name="owner_contact_email"
+                placeholder="Contact email (optional)"
+                value={form.owner_contact_email}
+                onChange={onChange}
+              />
+            </div>
+
+            {/* MAP */}
+            <div className="mt-2">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="text-sm font-semibold text-slate-200">
+                  📍 Pick Property Location *
+                </div>
+                <button
+                  type="button"
+                  onClick={clearPicked}
+                  className="rounded-xl border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-200 hover:bg-white/10 transition"
+                >
+                  Clear Pin
+                </button>
+              </div>
+
+              <div className="mt-1 text-xs text-slate-300">
+                Click on the map to place the pin. Address + nearby facilities
+                will load automatically.
+              </div>
+
+              <div className="mt-3 rounded-2xl border border-white/10 overflow-hidden">
+                <LocationPicker value={picked} onChange={onPick} height={320} />
+              </div>
+
+              <div className="mt-3 grid md:grid-cols-2 gap-3">
+                <input
+                  className="rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-white"
+                  value={form.latitude}
+                  readOnly
+                  placeholder="Latitude"
+                />
+                <input
+                  className="rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-white"
+                  value={form.longitude}
+                  readOnly
+                  placeholder="Longitude"
+                />
+              </div>
+            </div>
+
+            {/* Images */}
+            <div className="mt-2 rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="text-sm font-semibold text-slate-200">
+                🖼️ Cover image *
+              </div>
+              <input
+                className="mt-2 block w-full text-slate-200"
+                type="file"
+                accept="image/*"
+                onChange={(e) => setCoverImage(e.target.files?.[0] || null)}
+              />
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="text-sm font-semibold text-slate-200">
+                🧊 360° Photos (6 sides) *
+              </div>
+              <div className="mt-3 grid md:grid-cols-3 gap-3">
+                {["front", "back", "left", "right", "up", "down"].map((side) => (
+                  <div
+                    key={side}
+                    className="rounded-xl border border-white/10 bg-black/20 p-3"
+                  >
+                    <div className="text-xs text-slate-200 mb-2">
+                      {side.toUpperCase()}
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => onPanoChange(side, e.target.files?.[0] || null)}
+                      className="block w-full text-slate-200"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={posting}
+              className="mt-2 rounded-2xl bg-blue-600 px-4 py-3 text-white hover:bg-blue-500 transition disabled:opacity-60"
+            >
+              {posting ? "Posting..." : "Post Property"}
+            </button>
+          </form>
         </div>
       )}
 
