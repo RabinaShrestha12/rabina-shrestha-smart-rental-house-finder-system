@@ -1,13 +1,9 @@
-# myapp/models.py
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.conf import settings
 from django.utils import timezone
 
-
-# =========================
 # USER MODEL (single table for login)
-# =========================
 class User(AbstractUser):
     USER_TYPE = (
         ("admin", "Admin"),
@@ -29,9 +25,8 @@ class User(AbstractUser):
         return f"{self.username} ({self.role})"
 
 
-# =========================
+
 # PENDING SIGNUP (OTP BEFORE REGISTRATION)
-# =========================
 class PendingSignup(models.Model):
     email = models.EmailField(db_index=True)
     username = models.CharField(max_length=150)
@@ -54,9 +49,7 @@ class PendingSignup(models.Model):
         return f"PendingSignup({self.email}, role={self.role})"
 
 
-# =========================
 # OTP FOR PENDING SIGNUP
-# =========================
 class PendingSignupOTP(models.Model):
     PURPOSE_CHOICES = (("signup", "signup"),)
 
@@ -74,9 +67,7 @@ class PendingSignupOTP(models.Model):
         return f"PendingSignupOTP({self.pending.email})"
 
 
-# =========================
 # OWNER / TENANT PROFILES (optional tables, but user link MUST NOT be null)
-# =========================
 class Owner(models.Model):
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
@@ -108,9 +99,7 @@ class Tenant(models.Model):
         return f"Tenant({self.user.username})"
 
 
-# =========================
 # SERVICE PROVIDER PROFILE (for provider dashboard & filtering)
-# =========================
 class ServiceProviderProfile(models.Model):
     CATEGORY_CHOICES = (
         ("plumbing", "Plumbing"),
@@ -149,10 +138,7 @@ class ServiceProviderProfile(models.Model):
     def __str__(self):
         return f"{self.user.username} ({self.category}) - {self.availability}"
 
-
-# =========================
 # LISTING MODEL
-# =========================
 class Listing(models.Model):
     PROPERTY_TYPE_CHOICES = [
         ("room", "Room"),
@@ -216,10 +202,7 @@ class Listing(models.Model):
     def __str__(self):
         return f"{self.title} - {self.location}"
 
-
-# =========================
 # BOOKING + CHAT (Tenant <-> Owner)
-# =========================
 class BookingRequest(models.Model):
     STATUS_PENDING = "pending"
     STATUS_ACCEPTED = "accepted"
@@ -278,9 +261,7 @@ class BookingMessage(models.Model):
         return f"BookingMessage(req={self.request_id}, sender={self.sender_id})"
 
 
-# =========================
 # REVIEWS / RATINGS
-# =========================
 class Review(models.Model):
     listing = models.ForeignKey(Listing, on_delete=models.CASCADE, related_name="reviews")
 
@@ -309,10 +290,8 @@ class Review(models.Model):
         return f"Review(listing={self.listing_id}, tenant={self.tenant_id}, rating={self.rating})"
 
 
-# =========================
 # ✅ OWNER -> PROVIDER MAINTENANCE JOB/REQUEST
 # (Owner does NOT need to pick listing; listing is optional)
-# =========================
 class MaintenanceRequest(models.Model):
     STATUS = (
         ("open", "Open"),
@@ -378,9 +357,7 @@ class MaintenanceRequest(models.Model):
         return f"MaintenanceRequest#{self.id} ({self.category})"
 
 
-# =========================
 # ✅ OWNER <-> PROVIDER IN-APP MESSAGES (Provider Inbox)
-# =========================
 class ProviderMessage(models.Model):
     maintenance = models.ForeignKey(
         MaintenanceRequest,
@@ -423,9 +400,7 @@ class ProviderMessage(models.Model):
         return f"ProviderMessage#{self.id} to provider={self.provider_id}"
 
 
-# =========================
 # IN-APP NOTIFICATIONS
-# =========================
 class Notification(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notifications")
     title = models.CharField(max_length=140, default="")
@@ -438,9 +413,7 @@ class Notification(models.Model):
         return f"Notification({self.user_id}) {self.title}"
 
 
-# =========================
 # REMINDERS
-# =========================
 class Reminder(models.Model):
     TYPE = (
         ("rent", "Rent"),
@@ -461,9 +434,7 @@ class Reminder(models.Model):
         return f"Reminder({self.user_id}) {self.title}"
 
 
-# =========================
 # NEARBY FACILITIES
-# =========================
 class ListingFacility(models.Model):
     KIND = (
         ("bus_stop", "Bus Stop"),
@@ -482,4 +453,3 @@ class ListingFacility(models.Model):
 
     def __str__(self):
         return f"{self.kind}: {self.name}"
-

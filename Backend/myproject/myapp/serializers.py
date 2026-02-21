@@ -1,8 +1,5 @@
-# myapp/serializers.py
 from __future__ import annotations
-
 from io import BytesIO
-
 from django.contrib.auth import get_user_model
 from django.core.files.base import ContentFile
 from PIL import Image, ImageOps
@@ -26,9 +23,7 @@ from .models import (
 User = get_user_model()
 
 
-# =========================
 # USER SERIALIZER
-# =========================
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
@@ -48,10 +43,8 @@ class UserSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "created_at", "updated_at"]
 
 
-# =========================
 # OWNER / TENANT SERIALIZERS (linked tables)
 # NOTE: Owner/Tenant models now only have: user + location + created/updated
-# =========================
 class OwnerSerializer(serializers.ModelSerializer):
     user_id = serializers.IntegerField(source="user.id", read_only=True)
     username = serializers.CharField(source="user.username", read_only=True, default=None)
@@ -98,9 +91,8 @@ class TenantSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "user_id", "username", "email", "address", "phone", "created_at", "updated_at"]
 
 
-# =========================
+
 # SERVICE PROVIDER PROFILE SERIALIZER
-# =========================
 class ServiceProviderProfileSerializer(serializers.ModelSerializer):
     user_id = serializers.IntegerField(source="user.id", read_only=True)
     username = serializers.CharField(source="user.username", read_only=True, default=None)
@@ -124,9 +116,8 @@ class ServiceProviderProfileSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "user_id", "username", "email", "created_at", "updated_at"]
 
 
-# =========================
+
 # LISTING SERIALIZER (+360 + owner info + lat/lng + optional distance_km)
-# =========================
 class ListingSerializer(serializers.ModelSerializer):
     owner_name = serializers.CharField(source="owner.username", read_only=True)
     owner_email = serializers.EmailField(source="owner.email", read_only=True, allow_blank=True)
@@ -334,9 +325,7 @@ class ListingSerializer(serializers.ModelSerializer):
         ]
 
 
-# =========================
 # Booking + Messages
-# =========================
 class BookingRequestCreateSerializer(serializers.Serializer):
     listing_id = serializers.IntegerField()
     first_message = serializers.CharField(required=False, allow_blank=True)
@@ -437,9 +426,8 @@ class BookingRequestListSerializer(serializers.ModelSerializer):
         }
 
 
-# =========================
+
 # Reviews
-# =========================
 class ReviewSerializer(serializers.ModelSerializer):
     listing_title = serializers.CharField(source="listing.title", read_only=True)
     tenant_username = serializers.CharField(source="tenant.username", read_only=True)
@@ -464,9 +452,7 @@ class ReviewSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "created_at", "owner", "tenant"]
 
 
-# =========================
 # ✅ Owner -> Provider Maintenance (listing optional)
-# =========================
 class MaintenanceRequestSerializer(serializers.ModelSerializer):
     listing_title = serializers.CharField(source="listing.title", read_only=True, default=None)
 

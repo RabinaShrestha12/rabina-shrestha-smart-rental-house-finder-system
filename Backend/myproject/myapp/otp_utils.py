@@ -73,9 +73,7 @@ def _unsign_token(token: str) -> dict:
     return loads(token, salt=TOKEN_SALT)
 
 
-# =========================================================
 # SIGNUP OTP (PendingSignup)
-# =========================================================
 def create_and_send_signup_otp(pending: PendingSignup):
     window = int(getattr(settings, "SIGNUP_OTP_RESEND_WINDOW_SECONDS", 900))
     limit = int(getattr(settings, "SIGNUP_OTP_RESEND_LIMIT", 3))
@@ -137,9 +135,8 @@ def create_and_send_user_otp(user: User, purpose: str):
     return token, None
 
 
-# =========================================================
+
 # VERIFY OTP (Pending + User)
-# =========================================================
 def verify_otp(otp_token: str, code: str):
     try:
         payload = _unsign_token(otp_token)

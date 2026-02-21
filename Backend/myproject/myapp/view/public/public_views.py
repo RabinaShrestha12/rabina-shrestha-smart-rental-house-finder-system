@@ -81,7 +81,7 @@ class PublicListingListView(generics.ListAPIView):
         ptype = normalize_text(raw_ptype)
         loc_terms = split_location_terms(raw_location)
 
-        # ✅ Search keyword: title OR description OR location
+        #  Search keyword: title OR description OR location
         if q:
             qs = qs.filter(
                 Q(title__icontains=q) |
@@ -89,12 +89,12 @@ class PublicListingListView(generics.ListAPIView):
                 Q(location__icontains=q)
             )
 
-        # ✅ Location: require ALL terms to appear somewhere in location string
+        # Location: require ALL terms to appear somewhere in location string
         # Example: "itahari, dhulabari" -> must contain "itahari" AND "dhulabari"
         for term in loc_terms:
             qs = qs.filter(location__icontains=term)
 
-        # ✅ Type: ignore if empty or "all"
+        # Type: ignore if empty or "all"
         # also accept "Apartment" from frontend (we normalize to lowercase)
         if ptype and ptype != "all":
             qs = qs.filter(property_type__iexact=ptype)
@@ -118,10 +118,10 @@ class PublicListingDetailView(generics.RetrieveAPIView):
         return ctx
 
 
-# ======================================================
+
 # Nearby Listings API (Map + Distance Filter)
 # GET /api/public/listings/nearby/?lat=...&lng=...&radius_km=...
-# ======================================================
+
 class PublicListingNearbyView(generics.ListAPIView):
     serializer_class = ListingSerializer
 

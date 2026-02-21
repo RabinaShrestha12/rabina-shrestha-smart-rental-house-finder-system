@@ -22,27 +22,42 @@ def _create_notification(user, title, message, link=""):
 def owner_create_maintenance_request(request):
     """
     Owner creates a maintenance request (listing optional).
+
+    Accepts (any):
+      - listing or listing_id (optional)
+      - category
+      - priority
+      - title (required)
+      - description or message (required)
     """
-    listing_id = request.data.get("listing") or request.data.get("listing_id")
+
+    # ✅ IMPORTANT: treat "" or "   " as None
+    listing_id = (request.data.get("listing") or request.data.get("listing_id") or "").strip()
+    if listing_id == "":
+        listing_id = None
 
     listing = None
-    if listing_id:
+    if listing_id is not None:
         try:
             listing = Listing.objects.get(id=int(listing_id), owner=request.user)
+        except (ValueError, TypeError):
+            return Response({"detail": "listing_id must be a number"}, status=status.HTTP_400_BAD_REQUEST)
         except Listing.DoesNotExist:
             return Response({"detail": "Listing not found or not yours."}, status=status.HTTP_404_NOT_FOUND)
 
-    category = request.data.get("category") or "other"
-    priority = request.data.get("priority") or "medium"
+    category = (request.data.get("category") or "other").strip()
+    priority = (request.data.get("priority") or "medium").strip()
+
     title = (request.data.get("title") or "").strip()
     description = (request.data.get("description") or request.data.get("message") or "").strip()
 
     if not title or not description:
         return Response({"detail": "title and description are required"}, status=status.HTTP_400_BAD_REQUEST)
 
+    # ✅ Create (listing can be None)
     obj = MaintenanceRequest.objects.create(
         owner=request.user,
-        listing=listing,
+        listing=listing,  # may be None (DB must allow NULL)
         category=category,
         priority=priority,
         title=title,
@@ -71,7 +86,10 @@ def owner_create_maintenance_request(request):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated, IsOwnerRole])
 def owner_maintenance_requests(request):
-    qs = MaintenanceRequest.objects.filter(owner=request.user).order_by("-created_at")
+    qs = MaintenanceRequest.objects.filter(owner=request.user).select_related(
+        "listing", "assigned_provider", "assigned_provider__user"
+    ).order_by("-created_at")
+
     data = []
     for x in qs:
         data.append({
@@ -99,7 +117,7 @@ def owner_update_maintenance_status(request, req_id):
     except MaintenanceRequest.DoesNotExist:
         return Response({"detail": "Not found"}, status=status.HTTP_404_NOT_FOUND)
 
-    new_status = request.data.get("status")
+    new_status = (request.data.get("status") or "").strip()
     if not new_status:
         return Response({"detail": "status is required"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -110,7 +128,6 @@ def owner_update_maintenance_status(request, req_id):
     obj.status = new_status
     obj.save(update_fields=["status", "updated_at"])
 
-    # notify provider if assigned
     if obj.assigned_provider:
         _create_notification(
             user=obj.assigned_provider.user,
@@ -125,8 +142,8 @@ def owner_update_maintenance_status(request, req_id):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated, IsOwnerRole])
 def owner_available_providers(request):
-    category = request.query_params.get("category")
-    service_area = request.query_params.get("service_area")
+    category = (request.query_params.get("category") or "").strip()
+    service_area = (request.query_params.get("service_area") or "").strip()
 
     qs = ServiceProviderProfile.objects.select_related("user").all()
 
@@ -165,6 +182,8 @@ def owner_assign_provider(request, req_id):
 
     try:
         provider_profile = ServiceProviderProfile.objects.select_related("user").get(id=int(provider_profile_id))
+    except (ValueError, TypeError):
+        return Response({"detail": "provider_profile_id must be a number"}, status=status.HTTP_400_BAD_REQUEST)
     except ServiceProviderProfile.DoesNotExist:
         return Response({"detail": "Provider profile not found"}, status=status.HTTP_404_NOT_FOUND)
 
@@ -201,7 +220,7 @@ def provider_my_jobs(request):
     except ServiceProviderProfile.DoesNotExist:
         return Response({"detail": "Provider profile not found."}, status=status.HTTP_404_NOT_FOUND)
 
-    qs = MaintenanceRequest.objects.filter(assigned_provider=profile).order_by("-created_at")
+    qs = MaintenanceRequest.objects.filter(assigned_provider=profile).select_related("listing").order_by("-created_at")
 
     data = []
     for x in qs:
@@ -233,7 +252,7 @@ def provider_update_job_status(request, req_id):
     except MaintenanceRequest.DoesNotExist:
         return Response({"detail": "Job not found"}, status=status.HTTP_404_NOT_FOUND)
 
-    new_status = request.data.get("status")
+    new_status = (request.data.get("status") or "").strip()
     if not new_status:
         return Response({"detail": "status is required"}, status=status.HTTP_400_BAD_REQUEST)
 

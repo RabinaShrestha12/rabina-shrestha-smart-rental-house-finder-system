@@ -18,33 +18,24 @@ function axiosMsg(err, fallback) {
   return data?.detail || data?.message || data?.error || err?.message || fallback;
 }
 
-// ✅ IMPORTANT: works even if backend forgets to send id
-function getProviderId(p, idx = 0) {
-  const id = p?.id ?? p?.provider_id ?? p?.pk ?? p?.user_id ?? p?.user?.id ?? null;
-  if (id != null && id !== "") return String(id);
-
-  const email = String(p?.email ?? p?.user?.email ?? "")
-    .trim()
-    .toLowerCase();
-  if (email) return `email:${email}`;
-
-  return `idx:${idx}`;
+function getProviderId(p) {
+  return p?.id ?? p?.pk ?? null; // ✅ your backend returns ServiceProviderProfile.id as "id"
 }
 
 function getProviderName(p) {
-  return p?.name ?? p?.username ?? p?.full_name ?? p?.company_name ?? "Service Provider";
+  return p?.username ?? p?.user?.username ?? "Service Provider";
 }
 function getProviderEmail(p) {
   return p?.email ?? p?.user?.email ?? "";
 }
 function getProviderPhone(p) {
-  return p?.phone ?? p?.contact_number ?? p?.mobile ?? "";
+  return p?.phone ?? "";
 }
 function getProviderCategory(p) {
-  return p?.category ?? p?.service_category ?? p?.service_type ?? p?.skill ?? "other";
+  return p?.category ?? "other";
 }
 function getProviderArea(p) {
-  return p?.service_area ?? p?.area ?? p?.location ?? "";
+  return p?.service_area ?? "";
 }
 
 export default function OwnerMaintenance() {
@@ -53,21 +44,21 @@ export default function OwnerMaintenance() {
 
   const [toast, setToast] = useState({ type: "info", msg: "" });
 
-  // left: create request form
+  // create request
   const [form, setForm] = useState({
     title: "",
     category: "plumbing",
-    service_area: "",
-    preferred_date: "",
+    priority: "medium",
+    listing_id: "",
     description: "",
   });
   const onChange = (e) => setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
 
-  // requests list
+  // requests
   const [requestsLoading, setRequestsLoading] = useState(false);
   const [requests, setRequests] = useState([]);
 
-  // right: providers list
+  // providers
   const [providersLoading, setProvidersLoading] = useState(false);
   const [providersError, setProvidersError] = useState("");
   const [providers, setProviders] = useState([]);
@@ -76,15 +67,15 @@ export default function OwnerMaintenance() {
   const [filterCategory, setFilterCategory] = useState("");
   const [filterArea, setFilterArea] = useState("");
 
-  // ✅ selection
-  const [selectedProviderId, setSelectedProviderId] = useState("");
-  const [selectedProviderObj, setSelectedProviderObj] = useState(null);
+  // select provider + active request
+  const [selectedProvider, setSelectedProvider] = useState(null);
+  const [activeReq, setActiveReq] = useState(null);
 
-  // ✅ message modal
-  const [openMsg, setOpenMsg] = useState(false);
-  const [msgTitle, setMsgTitle] = useState("");
-  const [msgBody, setMsgBody] = useState("");
-  const [sendingMsg, setSendingMsg] = useState(false);
+  // chat
+  const [chatLoading, setChatLoading] = useState(false);
+  const [messages, setMessages] = useState([]);
+  const [chatText, setChatText] = useState("");
+  const [sendingChat, setSendingChat] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem("access");
@@ -94,71 +85,64 @@ export default function OwnerMaintenance() {
   }, [role]);
 
   // ----------------------------
-  // Load providers
+  // Load providers (REAL endpoint)
+  // GET /api/owner/providers/
   // ----------------------------
   const loadProviders = async () => {
     setProvidersLoading(true);
     setProvidersError("");
     try {
-      const endpoints = [
-        "providers/",
-        "providers",
-        "owner/providers/",
-        "owner/providers",
-        "service-providers/",
-        "service-providers",
-      ];
-
-      let data = null;
-      let lastErr = null;
-
-      for (const ep of endpoints) {
-        try {
-          const res = await api.get(ep);
-          data = showData(res?.data);
-          lastErr = null;
-          break;
-        } catch (e) {
-          lastErr = e;
-        }
-      }
-
-      if (!data && lastErr) {
-        setProvidersError(
-          axiosMsg(lastErr, "Providers API not found. Create GET /api/providers/ to return providers.")
-        );
-        setProviders([]);
-      } else {
-        setProviders(safeArr(data));
-      }
+      const res = await api.get("owner/providers/");
+      setProviders(safeArr(res.data));
+    } catch (e) {
+      setProvidersError(axiosMsg(e, "Failed to load providers."));
+      setProviders([]);
     } finally {
       setProvidersLoading(false);
     }
   };
 
-  // small helper to keep consistent
-  const showData = (d) => d;
-
   // ----------------------------
-  // Load my requests (optional)
+  // Load my maintenance requests
+  // GET /api/owner/maintenance/
   // ----------------------------
-  const loadRequests = async () => {
+  const loadRequests = async (keepActiveId = null) => {
     setRequestsLoading(true);
     try {
-      const endpoints = ["owner/maintenance/", "owner/service-requests/", "maintenance/owner/"];
-      let data = null;
+      const res = await api.get("owner/maintenance/");
+      const list = safeArr(res.data);
+      setRequests(list);
 
-      for (const ep of endpoints) {
-        try {
-          const res = await api.get(ep);
-          data = res.data;
-          break;
-        } catch {}
+      if (keepActiveId) {
+        const found = list.find((x) => String(x?.id) === String(keepActiveId));
+        setActiveReq(found || list[0] || null);
+      } else {
+        setActiveReq(list[0] || null);
       }
-
-      setRequests(safeArr(data));
+    } catch (e) {
+      setToast({ type: "error", msg: axiosMsg(e, "Failed to load requests.") });
+      setRequests([]);
+      setActiveReq(null);
     } finally {
       setRequestsLoading(false);
+    }
+  };
+
+  // ----------------------------
+  // Load chat for active request
+  // GET /api/owner/maintenance/<id>/messages/
+  // ----------------------------
+  const loadChat = async (reqId) => {
+    if (!reqId) return;
+    setChatLoading(true);
+    try {
+      const res = await api.get(`owner/maintenance/${reqId}/messages/`);
+      setMessages(safeArr(res.data));
+    } catch (e) {
+      setMessages([]);
+      setToast({ type: "error", msg: axiosMsg(e, "Failed to load chat.") });
+    } finally {
+      setChatLoading(false);
     }
   };
 
@@ -168,8 +152,88 @@ export default function OwnerMaintenance() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (activeReq?.id) loadChat(activeReq.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeReq?.id]);
+
   // ----------------------------
-  // Filter providers
+  // Create request
+  // POST /api/owner/maintenance/create/
+  // ----------------------------
+  const submitRequest = async (e) => {
+    e.preventDefault();
+
+    if (!form.title.trim()) return setToast({ type: "error", msg: "Title is required" });
+    if (!form.description.trim()) return setToast({ type: "error", msg: "Description is required" });
+
+    try {
+      const payload = {
+        title: form.title.trim(),
+        category: form.category,
+        priority: form.priority,
+        description: form.description.trim(),
+        listing_id: form.listing_id ? Number(form.listing_id) : null,
+      };
+
+      const res = await api.post("owner/maintenance/create/", payload);
+
+      setToast({ type: "success", msg: "Request created ✅ Now assign provider and chat." });
+      setForm({ title: "", category: "plumbing", priority: "medium", listing_id: "", description: "" });
+
+      const newId = res?.data?.id;
+      await loadRequests(newId);
+    } catch (e2) {
+      setToast({ type: "error", msg: axiosMsg(e2, "Failed to create request") });
+    }
+  };
+
+  // ----------------------------
+  // Assign provider
+  // PATCH /api/owner/maintenance/<id>/assign/
+  // body: { provider_profile_id }
+  // ----------------------------
+  const assignProvider = async () => {
+    if (!activeReq?.id) return setToast({ type: "error", msg: "Select a request first." });
+    if (!selectedProvider) return setToast({ type: "error", msg: "Select a provider first." });
+
+    try {
+      await api.patch(`owner/maintenance/${activeReq.id}/assign/`, {
+        provider_profile_id: getProviderId(selectedProvider),
+      });
+
+      setToast({ type: "success", msg: "Provider assigned ✅ Now you can message." });
+      await loadRequests(activeReq.id);
+    } catch (e) {
+      setToast({ type: "error", msg: axiosMsg(e, "Failed to assign provider") });
+    }
+  };
+
+  // ----------------------------
+  // Send chat message to provider
+  // POST /api/owner/maintenance/<id>/messages/send/
+  // body: { text }
+  // ----------------------------
+  const sendChat = async () => {
+    if (!activeReq?.id) return setToast({ type: "error", msg: "Select a request first." });
+    if (!chatText.trim()) return setToast({ type: "error", msg: "Write a message first." });
+
+    setSendingChat(true);
+    try {
+      await api.post(`owner/maintenance/${activeReq.id}/messages/send/`, { text: chatText.trim() });
+      setChatText("");
+      await loadChat(activeReq.id);
+      await loadRequests(activeReq.id);
+      setToast({ type: "success", msg: "Message sent ✅" });
+    } catch (e) {
+      setToast({ type: "error", msg: axiosMsg(e, "Failed to send message") });
+    } finally {
+      setSendingChat(false);
+    }
+  };
+
+  // ----------------------------
+  // Filters
   // ----------------------------
   const categories = useMemo(() => {
     const set = new Set();
@@ -184,173 +248,19 @@ export default function OwnerMaintenance() {
     return (providers || []).filter((p) => {
       const pc = String(getProviderCategory(p) || "").toLowerCase();
       const pa = String(getProviderArea(p) || "").toLowerCase();
-
-      const okC = !c || pc === c;
-      const okA = !a || pa.includes(a);
-
-      return okC && okA;
+      return (!c || pc === c) && (!a || pa.includes(a));
     });
   }, [providers, filterCategory, filterArea]);
 
-  // ----------------------------
-  // Select provider
-  // ----------------------------
-  const selectProvider = (p, idx) => {
-    const pid = getProviderId(p, idx);
-    setSelectedProviderId(pid);
-    setSelectedProviderObj(p);
-    setToast({ type: "success", msg: "Provider selected ✅" });
-  };
-
-  // ----------------------------
-  // Create request
-  // ----------------------------
-  const submitRequest = async (e) => {
-    e.preventDefault();
-
-    if (!form.title.trim()) {
-      setToast({ type: "error", msg: "Title is required" });
-      return;
-    }
-    if (!form.description.trim()) {
-      setToast({ type: "error", msg: "Description is required" });
-      return;
-    }
-
-    const payload = {
-      title: form.title.trim(),
-      category: form.category,
-      service_area: form.service_area,
-      preferred_date: form.preferred_date || null,
-      description: form.description.trim(),
-
-      // ✅ optional provider selection
-      provider: selectedProviderId || null,
-      provider_id: selectedProviderId || null,
-    };
-
-    try {
-      const endpoints = ["owner/maintenance/", "owner/service-requests/", "maintenance/owner/"];
-      let ok = false;
-      let lastErr = null;
-
-      for (const ep of endpoints) {
-        try {
-          await api.post(ep, payload);
-          ok = true;
-          break;
-        } catch (e2) {
-          lastErr = e2;
-        }
-      }
-
-      if (!ok) {
-        setToast({ type: "error", msg: axiosMsg(lastErr, "Failed to create request") });
-        return;
-      }
-
-      setToast({ type: "success", msg: "Request created ✅" });
-      setForm({ title: "", category: "plumbing", service_area: "", preferred_date: "", description: "" });
-      await loadRequests();
-    } catch (e) {
-      setToast({ type: "error", msg: axiosMsg(e, "Failed to create request") });
-    }
-  };
-
-  // ----------------------------
-  // Message modal
-  // ----------------------------
-  const openMessageBox = (p, idx) => {
-    const pid = getProviderId(p, idx);
-    setSelectedProviderId(pid);
-    setSelectedProviderObj(p);
-    setMsgTitle("");
-    setMsgBody("");
-    setOpenMsg(true);
-  };
-
-  const closeMessageBox = () => {
-    setOpenMsg(false);
-    setMsgTitle("");
-    setMsgBody("");
-  };
-
-  const sendMessage = async () => {
-    const p = selectedProviderObj;
-    if (!p) {
-      setToast({ type: "error", msg: "Select a provider first." });
-      return;
-    }
-
-    const pid = selectedProviderId || getProviderId(p, 0);
-    const body = String(msgBody || "").trim();
-    const title = String(msgTitle || "").trim();
-
-    if (!body) {
-      setToast({ type: "error", msg: "Please write your message." });
-      return;
-    }
-
-    setSendingMsg(true);
-    try {
-      const payload = {
-        provider: pid,
-        provider_id: pid,
-        title: title || "Maintenance problem",
-        message: body,
-        text: body,
-      };
-
-      const endpoints = [
-        "owner/provider-messages/",
-        "owner/messages/provider/",
-        "messages/send/",
-        `providers/${pid}/message/`,
-        `provider/${pid}/message/`,
-      ];
-
-      let ok = false;
-      let lastErr = null;
-
-      for (const ep of endpoints) {
-        try {
-          await api.post(ep, payload);
-          ok = true;
-          break;
-        } catch (e) {
-          lastErr = e;
-        }
-      }
-
-      if (!ok) {
-        setToast({
-          type: "error",
-          msg: axiosMsg(
-            lastErr,
-            "Message API not found. Create POST /api/owner/provider-messages/ to store message."
-          ),
-        });
-        return;
-      }
-
-      setToast({ type: "success", msg: "Message sent ✅ Provider will receive it in Inbox." });
-      closeMessageBox();
-    } finally {
-      setSendingMsg(false);
-    }
-  };
-
   return (
-    <Shell title="" subtitle="" right={null}>
+    <Shell title="Owner Maintenance" subtitle="Create a request, assign provider, and chat." right={null}>
       <Toast type={toast.type} message={toast.msg} onClose={() => setToast({ type: "info", msg: "" })} />
 
       <div className="mb-6 rounded-3xl border border-white/10 bg-black/20 p-6">
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
-            <div className="text-2xl font-extrabold text-white">Maintenance / Service Requests</div>
-            <div className="mt-1 text-sm text-slate-300">
-              Create requests and message service providers directly.
-            </div>
+            <div className="text-2xl font-extrabold text-white">Maintenance Requests</div>
+            <div className="mt-1 text-sm text-slate-300">Assign a service provider and message them.</div>
           </div>
 
           <div className="flex items-center gap-2">
@@ -358,7 +268,7 @@ export default function OwnerMaintenance() {
               type="button"
               onClick={() => {
                 loadProviders();
-                loadRequests();
+                loadRequests(activeReq?.id || null);
               }}
               className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-100 hover:bg-white/10 transition"
             >
@@ -375,12 +285,9 @@ export default function OwnerMaintenance() {
         </div>
 
         <div className="mt-6 grid gap-5 lg:grid-cols-2">
-          {/* LEFT: create request */}
+          {/* LEFT */}
           <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
             <div className="text-lg font-semibold text-white">Create a request</div>
-            <div className="mt-1 text-xs text-slate-400">
-              Use this when you need plumbing, electrician, cleaning, gas, pest control, etc.
-            </div>
 
             <form onSubmit={submitRequest} className="mt-4 grid gap-3">
               <div>
@@ -394,60 +301,53 @@ export default function OwnerMaintenance() {
                 />
               </div>
 
-              <div>
-                <div className="text-xs text-slate-300 mb-1">Category</div>
-                <select
-                  name="category"
-                  value={form.category}
-                  onChange={onChange}
-                  className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-sm text-slate-100 outline-none focus:border-white/20"
-                >
-                  <option value="plumbing">Plumbing</option>
-                  <option value="electrician">Electrician</option>
-                  <option value="cleaning">Cleaning</option>
-                  <option value="gas">Gas</option>
-                  <option value="hvac">AC / Heating</option>
-                  <option value="pest_control">Pest Control</option>
-                  <option value="carpentry">Carpentry</option>
-                  <option value="painting">Painting</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
-
-              <div>
-                <div className="text-xs text-slate-300 mb-1">Service Area (for provider matching)</div>
-                <input
-                  name="service_area"
-                  value={form.service_area}
-                  onChange={onChange}
-                  className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white outline-none focus:border-white/20"
-                  placeholder="e.g., Itahari"
-                />
-              </div>
-
-              <div>
-                <div className="text-xs text-slate-300 mb-1">Preferred Date (optional)</div>
-                <input
-                  type="date"
-                  name="preferred_date"
-                  value={form.preferred_date}
-                  onChange={onChange}
-                  className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white outline-none focus:border-white/20"
-                />
-              </div>
-
-              <div>
-                <div className="text-xs text-slate-300 mb-1">Select Service Provider (optional)</div>
-                <div className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-slate-200">
-                  {selectedProviderObj ? (
-                    <>
-                      <b className="text-white">{getProviderName(selectedProviderObj)}</b>
-                      <span className="text-slate-400"> • {String(getProviderCategory(selectedProviderObj)).replaceAll("_", " ")}</span>
-                    </>
-                  ) : (
-                    <span className="text-slate-400">Auto / Not selected</span>
-                  )}
+              <div className="grid gap-3 md:grid-cols-2">
+                <div>
+                  <div className="text-xs text-slate-300 mb-1">Category</div>
+                  <select
+                    name="category"
+                    value={form.category}
+                    onChange={onChange}
+                    className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-sm text-slate-100 outline-none focus:border-white/20"
+                  >
+                    <option value="plumbing">Plumbing</option>
+                    <option value="electrical">Electrical</option>
+                    <option value="cleaning">Cleaning</option>
+                    <option value="internet">Internet/WiFi</option>
+                    <option value="gas">Gas</option>
+                    <option value="hvac">AC / Heating</option>
+                    <option value="pest_control">Pest Control</option>
+                    <option value="carpentry">Carpentry</option>
+                    <option value="painting">Painting</option>
+                    <option value="other">Other</option>
+                  </select>
                 </div>
+
+                <div>
+                  <div className="text-xs text-slate-300 mb-1">Priority</div>
+                  <select
+                    name="priority"
+                    value={form.priority}
+                    onChange={onChange}
+                    className="w-full rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-sm text-slate-100 outline-none focus:border-white/20"
+                  >
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="emergency">Emergency</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <div className="text-xs text-slate-300 mb-1">Listing ID (optional)</div>
+                <input
+                  name="listing_id"
+                  value={form.listing_id}
+                  onChange={onChange}
+                  className="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white outline-none focus:border-white/20"
+                  placeholder="e.g., 12"
+                />
               </div>
 
               <div>
@@ -470,39 +370,52 @@ export default function OwnerMaintenance() {
               </button>
             </form>
 
+            {/* Requests list */}
             <div className="mt-6">
               <div className="text-sm font-semibold text-white">My requests</div>
+
               {requestsLoading ? (
                 <div className="mt-2 text-sm text-slate-300">Loading...</div>
               ) : requests.length === 0 ? (
                 <div className="mt-2 text-sm text-slate-400">No maintenance requests yet.</div>
               ) : (
                 <div className="mt-3 grid gap-2">
-                  {requests.map((r, idx) => (
-                    <div key={r?.id ?? idx} className="rounded-xl border border-white/10 bg-black/20 p-3">
-                      <div className="text-sm font-semibold text-white">{r?.title ?? "Request"}</div>
-                      <div className="mt-1 text-xs text-slate-300">
-                        {String(r?.category || "other").replaceAll("_", " ")} • {r?.service_area || "—"}
-                      </div>
-                      <div className="mt-2 text-xs text-slate-200/90 line-clamp-2">{r?.description ?? "—"}</div>
-                    </div>
-                  ))}
+                  {requests.map((r) => {
+                    const active = String(activeReq?.id) === String(r?.id);
+                    return (
+                      <button
+                        key={r?.id}
+                        type="button"
+                        onClick={() => setActiveReq(r)}
+                        className={`text-left rounded-xl border p-3 transition ${
+                          active ? "border-blue-500/40 bg-blue-500/10" : "border-white/10 bg-black/20 hover:bg-white/5"
+                        }`}
+                      >
+                        <div className="text-sm font-semibold text-white">
+                          #{r?.id} • {r?.title ?? "Request"}
+                        </div>
+                        <div className="mt-1 text-xs text-slate-300">
+                          {String(r?.category || "other").replaceAll("_", " ")} • {r?.priority || "medium"} •{" "}
+                          {r?.status || "open"}
+                        </div>
+                        <div className="mt-2 text-xs text-slate-200/90 line-clamp-2">{r?.description ?? "—"}</div>
+                        <div className="mt-2 text-xs text-slate-400">
+                          Assigned: {r?.assigned_provider_name || "Not assigned"}
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>
           </div>
 
-          {/* RIGHT: providers */}
+          {/* RIGHT */}
           <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <div>
-                <div className="text-lg font-semibold text-white">Service Providers</div>
-                <div className="mt-1 text-xs text-slate-400">
-                  Choose a provider and click Message to communicate.
-                </div>
-              </div>
-            </div>
+            <div className="text-lg font-semibold text-white">Service Providers</div>
+            <div className="mt-1 text-xs text-slate-400">Select a provider and assign to active request.</div>
 
+            {/* Filters */}
             <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
               <div className="text-xs text-slate-300 mb-2">Filter</div>
               <div className="grid gap-3 md:grid-cols-2">
@@ -512,13 +425,11 @@ export default function OwnerMaintenance() {
                   className="rounded-xl bg-black/30 border border-white/10 px-3 py-2 text-sm text-slate-100 outline-none focus:border-white/20"
                 >
                   <option value="">All categories</option>
-                  {categories
-                    .filter((x) => x)
-                    .map((c) => (
-                      <option key={c} value={c}>
-                        {c.replaceAll("_", " ")}
-                      </option>
-                    ))}
+                  {categories.filter(Boolean).map((c) => (
+                    <option key={c} value={c}>
+                      {c.replaceAll("_", " ")}
+                    </option>
+                  ))}
                 </select>
 
                 <input
@@ -527,10 +438,6 @@ export default function OwnerMaintenance() {
                   placeholder="Service area"
                   className="rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white outline-none focus:border-white/20"
                 />
-              </div>
-
-              <div className="mt-3 text-xs text-slate-400">
-                Providers: <b className="text-slate-100">{filteredProviders.length}</b>
               </div>
             </div>
 
@@ -544,130 +451,107 @@ export default function OwnerMaintenance() {
             ) : filteredProviders.length === 0 ? (
               <div className="mt-4 text-sm text-slate-300">No providers found.</div>
             ) : (
-              <div className="mt-4 grid gap-3">
-                {filteredProviders.map((p, idx) => {
-                  const pid = getProviderId(p, idx);
-                  const selected = String(selectedProviderId) === String(pid);
+              <>
+                <div className="mt-4 grid gap-3">
+                  {filteredProviders.map((p) => {
+                    const selected = String(getProviderId(selectedProvider)) === String(getProviderId(p));
+                    return (
+                      <button
+                        key={getProviderId(p)}
+                        type="button"
+                        onClick={() => setSelectedProvider(p)}
+                        className={`text-left rounded-2xl border p-4 transition ${
+                          selected ? "border-emerald-500/40 bg-emerald-500/5" : "border-white/10 bg-black/20 hover:bg-white/5"
+                        }`}
+                      >
+                        <div className="text-sm font-semibold text-white">{getProviderName(p)}</div>
+                        <div className="mt-2 text-xs text-slate-300">
+                          Email: {getProviderEmail(p) || "—"} <br />
+                          Phone: {getProviderPhone(p) || "—"} <br />
+                          Category: {String(getProviderCategory(p) || "other").replaceAll("_", " ")} <br />
+                          Area: {getProviderArea(p) || "—"}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
 
-                  return (
-                    <div
-                      key={pid}
-                      className={`rounded-2xl border p-4 ${
-                        selected ? "border-emerald-500/40 bg-emerald-500/5" : "border-white/10 bg-black/20"
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="text-sm font-semibold text-white">{getProviderName(p)}</div>
-                          <div className="mt-2 text-xs text-slate-300">
-                            Email: {getProviderEmail(p) || "—"} <br />
-                            Phone: {getProviderPhone(p) || "—"} <br />
-                            Category: {String(getProviderCategory(p) || "other").replaceAll("_", " ")}
+                <button
+                  type="button"
+                  onClick={assignProvider}
+                  className="mt-4 w-full rounded-2xl bg-emerald-600 px-4 py-3 text-white font-semibold hover:bg-emerald-500 transition"
+                >
+                  Assign Selected Provider to Active Request
+                </button>
+              </>
+            )}
+
+            {/* CHAT */}
+            <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-4">
+              <div className="text-sm font-semibold text-white">
+                Chat {activeReq?.id ? `(Request #${activeReq.id})` : ""}
+              </div>
+              <div className="mt-1 text-xs text-slate-400">
+                You can send message only after provider is assigned.
+              </div>
+
+              <div className="mt-3 rounded-xl border border-white/10 bg-black/30 p-3 min-h-[220px]">
+                {chatLoading ? (
+                  <div className="text-sm text-slate-300">Loading messages…</div>
+                ) : messages.length === 0 ? (
+                  <div className="text-sm text-slate-300">No messages yet.</div>
+                ) : (
+                  <div className="grid gap-2">
+                    {messages.map((m) => (
+                      <div key={m?.id} className="rounded-xl border border-white/10 bg-white/5 p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="text-xs font-semibold text-slate-200">
+                            {m?.sender_username || m?.sender_email || "User"}
+                          </div>
+                          <div className="text-[11px] text-slate-400">
+                            {m?.created_at ? new Date(m.created_at).toLocaleString() : ""}
                           </div>
                         </div>
-
-                        <div className="shrink-0">
-                          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] text-slate-200">
-                            {getProviderArea(p) ? getProviderArea(p) : "Area not set"}
-                          </span>
-                        </div>
+                        <div className="mt-1 text-sm text-slate-100 whitespace-pre-wrap">{m?.text || "—"}</div>
                       </div>
-
-                      <div className="mt-3 flex gap-2">
-                        {/* ✅ IMPORTANT: type="button" */}
-                        <button
-                          type="button"
-                          onClick={() => selectProvider(p, idx)}
-                          className={`rounded-xl px-4 py-2 text-sm font-semibold transition border ${
-                            selected
-                              ? "bg-emerald-600 text-white border-emerald-500/40"
-                              : "bg-white/5 text-slate-100 border-white/10 hover:bg-white/10"
-                          }`}
-                        >
-                          {selected ? "Selected ✅" : "Select for request"}
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => openMessageBox(p, idx)}
-                          className="rounded-xl bg-purple-600 px-4 py-2 text-sm font-semibold text-white hover:bg-purple-500 transition"
-                        >
-                          Message
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
+
+              <div className="mt-3">
+                <textarea
+                  value={chatText}
+                  onChange={(e) => setChatText(e.target.value)}
+                  rows={3}
+                  className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-slate-100 outline-none focus:border-white/20"
+                  placeholder="Write your message to provider..."
+                />
+                <div className="mt-2 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={sendChat}
+                    disabled={sendingChat}
+                    className="rounded-2xl border border-white/10 bg-white/10 px-4 py-2 text-sm hover:bg-white/15 transition disabled:opacity-60"
+                  >
+                    {sendingChat ? "Sending…" : "Send Message"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => loadChat(activeReq?.id)}
+                    className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm hover:bg-white/10 transition"
+                  >
+                    Reload Chat
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
         <div className="mt-10 text-center text-xs text-slate-400">Smart Rental • React + Django + JWT</div>
       </div>
-
-      {/* ✅ MESSAGE MODAL */}
-      {openMsg && (
-        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-[700px] rounded-3xl border border-white/10 bg-[#0b1020] p-5 shadow-2xl">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="text-lg font-semibold text-white">Send message</div>
-                <div className="mt-1 text-sm text-slate-300">
-                  To: <span className="text-slate-100">{selectedProviderObj ? getProviderName(selectedProviderObj) : "Provider"}</span>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={closeMessageBox}
-                className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-100 hover:bg-white/10 transition"
-              >
-                Close
-              </button>
-            </div>
-
-            <div className="mt-4 grid gap-3">
-              <input
-                value={msgTitle}
-                onChange={(e) => setMsgTitle(e.target.value)}
-                placeholder="Title (optional) e.g., Water pipe leaking"
-                className="rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white outline-none focus:border-white/20"
-              />
-
-              <textarea
-                value={msgBody}
-                onChange={(e) => setMsgBody(e.target.value)}
-                placeholder="Write your problem message here..."
-                rows={6}
-                className="rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white outline-none focus:border-white/20"
-              />
-
-              <div className="flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={closeMessageBox}
-                  className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-100 hover:bg-white/10 transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={sendMessage}
-                  disabled={sendingMsg}
-                  className="rounded-2xl bg-emerald-600 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-500 transition disabled:opacity-60"
-                >
-                  {sendingMsg ? "Sending..." : "Send Message"}
-                </button>
-              </div>
-
-              <div className="text-[11px] text-slate-400">
-                Backend needed: <b>POST /api/owner/provider-messages/</b> and provider inbox <b>GET /api/provider/messages/</b>.
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </Shell>
   );
 }

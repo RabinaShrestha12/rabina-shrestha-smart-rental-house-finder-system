@@ -1,42 +1,28 @@
-# Backend/myproject/myapp/view/auth_views.py
-# ✅ Supports: admin / owner / tenant / provider signup with OTP
-# ✅ Auto-creates role profile rows: Owner / Tenant / ServiceProviderProfile
-# ✅ Fix: Tenant/Owner models do NOT have address/phone (those are in User)
-
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
-
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, BasePermission
 from rest_framework.response import Response
 from rest_framework import status
-
 from rest_framework_simplejwt.tokens import RefreshToken
-
 from django.conf import settings
 from django.core.mail import send_mail
 from django.utils import timezone
 from django.contrib.auth.hashers import make_password, check_password
-
 from datetime import timedelta
 import random
-
 from ..models import PendingSignup, PendingSignupOTP, Tenant, Owner, ServiceProviderProfile
 
 User = get_user_model()
 
 
-# -----------------------------
 # JWT TOKENS
-# -----------------------------
 def get_tokens_for_user(user):
     refresh = RefreshToken.for_user(user)
     return {"refresh": str(refresh), "access": str(refresh.access_token)}
 
 
-# -----------------------------
 # PERMISSIONS
-# -----------------------------
 class IsAdminRole(BasePermission):
     """
     Allow access only to authenticated users whose role == 'admin'
@@ -52,10 +38,7 @@ class IsAdminRole(BasePermission):
             )
         )
 
-
-# -----------------------------
 # HELPERS
-# -----------------------------
 def get_user_by_email(email):
     if not email:
         return None
@@ -109,9 +92,7 @@ def ensure_role_profile(user):
     # admin: no profile table needed
 
 
-# =========================================================
 # ✅ REGISTER (creates PendingSignup + OTP, sends email)
-# =========================================================
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def register_user(request):
@@ -198,10 +179,7 @@ def register_user(request):
     except Exception as e:
         return Response({"error": f"OTP send failed: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
-# =========================================================
 # ✅ VERIFY OTP (creates real User) + ✅ creates role profile row
-# =========================================================
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def verify_otp(request):
@@ -284,10 +262,7 @@ def verify_otp(request):
     except Exception as e:
         return Response({"error": f"Account creation failed: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
-# =========================================================
 # ✅ LOGIN (ADMIN + OWNER + TENANT + PROVIDER) - email+password
-# =========================================================
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def login_user(request):
@@ -332,9 +307,7 @@ def login_user(request):
     )
 
 
-# =========================================================
 # ADMIN REGISTER (ONLY ONCE)
-# =========================================================
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def register_admin(request):
@@ -394,9 +367,7 @@ def register_admin(request):
         return Response({"error": "Username or email already exists"}, status=status.HTTP_400_BAD_REQUEST)
 
 
-# =========================================================
 # ADMIN LOGIN (Optional)
-# =========================================================
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def login_admin(request):
@@ -431,9 +402,8 @@ def login_admin(request):
     )
 
 
-# =========================================================
 # ADMIN: LIST USERS
-# =========================================================
+
 @api_view(["GET"])
 @permission_classes([IsAdminRole])
 def list_all_users(request):
@@ -470,9 +440,7 @@ def list_providers(request):
     return Response(list(providers), status=status.HTTP_200_OK)
 
 
-# =========================================================
 # ADMIN: USER DETAIL CRUD
-# =========================================================
 @api_view(["GET", "PUT", "DELETE"])
 @permission_classes([IsAdminRole])
 def user_detail_crud(request, user_id):
@@ -529,9 +497,7 @@ def user_detail_crud(request, user_id):
     return Response({"message": "User deleted"}, status=status.HTTP_200_OK)
 
 
-# =========================================================
 # ADMIN: SEND EMAIL (ALL or SELECTED)
-# =========================================================
 @api_view(["POST"])
 @permission_classes([IsAdminRole])
 def admin_send_email(request):

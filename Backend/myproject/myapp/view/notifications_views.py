@@ -3,10 +3,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 
-
-# =========================
 # NOTIFICATIONS (placeholder)
-# =========================
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def my_notifications(request):
@@ -27,10 +24,7 @@ def mark_notification_read(request, notif_id):
     # Later: update Notification model row by notif_id and user
     return Response({"ok": True, "notif_id": notif_id}, status=status.HTTP_200_OK)
 
-
-# =========================
 # REMINDERS (placeholder)
-# =========================
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def create_reminder(request):

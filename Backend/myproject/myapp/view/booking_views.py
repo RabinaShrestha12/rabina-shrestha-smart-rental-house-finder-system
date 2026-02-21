@@ -1,4 +1,3 @@
-# myapp/view/booking_views.py
 from django.utils import timezone
 from django.db import transaction
 
@@ -14,9 +13,8 @@ from myapp.serializers import (
     BookingMessageSerializer,
 )
 
-# --------------------------
+
 # Role helpers
-# --------------------------
 def is_owner(user):
     return getattr(user, "role", "") == "owner"
 
@@ -24,14 +22,8 @@ def is_tenant(user):
     return getattr(user, "role", "") == "tenant"
 
 
-# =====================================================
+
 # ✅ TENANT: Create booking request
-# POST /api/tenant/booking-requests/create/
-# body supports:
-#   { "listing_id": 1, "first_message": "Hi..." }
-#   { "listing": 1, "message": "Hi..." }   ✅ (frontend friendly)
-# =====================================================
-@api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def tenant_create_booking_request(request):
     if not is_tenant(request.user):
@@ -57,10 +49,9 @@ def tenant_create_booking_request(request):
     )
 
 
-# =====================================================
+
 # ✅ TENANT: My booking requests
 # GET /api/tenant/booking-requests/
-# =====================================================
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def tenant_my_booking_requests(request):
@@ -76,10 +67,8 @@ def tenant_my_booking_requests(request):
     return Response(BookingRequestListSerializer(qs, many=True, context={"request": request}).data)
 
 
-# =====================================================
 # ✅ OWNER: Inbox requests for my listings
 # GET /api/owner/booking-requests/
-# =====================================================
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def owner_booking_inbox(request):
@@ -95,10 +84,8 @@ def owner_booking_inbox(request):
     return Response(BookingRequestListSerializer(qs, many=True, context={"request": request}).data)
 
 
-# =====================================================
 # ✅ BOTH: View messages for a booking request
 # GET /api/booking-requests/<booking_id>/messages/
-# =====================================================
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def booking_messages(request, booking_id):
@@ -114,11 +101,9 @@ def booking_messages(request, booking_id):
     return Response(BookingMessageSerializer(msgs, many=True, context={"request": request}).data)
 
 
-# =====================================================
 # ✅ BOTH: Send a message
 # POST /api/booking-requests/<booking_id>/messages/send/
 # body: { "text": "Hello" }  OR { "message": "Hello" }
-# =====================================================
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def booking_send_message(request, booking_id):
@@ -148,11 +133,7 @@ def booking_send_message(request, booking_id):
     return Response(BookingMessageSerializer(msg, context={"request": request}).data, status=status.HTTP_201_CREATED)
 
 
-# =====================================================
 # ✅ OWNER: Accept / Reject booking
-# POST /api/owner/booking-requests/<booking_id>/status/
-# body: { "status": "accepted" } or { "status": "rejected" }
-# =====================================================
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def owner_set_booking_status(request, booking_id):
@@ -209,11 +190,8 @@ def owner_set_booking_status(request, booking_id):
     })
 
 
-# =====================================================
+
 # ✅ Legacy endpoint:
-# POST /api/messages/
-# body: { "booking_id": 3, "text": "hello" }
-# =====================================================
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def create_message_legacy(request):
