@@ -4,27 +4,12 @@ import api from "../api/axios";
 
 const AuthContext = createContext(null);
 
+// ✅ ONLY accept exact roles, no guessing tenant
 function normalizeRole(raw) {
   const r = String(raw || "").trim().toLowerCase();
-  if (!r) return "";
-
-  if (r === "admin" || r.includes("super") || r.includes("staff")) return "admin";
-  if (r.includes("provider") || r.includes("service")) return "provider";
-  if (r.includes("owner") || r.includes("landlord")) return "owner";
-  if (r.includes("tenant") || r.includes("renter") || r.includes("user")) return "tenant";
-
-  return r;
-}
-
-function decodeJwtPayload(token) {
-  try {
-    const parts = String(token || "").split(".");
-    if (parts.length < 2) return null;
-    const payload = parts[1].replace(/-/g, "+").replace(/_/g, "/");
-    return JSON.parse(atob(payload));
-  } catch {
-    return null;
-  }
+  if (["admin", "owner", "tenant", "provider"].includes(r)) return r;
+  if (["service_provider", "service provider", "service-provider"].includes(r)) return "provider";
+  return "";
 }
 
 function extractTokens(data) {
@@ -34,31 +19,18 @@ function extractTokens(data) {
   };
 }
 
-function extractRole(data, accessToken) {
-  const raw =
-    data?.role ||
-    data?.user_type ||
-    data?.user?.role ||
-    data?.user?.user_type ||
-    "";
-
-  let role = normalizeRole(raw);
-
-  if (!role && accessToken) {
-    const payload = decodeJwtPayload(accessToken);
-    const claimRole =
-      payload?.role || payload?.user_type || payload?.account_type || payload?.type || "";
-    const isStaff = payload?.is_staff || payload?.is_superuser;
-    role = isStaff ? "admin" : normalizeRole(claimRole);
-  }
-
-  return role;
+function extractError(err) {
+  return (
+    err?.response?.data?.error ||
+    err?.response?.data?.detail ||
+    err?.response?.data?.message ||
+    err?.message ||
+    "Request failed"
+  );
 }
 
 export function AuthProvider({ children }) {
-  const [access, setAccess] = useState(
-    localStorage.getItem("access") || localStorage.getItem("access_token") || ""
-  );
+  const [access, setAccess] = useState(localStorage.getItem("access") || "");
   const [role, setRole] = useState(normalizeRole(localStorage.getItem("role") || ""));
   const [email, setEmail] = useState(localStorage.getItem("email") || "");
 
@@ -69,22 +41,19 @@ export function AuthProvider({ children }) {
 
     if (tokens.access) {
       localStorage.setItem("access", tokens.access);
-      localStorage.setItem("access_token", tokens.access);
       setAccess(tokens.access);
     }
-
     if (tokens.refresh) {
       localStorage.setItem("refresh", tokens.refresh);
-      localStorage.setItem("refresh_token", tokens.refresh);
     }
 
-    const finalRole = extractRole(data, tokens.access);
+    const finalRole = normalizeRole(data?.role);
     if (finalRole) {
       localStorage.setItem("role", finalRole);
       setRole(finalRole);
     }
 
-    const em = (data?.email || data?.user?.email || fallbackEmail || "").trim().toLowerCase();
+    const em = (data?.email || fallbackEmail || "").trim().toLowerCase();
     if (em) {
       localStorage.setItem("email", em);
       setEmail(em);
@@ -94,36 +63,69 @@ export function AuthProvider({ children }) {
   };
 
   const logout = (redirectTo = "/") => {
-    localStorage.removeItem("access");
-    localStorage.removeItem("refresh");
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
-    localStorage.removeItem("role");
-    localStorage.removeItem("email");
-    localStorage.removeItem("user_id");
-    localStorage.removeItem("username");
+    localStorage.clear();
     setAccess("");
     setRole("");
     setEmail("");
     window.location.href = redirectTo;
   };
 
-  // ✅ ONE login for all:
-  // tries admin login first; if fails -> user login
+  // ✅ register: uses selected role
+  const startRegister = async (payload) => {
+    try {
+      const res = await api.post("register_user/", {
+        username: String(payload?.username || "").trim(),
+        email: String(payload?.email || "").trim().toLowerCase(),
+        password: payload?.password || "",
+        address: payload?.address || "",
+        phone: payload?.phone || "",
+        role: normalizeRole(payload?.role) || "tenant",
+      });
+      return res.data;
+    } catch (err) {
+      throw new Error(extractError(err));
+    }
+  };
+
+  const verifyOtp = async ({ email, code, purpose = "signup" }) => {
+    try {
+      const res = await api.post("verify-otp/", {
+        email: String(email || "").trim().toLowerCase(),
+        code: String(code || "").trim(),
+        purpose,
+      });
+
+      // ✅ if backend returns tokens+role, store them
+      if (res?.data?.access && res?.data?.role) {
+        saveSession(res.data, email);
+      }
+      return res.data;
+    } catch (err) {
+      throw new Error(extractError(err));
+    }
+  };
+
   const login = async (email, password) => {
     const cleanEmail = String(email || "").trim().toLowerCase();
-
     try {
-      const res = await api.post("login_admin/", { email: cleanEmail, password });
-      return saveSession({ ...res.data, role: res.data?.role || "admin" }, cleanEmail);
-    } catch (e) {
-      const res2 = await api.post("login_user/", { email: cleanEmail, password });
-      return saveSession(res2.data, cleanEmail);
+      const res = await api.post("login_user/", { email: cleanEmail, password });
+      return saveSession(res.data, cleanEmail);
+    } catch (err) {
+      throw new Error(extractError(err));
     }
   };
 
   const value = useMemo(
-    () => ({ isAuthed, access, role, email, login, logout }),
+    () => ({
+      isAuthed,
+      access,
+      role,
+      email,
+      startRegister,
+      verifyOtp,
+      login,
+      logout,
+    }),
     [isAuthed, access, role, email]
   );
 

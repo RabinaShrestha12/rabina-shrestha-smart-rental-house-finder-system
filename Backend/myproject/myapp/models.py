@@ -336,11 +336,12 @@ class MaintenanceRequest(models.Model):
 
     # ✅ optional: assign provider profile
     assigned_provider = models.ForeignKey(
-        "ServiceProviderProfile",
+        settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name="jobs",
+        related_name="provider_jobs",
+        limit_choices_to={"role": "provider"},
     )
 
     category = models.CharField(max_length=30, choices=CATEGORY, default="other")

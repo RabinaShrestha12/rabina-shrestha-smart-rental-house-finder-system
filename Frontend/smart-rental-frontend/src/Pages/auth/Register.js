@@ -1,37 +1,38 @@
+// src/pages/auth/Register.jsx
 import React, { useState } from "react";
-import { useAuth } from "../auth/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../auth/AuthContext"; // adjust path if needed
 
 export default function Register() {
   const nav = useNavigate();
-
-  // ✅ IMPORTANT:
-  // Your AuthContext must call Django endpoints:
-  // startRegisterTenant -> POST register_user/
-  // verifyOtp -> POST verify-otp/
-  // resendVerification -> POST register_user/ (same email) OR POST resend endpoint if you created one
-  const { startRegisterTenant, verifyOtp, resendVerification } = useAuth();
-
-  const [form, setForm] = useState({
-    username: "",
-    email: "",
-    password: "",
-    address: "",
-    phone: "",
-    role: "tenant", // ✅ add role because backend requires role: owner/tenant
-  });
+  const { startRegister, verifyOtp } = useAuth();
 
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
 
-  // ✅ OTP state
+  const [form, setForm] = useState({
+    username: "",
+    phone: "",
+    address: "",
+    email: "",
+    password: "",
+    role: "tenant", // ✅ selected option will be sent
+  });
+
   const [otpOpen, setOtpOpen] = useState(false);
   const [otpCode, setOtpCode] = useState("");
+
+  // ✅ frontend normalize (only for service_provider -> provider safety)
+  const normalizeRole = (r) => {
+    const role = String(r || "").trim().toLowerCase();
+    if (["tenant", "owner", "provider"].includes(role)) return role;
+    if (["service_provider", "service provider", "service-provider"].includes(role)) return "provider";
+    return "tenant";
+  };
 
   const onChange = (e) =>
     setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
 
-  // ✅ Register (step 1)
   const handleRegister = async (e) => {
     e.preventDefault();
     if (loading) return;
@@ -40,23 +41,23 @@ export default function Register() {
     setMsg("");
 
     try {
-      const cleanEmail = form.email.trim().toLowerCase();
+      const cleanEmail = String(form.email || "").trim().toLowerCase();
+      const roleToSend = normalizeRole(form.role);
 
-      const res = await startRegisterTenant({
-        username: form.username,
+      const res = await startRegister({
+        username: String(form.username || "").trim(),
         email: cleanEmail,
-        password: form.password,
-        address: form.address,
-        phone: form.phone,
-        role: form.role, // ✅ required by backend
+        password: form.password || "",
+        address: form.address || "",
+        phone: form.phone || "",
+        role: roleToSend, // ✅ send selected role
       });
 
-      // ✅ Save email for OTP screen
       sessionStorage.setItem("otp_email", cleanEmail);
-
-      // ✅ Open OTP UI always after register (because your backend sends OTP)
+      sessionStorage.setItem("otp_role", roleToSend); // ✅ store role for OTP step
       setOtpOpen(true);
-      setMsg(res?.message || `OTP has been sent to ${cleanEmail}. Check Inbox/Spam.`);
+
+      setMsg(res?.message || `OTP sent to ${cleanEmail}. Check Inbox/Spam.`);
     } catch (err) {
       setMsg(err?.message || "Register failed");
     } finally {
@@ -64,38 +65,36 @@ export default function Register() {
     }
   };
 
-  // ✅ Verify OTP (step 2) - email + code
   const handleVerifyOtp = async (e) => {
     e.preventDefault();
+    if (loading) return;
 
-    const email = form.email.trim().toLowerCase();
-    const code = otpCode.trim();
+    const email = (sessionStorage.getItem("otp_email") || form.email || "").trim().toLowerCase();
+    const code = String(otpCode || "").trim();
 
-    if (!email) {
-      setMsg("Email missing. Please register again.");
-      return;
-    }
-    if (!code) {
-      setMsg("Please enter the OTP code.");
-      return;
-    }
+    if (!email) return setMsg("Email missing. Please register again.");
+    if (!code) return setMsg("Please enter the OTP code.");
 
     setLoading(true);
     setMsg("");
 
     try {
-      await verifyOtp({
-        email,
-        code,
-        purpose: "signup",
-      });
+      // ✅ backend decides the real role (not frontend)
+      const data = await verifyOtp({ email, code, purpose: "signup" });
+
+      sessionStorage.removeItem("otp_email");
+      sessionStorage.removeItem("otp_role");
 
       setOtpOpen(false);
       setOtpCode("");
-      sessionStorage.removeItem("otp_email");
 
-      setMsg("OTP verified! You can login now.");
-      nav("/auth", { replace: true }); // ✅ go to login page
+      // ✅ after OTP verified, role comes from backend response
+      const finalRole = (data?.role || "").toLowerCase();
+
+      setMsg("OTP verified! Redirecting...");
+      if (finalRole === "owner") nav("/owner", { replace: true });
+      else if (finalRole === "provider") nav("/provider", { replace: true });
+      else nav("/tenant", { replace: true });
     } catch (err) {
       setMsg(err?.message || "OTP verification failed");
     } finally {
@@ -103,116 +102,175 @@ export default function Register() {
     }
   };
 
-  // ✅ Resend OTP (your backend resends if pending signup exists)
-  const handleResend = async () => {
-    try {
-      const cleanEmail = form.email.trim().toLowerCase();
-
-      await resendVerification({
-        username: form.username,
-        email: cleanEmail,
-        password: form.password,
-        address: form.address,
-        phone: form.phone,
-        role: form.role,
-      });
-
-      setMsg(`OTP resent to ${cleanEmail}. Please use the latest OTP.`);
-    } catch (err) {
-      setMsg(err?.message || "Resend failed");
-    }
-  };
-
   return (
-    <div style={{ padding: 20, maxWidth: 420 }}>
-      <h2>Register</h2>
+    <div style={styles.page}>
+      <div style={styles.card}>
+        <h2 style={{ marginTop: 0 }}>Create account</h2>
 
-      {!otpOpen ? (
-        <form onSubmit={handleRegister}>
-          <input
-            name="username"
-            placeholder="Username"
-            value={form.username}
-            onChange={onChange}
-            style={{ width: "100%", padding: 10, marginBottom: 10 }}
-          />
+        {!otpOpen ? (
+          <form onSubmit={handleRegister}>
+            <label style={styles.label}>Register as</label>
+            <select
+              name="role"
+              value={form.role}
+              onChange={onChange}
+              style={styles.select}
+            >
+              <option value="tenant">Tenant</option>
+              <option value="owner">Owner</option>
+              <option value="provider">Provider</option>
+            </select>
 
-          <input
-            name="email"
-            placeholder="Email"
-            value={form.email}
-            onChange={onChange}
-            style={{ width: "100%", padding: 10, marginBottom: 10 }}
-          />
+            <label style={styles.label}>Username</label>
+            <input
+              name="username"
+              placeholder="Username"
+              value={form.username}
+              onChange={onChange}
+              style={styles.input}
+              required
+            />
 
-          <input
-            name="password"
-            placeholder="Password"
-            type="password"
-            value={form.password}
-            onChange={onChange}
-            style={{ width: "100%", padding: 10, marginBottom: 10 }}
-          />
+            <label style={styles.label}>Phone</label>
+            <input
+              name="phone"
+              placeholder="Phone"
+              value={form.phone}
+              onChange={onChange}
+              style={styles.input}
+            />
 
-          <select
-            name="role"
-            value={form.role}
-            onChange={onChange}
-            style={{ width: "100%", padding: 10, marginBottom: 10 }}
-          >
-            <option value="tenant">Tenant</option>
-            <option value="owner">Owner</option>
-          </select>
+            <label style={styles.label}>Address</label>
+            <input
+              name="address"
+              placeholder="Address"
+              value={form.address}
+              onChange={onChange}
+              style={styles.input}
+            />
 
-          <input
-            name="address"
-            placeholder="Address"
-            value={form.address}
-            onChange={onChange}
-            style={{ width: "100%", padding: 10, marginBottom: 10 }}
-          />
+            <label style={styles.label}>Email</label>
+            <input
+              name="email"
+              placeholder="Email"
+              value={form.email}
+              onChange={onChange}
+              style={styles.input}
+              required
+            />
 
-          <input
-            name="phone"
-            placeholder="Phone"
-            value={form.phone}
-            onChange={onChange}
-            style={{ width: "100%", padding: 10, marginBottom: 10 }}
-          />
+            <label style={styles.label}>Password</label>
+            <input
+              name="password"
+              placeholder="Password"
+              type="password"
+              value={form.password}
+              onChange={onChange}
+              style={styles.input}
+              required
+            />
 
-          <button type="submit" disabled={loading} style={{ width: "100%", padding: 10 }}>
-            {loading ? "Please wait..." : "Create account"}
-          </button>
-        </form>
-      ) : (
-        <form onSubmit={handleVerifyOtp}>
-          <h3>Enter OTP</h3>
-          <p style={{ opacity: 0.8 }}>
-            We sent a code to: <b>{form.email}</b> (check Inbox/Spam)
-          </p>
+            <button type="submit" disabled={loading} style={styles.primaryBtn}>
+              {loading ? "Please wait..." : "Create account"}
+            </button>
 
-          <input
-            placeholder="6-digit OTP"
-            value={otpCode}
-            onChange={(e) => setOtpCode(e.target.value)}
-            style={{ width: "100%", padding: 10, marginBottom: 10 }}
-          />
+            <button type="button" onClick={() => nav("/auth")} style={styles.secondaryBtn}>
+              Back to Login
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={handleVerifyOtp}>
+            <h3 style={{ marginTop: 0 }}>Enter OTP</h3>
+            <p style={{ opacity: 0.85 }}>
+              We sent a code to{" "}
+              <b>{(sessionStorage.getItem("otp_email") || form.email || "").trim()}</b>
+            </p>
 
-          <button type="submit" disabled={loading} style={{ width: "100%", padding: 10 }}>
-            {loading ? "Verifying..." : "Verify OTP"}
-          </button>
+            <input
+              placeholder="6-digit OTP"
+              value={otpCode}
+              onChange={(e) => setOtpCode(e.target.value)}
+              style={styles.input}
+              required
+            />
 
-          <button type="button" onClick={handleResend} style={{ width: "100%", padding: 10, marginTop: 8 }}>
-            Resend OTP
-          </button>
+            <button type="submit" disabled={loading} style={styles.primaryBtn}>
+              {loading ? "Verifying..." : "Verify OTP"}
+            </button>
 
-          <button type="button" onClick={() => setOtpOpen(false)} style={{ width: "100%", padding: 10, marginTop: 8 }}>
-            Back
-          </button>
-        </form>
-      )}
+            <button type="button" onClick={() => setOtpOpen(false)} style={styles.secondaryBtn}>
+              Back
+            </button>
+          </form>
+        )}
 
-      {msg ? <div style={{ marginTop: 12, color: "tomato" }}>{msg}</div> : null}
+        {msg ? <div style={styles.msg}>{msg}</div> : null}
+      </div>
     </div>
   );
 }
+
+const styles = {
+  page: {
+    minHeight: "100vh",
+    display: "grid",
+    placeItems: "center",
+    padding: 20,
+    background:
+      "radial-gradient(circle at 30% 10%, #4c1d95 0%, #0b1020 55%, #020617 100%)",
+    color: "white",
+    fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, Arial",
+  },
+  card: {
+    width: "min(520px, 96vw)",
+    borderRadius: 22,
+    padding: 22,
+    background: "rgba(255,255,255,0.06)",
+    border: "1px solid rgba(255,255,255,0.10)",
+    boxShadow: "0 20px 60px rgba(0,0,0,0.45)",
+  },
+  label: { display: "block", fontSize: 12, opacity: 0.85, marginBottom: 6, marginTop: 10 },
+  input: {
+    width: "100%",
+    padding: 12,
+    marginBottom: 12,
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.06)",
+    color: "white",
+    outline: "none",
+  },
+  select: {
+    width: "100%",
+    padding: 12,
+    marginBottom: 12,
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.06)",
+    color: "white",
+    outline: "none",
+  },
+  primaryBtn: {
+    width: "100%",
+    padding: 14,
+    borderRadius: 16,
+    border: "none",
+    background: "linear-gradient(135deg,#6d28d9,#8b5cf6)",
+    color: "white",
+    fontWeight: 800,
+    cursor: "pointer",
+    marginTop: 6,
+  },
+  secondaryBtn: {
+    width: "100%",
+    padding: 12,
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.14)",
+    background: "rgba(255,255,255,0.06)",
+    color: "white",
+    fontWeight: 700,
+    cursor: "pointer",
+    marginTop: 10,
+  },
+  msg: { marginTop: 12, color: "#ffb4b4", fontWeight: 700 },
+};
