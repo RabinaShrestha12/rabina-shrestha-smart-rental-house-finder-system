@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../auth/AuthContext";
 import Shell from "../../components/Shell";
@@ -33,6 +33,24 @@ export default function TenantDashboard() {
   const [sending, setSending] = useState(false);
   const [toast, setToast] = useState({ type: "info", msg: "" });
 
+  // ✅ NEW: search & filter UI
+  const [q, setQ] = useState("");
+  const [priceFilter, setPriceFilter] = useState("any");
+
+  // ✅ NEW: favorites (local storage)
+  const [favorites, setFavorites] = useState(() => {
+    try {
+      const raw = localStorage.getItem("tenant_favorites");
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem("tenant_favorites", JSON.stringify(favorites));
+  }, [favorites]);
+
   useEffect(() => {
     if (!isAuthed) {
       nav("/auth", { replace: true });
@@ -52,12 +70,10 @@ export default function TenantDashboard() {
   const safeArr = (data) =>
     Array.isArray(data) ? data : Array.isArray(data?.results) ? data.results : [];
 
-  const getId = (item) =>
-    item?.id ?? item?.pk ?? item?.listing_id ?? item?.property_id;
+  const getId = (item) => item?.id ?? item?.pk ?? item?.listing_id ?? item?.property_id;
 
   const getTitle = (x) => x?.title || x?.property_name || x?.name || "Property";
-  const getAddress = (x) =>
-    x?.address || x?.location || x?.city || x?.area || "—";
+  const getAddress = (x) => x?.address || x?.location || x?.city || x?.area || "—";
   const getRent = (x) => x?.rent ?? x?.price ?? x?.monthly_rent ?? null;
 
   const getImage = (x) =>
@@ -102,6 +118,29 @@ export default function TenantDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthed, role]);
 
+  const filteredListings = useMemo(() => {
+    const query = q.trim().toLowerCase();
+
+    const priceOk = (rent) => {
+      const n = Number(rent);
+      if (Number.isNaN(n)) return true;
+      if (priceFilter === "any") return true;
+      if (priceFilter === "lt5000") return n < 5000;
+      if (priceFilter === "5000_10000") return n >= 5000 && n <= 10000;
+      if (priceFilter === "gt10000") return n > 10000;
+      return true;
+    };
+
+    return listings.filter((x) => {
+      const t = (getTitle(x) || "").toLowerCase();
+      const a = (getAddress(x) || "").toLowerCase();
+      const rent = getRent(x);
+
+      const matchQuery = !query || t.includes(query) || a.includes(query);
+      return matchQuery && priceOk(rent);
+    });
+  }, [listings, q, priceFilter]);
+
   const openListingDetails = (item) => {
     const id = getId(item);
     if (!id) {
@@ -130,10 +169,30 @@ export default function TenantDashboard() {
     setToast({ type: "info", msg: "" });
   };
 
+  // ✅ Save / Unsave locally
+  const toggleFavorite = (item) => {
+    const id = getId(item);
+    if (!id) return;
+
+    setFavorites((prev) => {
+      const has = prev.includes(id);
+      const next = has ? prev.filter((x) => x !== id) : [...prev, id];
+      setToast({
+        type: "success",
+        msg: has ? "Removed from favorites." : "Saved to favorites ✅",
+      });
+      return next;
+    });
+  };
+
+  const isFav = (item) => {
+    const id = getId(item);
+    return id ? favorites.includes(id) : false;
+  };
+
   /**
-   * ✅ IMPORTANT CHANGE
-   * 1) Create a booking request thread
-   * 2) Then go to Tenant Inbox and open the thread so tenant can see owner replies
+   * ✅ Create booking request thread with first message
+   * then open inbox
    */
   const sendMessage = async () => {
     const listingId = selected ? getId(selected) : null;
@@ -151,7 +210,6 @@ export default function TenantDashboard() {
     setToast({ type: "info", msg: "" });
 
     try {
-      // ✅ Create booking request (server should also store first message)
       const res = await api.post("tenant/booking-requests/create/", {
         listing_id: listingId,
         first_message: msg.trim(),
@@ -162,14 +220,13 @@ export default function TenantDashboard() {
       setToast({
         type: "success",
         msg: bookingId
-          ? `Sent ✅ Open inbox to view replies (Request #${bookingId}).`
-          : "Sent ✅ Open inbox to view replies.",
+          ? `Sent ✅ Opening Inbox (Request #${bookingId})`
+          : "Sent ✅ Opening Inbox",
       });
 
       setMsg("");
       setOpen(false);
 
-      // ✅ go to inbox (and open this chat if bookingId exists)
       if (bookingId) nav(`/tenant/inbox?open=${bookingId}`);
       else nav(`/tenant/inbox`);
     } catch (e) {
@@ -189,13 +246,22 @@ export default function TenantDashboard() {
       title="Tenant Dashboard"
       subtitle={`Welcome ${email || "Tenant"}.`}
       right={
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <button
             onClick={() => nav("/tenant/inbox")}
             className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm hover:bg-white/10 transition"
           >
             📩 My Inbox
           </button>
+
+          {/* ✅ NEW: quick favorite page (simple) */}
+          <button
+            onClick={() => setToast({ type: "info", msg: `Favorites: ${favorites.length}` })}
+            className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm hover:bg-white/10 transition"
+          >
+            ❤️ Favorites
+          </button>
+
           <button
             onClick={handleLogout}
             className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm hover:bg-white/10 transition"
@@ -205,9 +271,33 @@ export default function TenantDashboard() {
         </div>
       }
     >
+      {/* ✅ Filter Bar */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <div className="text-sm text-slate-300">
-          Browse listings, view details, and contact owners.
+        <div className="flex flex-wrap gap-2 items-center">
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search title or location..."
+            className="w-64 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-white/20"
+          />
+
+          <select
+            value={priceFilter}
+            onChange={(e) => setPriceFilter(e.target.value)}
+            className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm outline-none focus:border-white/20"
+          >
+            <option value="any">Any Price</option>
+            <option value="lt5000">Below 5,000</option>
+            <option value="5000_10000">5,000 – 10,000</option>
+            <option value="gt10000">Above 10,000</option>
+          </select>
+
+          <button
+            onClick={() => nav("/map")}
+            className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm hover:bg-white/10 transition"
+          >
+            🗺️ Map Search
+          </button>
         </div>
 
         <button
@@ -243,20 +333,21 @@ export default function TenantDashboard() {
           </div>
         )}
 
-        {!loading && !error && listings.length === 0 && (
+        {!loading && !error && filteredListings.length === 0 && (
           <div className="text-sm text-slate-300">No properties found.</div>
         )}
 
-        {!loading && !error && listings.length > 0 && (
+        {!loading && !error && filteredListings.length > 0 && (
           <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {listings.map((item) => {
+            {filteredListings.map((item) => {
               const id = getId(item);
               const img = toImageSrc(getImage(item));
+              const rent = getRent(item);
 
               return (
                 <div
                   key={id ?? `${getTitle(item)}-${getAddress(item)}`}
-                  className="rounded-2xl border border-white/10 bg-white/5 p-4"
+                  className="rounded-2xl border border-white/10 bg-white/5 p-4 hover:bg-white/7 transition"
                 >
                   <img
                     src={img}
@@ -273,7 +364,7 @@ export default function TenantDashboard() {
                       {getTitle(item)}
                     </div>
                     <div className="text-xs text-slate-300">
-                      Rs {currency(getRent(item))}
+                      Rs {currency(rent)}
                     </div>
                   </div>
 
@@ -281,6 +372,7 @@ export default function TenantDashboard() {
                     {getAddress(item)}
                   </div>
 
+                  {/* ✅ NEW BUTTONS */}
                   <div className="mt-4 flex flex-wrap gap-2">
                     <button
                       onClick={() => openListingDetails(item)}
@@ -295,7 +387,38 @@ export default function TenantDashboard() {
                       disabled={!id}
                       className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs hover:bg-white/10 transition disabled:opacity-60"
                     >
-                      Contact Owner
+                      💬 Chat Owner
+                    </button>
+
+                    <button
+                      onClick={() => toggleFavorite(item)}
+                      disabled={!id}
+                      className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs hover:bg-white/10 transition disabled:opacity-60"
+                    >
+                      {isFav(item) ? "❤️ Saved" : "🤍 Save"}
+                    </button>
+
+                    <button
+                      onClick={() => nav(`/map?listing=${id}`)}
+                      disabled={!id}
+                      className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs hover:bg-white/10 transition disabled:opacity-60"
+                    >
+                      🗺️ Map
+                    </button>
+
+                    <button
+                      onClick={() => nav(`/tenant/book/${id}`)}
+                      disabled={!id}
+                      className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs hover:bg-white/10 transition disabled:opacity-60"
+                    >
+                      📅 Request Visit
+                    </button>
+
+                    <button
+                      onClick={() => nav("/tools/budget-split")}
+                      className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs hover:bg-white/10 transition"
+                    >
+                      🧮 Split Rent
                     </button>
                   </div>
                 </div>
@@ -318,9 +441,7 @@ export default function TenantDashboard() {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-lg font-semibold">{getTitle(selected)}</div>
-                <div className="mt-1 text-sm text-slate-300">
-                  {getAddress(selected)}
-                </div>
+                <div className="mt-1 text-sm text-slate-300">{getAddress(selected)}</div>
               </div>
 
               <button
@@ -357,7 +478,7 @@ export default function TenantDashboard() {
                 placeholder="Hi, I’m interested in this property. Is it available to visit?"
               />
 
-              <div className="mt-3 flex items-center gap-2">
+              <div className="mt-3 flex items-center gap-2 flex-wrap">
                 <button
                   onClick={sendMessage}
                   disabled={sending}
@@ -372,6 +493,13 @@ export default function TenantDashboard() {
                 >
                   Go Inbox →
                 </button>
+
+                <button
+                onClick={() => nav("/tenant/ai")}
+                className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm hover:bg-white/10 transition"
+              >
+                ✨ AI Search
+              </button>
               </div>
             </div>
           </div>

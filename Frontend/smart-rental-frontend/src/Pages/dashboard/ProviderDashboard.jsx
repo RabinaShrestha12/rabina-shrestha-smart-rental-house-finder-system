@@ -22,6 +22,7 @@ export default function ProviderDashboard() {
       setJobs(res.data || []);
     } catch (e) {
       showToast("error", e?.response?.data?.detail || "Failed to load jobs");
+      setJobs([]);
     } finally {
       setLoading(false);
     }
@@ -37,26 +38,33 @@ export default function ProviderDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [role]);
 
-  const updateStatus = async (jobId, status) => {
+  // ✅ Always allow Accept button (sets in_progress and opens chat)
+  const acceptJob = async (jobId) => {
     try {
-      await api.patch(`provider/jobs/${jobId}/status/`, { status });
-      showToast("success", `Status updated to "${status}"`);
-      await loadJobs();
+      await api.patch(`provider/jobs/${jobId}/status/`, { status: "in_progress" });
+      showToast("success", "Job accepted. Opening chat...");
+      nav(`/provider/chat/${jobId}`);
     } catch (e) {
-      showToast("error", e?.response?.data?.detail || "Failed to update status");
+      showToast("error", e?.response?.data?.detail || "Failed to accept job");
     }
   };
 
-  // ✅ FIXED LOGOUT: clear auth then navigate away
+  // ✅ Always allow Reject button
+  const rejectJob = async (jobId) => {
+    try {
+      await api.patch(`provider/jobs/${jobId}/status/`, { status: "rejected" });
+      showToast("success", "Job rejected.");
+      await loadJobs();
+    } catch (e) {
+      showToast("error", e?.response?.data?.detail || "Failed to reject job");
+    }
+  };
+
   const handleLogout = async () => {
     try {
-      // if logout is async in your AuthContext, await helps
       await Promise.resolve(logout());
     } finally {
-      // go to login page (change route if your login route is different)
       nav("/auth", { replace: true });
-      // OR: nav("/provider/login", { replace: true });
-      // OR: nav("/", { replace: true });
     }
   };
 
@@ -74,7 +82,7 @@ export default function ProviderDashboard() {
           <div>
             <h2 style={{ margin: 0 }}>Service Provider Dashboard</h2>
             <div style={{ opacity: 0.8, marginTop: 4 }}>
-              View assigned maintenance jobs and update job status.
+              View assigned maintenance jobs and chat with the owner.
             </div>
           </div>
 
@@ -121,51 +129,47 @@ export default function ProviderDashboard() {
               {jobs.map((j) => (
                 <div key={j.id} style={styles.card}>
                   <div style={styles.cardTop}>
-                    <div style={{ fontWeight: 800 }}>
-                      {j.title || `Job #${j.id}`}
-                    </div>
+                    <div style={{ fontWeight: 800 }}>{j.title || `Job #${j.id}`}</div>
                     <div style={{ opacity: 0.9 }}>
                       Status: <b>{j.status}</b>
                     </div>
                   </div>
 
-                  {j.listing_title ? (
-                    <div style={styles.smallLine}>
-                      Listing: <b>{j.listing_title}</b>
-                    </div>
-                  ) : null}
-
-                  {j.tenant_email ? (
-                    <div style={styles.smallLine}>
-                      Tenant: <b>{j.tenant_email}</b>
-                    </div>
-                  ) : null}
-
                   {j.description ? <div style={styles.desc}>{j.description}</div> : null}
 
+                  {/* ✅ ALWAYS SHOW ALL 3 BUTTONS */}
                   <div style={styles.actionRow}>
                     <button
                       type="button"
-                      onClick={() => updateStatus(j.id, "in_progress")}
+                      onClick={() => acceptJob(j.id)}
                       style={styles.actionBtn}
                     >
-                      In Progress
+                      Accept
                     </button>
+
                     <button
                       type="button"
-                      onClick={() => updateStatus(j.id, "completed")}
-                      style={styles.actionBtn}
-                    >
-                      Completed
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => updateStatus(j.id, "rejected")}
+                      onClick={() => rejectJob(j.id)}
                       style={styles.actionBtn}
                     >
                       Reject
                     </button>
+
+                    <button
+                      type="button"
+                      onClick={() => nav(`/provider/chat/${j.id}`)}
+                      style={styles.actionBtn}
+                    >
+                      Open Chat
+                    </button>
                   </div>
+
+                  {/* Optional helper text */}
+                  {j.status === "rejected" ? (
+                    <div style={{ marginTop: 8, fontSize: 12, opacity: 0.75 }}>
+                      This job is currently rejected. You can still accept it again if you want.
+                    </div>
+                  ) : null}
                 </div>
               ))}
             </div>
@@ -227,7 +231,6 @@ const styles = {
     background: "rgba(255,255,255,0.04)",
   },
   cardTop: { display: "flex", justifyContent: "space-between", gap: 10 },
-  smallLine: { marginTop: 6, opacity: 0.88, fontSize: 13 },
   desc: { marginTop: 10, opacity: 0.95, lineHeight: 1.45 },
   actionRow: { marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" },
   actionBtn: {

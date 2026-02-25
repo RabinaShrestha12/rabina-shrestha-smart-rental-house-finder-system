@@ -1,3 +1,4 @@
+# myapp/view/maintenance_chat_views.py
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -14,6 +15,19 @@ def _create_notification(user, title, message, link=""):
         pass
 
 
+def _chat_is_open(job: MaintenanceRequest) -> bool:
+    """
+    ✅ NEW RULE (more flexible):
+    Chat is available as soon as a provider is assigned.
+    Optional: block chat only if job is rejected.
+    """
+    if job.assigned_provider is None:
+        return False
+    if job.status == "rejected":
+        return False
+    return True
+
+
 def msg_to_dict(m: ProviderMessage):
     return {
         "id": m.id,
@@ -24,12 +38,14 @@ def msg_to_dict(m: ProviderMessage):
         "text": m.text,
         "created_at": m.created_at,
         "is_read": m.is_read,
+        "sender_username": getattr(m.sender, "username", ""),
+        "sender_email": getattr(m.sender, "email", ""),
     }
 
 
-# =========================
-# OWNER: get messages for maintenance req
-# =========================
+# -----------------------------
+# OWNER SIDE
+# -----------------------------
 @api_view(["GET"])
 @permission_classes([IsAuthenticated, IsOwnerRole])
 def owner_get_maintenance_messages(request, req_id):
@@ -42,9 +58,6 @@ def owner_get_maintenance_messages(request, req_id):
     return Response([msg_to_dict(m) for m in qs], status=status.HTTP_200_OK)
 
 
-# =========================
-# OWNER: send message to assigned provider
-# =========================
 @api_view(["POST"])
 @permission_classes([IsAuthenticated, IsOwnerRole])
 def owner_send_maintenance_message(request, req_id):
@@ -57,10 +70,14 @@ def owner_send_maintenance_message(request, req_id):
     except MaintenanceRequest.DoesNotExist:
         return Response({"detail": "Maintenance request not found."}, status=status.HTTP_404_NOT_FOUND)
 
-    if not job.assigned_provider:
-        return Response({"detail": "No provider assigned yet."}, status=status.HTTP_400_BAD_REQUEST)
+    # ✅ allow sending as soon as provider is assigned
+    if not _chat_is_open(job):
+        return Response(
+            {"detail": "Chat is not available yet. Assign a provider first (and not rejected)."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
-    provider_user = job.assigned_provider.user  # ✅ IMPORTANT (profile -> user)
+    provider_user = job.assigned_provider
 
     msg = ProviderMessage.objects.create(
         maintenance=job,
@@ -74,19 +91,19 @@ def owner_send_maintenance_message(request, req_id):
         user=provider_user,
         title="New maintenance message",
         message=f"Owner sent a message for maintenance #{job.id}",
-        link=f"/provider/jobs/{job.id}",
+        link=f"/provider/chat/{job.id}",
     )
 
     return Response(msg_to_dict(msg), status=status.HTTP_201_CREATED)
 
 
-# =========================
-# PROVIDER: inbox/jobs list (simple)
-# =========================
+# -----------------------------
+# PROVIDER SIDE
+# -----------------------------
 @api_view(["GET"])
 @permission_classes([IsAuthenticated, IsProviderRole])
 def provider_inbox(request):
-    qs = MaintenanceRequest.objects.filter(assigned_provider__user=request.user).order_by("-created_at")
+    qs = MaintenanceRequest.objects.filter(assigned_provider=request.user).order_by("-created_at")
     data = []
     for j in qs:
         data.append({
@@ -101,24 +118,23 @@ def provider_inbox(request):
     return Response(data, status=status.HTTP_200_OK)
 
 
-# =========================
-# PROVIDER: get messages for job
-# =========================
 @api_view(["GET"])
 @permission_classes([IsAuthenticated, IsProviderRole])
 def provider_get_job_messages(request, req_id):
     try:
-        job = MaintenanceRequest.objects.get(id=req_id, assigned_provider__user=request.user)
+        job = MaintenanceRequest.objects.get(id=req_id, assigned_provider=request.user)
     except MaintenanceRequest.DoesNotExist:
         return Response({"detail": "Job not found."}, status=status.HTTP_404_NOT_FOUND)
+
+    # ✅ block read only if rejected (optional)
+    if job.status == "rejected":
+        return Response({"detail": "Chat is closed because the job is rejected."},
+                        status=status.HTTP_400_BAD_REQUEST)
 
     qs = ProviderMessage.objects.filter(maintenance=job).order_by("created_at")
     return Response([msg_to_dict(m) for m in qs], status=status.HTTP_200_OK)
 
 
-# =========================
-# PROVIDER: send message to owner
-# =========================
 @api_view(["POST"])
 @permission_classes([IsAuthenticated, IsProviderRole])
 def provider_send_job_message(request, req_id):
@@ -127,9 +143,16 @@ def provider_send_job_message(request, req_id):
         return Response({"detail": "Message is required."}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
-        job = MaintenanceRequest.objects.get(id=req_id, assigned_provider__user=request.user)
+        job = MaintenanceRequest.objects.get(id=req_id, assigned_provider=request.user)
     except MaintenanceRequest.DoesNotExist:
         return Response({"detail": "Job not found."}, status=status.HTTP_404_NOT_FOUND)
+
+    # ✅ allow sending even before accept (status can be open/in_progress/resolved)
+    if job.status == "rejected":
+        return Response(
+            {"detail": "Chat is closed because the job is rejected."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
     msg = ProviderMessage.objects.create(
         maintenance=job,

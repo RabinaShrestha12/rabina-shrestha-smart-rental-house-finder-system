@@ -1,3 +1,4 @@
+# myapp/view/maintenance_views.py
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -9,25 +10,26 @@ from .permissions import IsOwnerRole, IsProviderRole
 
 def _create_notification(user, title, message, link=""):
     try:
-        Notification.objects.create(
-            user=user,
-            title=title,
-            message=message,
-            link=link or "",
-        )
+        Notification.objects.create(user=user, title=title, message=message, link=link or "")
     except Exception:
         pass
 
 
 def _maintenance_to_dict(m: MaintenanceRequest):
+    provider_user = m.assigned_provider
+    provider_profile = None
+    if provider_user:
+        provider_profile = ServiceProviderProfile.objects.filter(user=provider_user).first()
+
     return {
         "id": m.id,
         "owner_id": m.owner_id,
         "listing_id": m.listing_id,
-        "assigned_provider_id": m.assigned_provider_id,
-        "assigned_provider_name": (m.assigned_provider.user.get_full_name() or m.assigned_provider.user.username)
-        if m.assigned_provider else "",
-        "assigned_provider_category": (m.assigned_provider.category if m.assigned_provider else ""),
+
+        "assigned_provider_id": provider_user.id if provider_user else None,
+        "assigned_provider_name": (provider_user.get_full_name() or provider_user.username) if provider_user else "",
+        "assigned_provider_category": provider_profile.category if provider_profile else "",
+
         "category": m.category,
         "priority": m.priority,
         "status": m.status,
@@ -38,9 +40,6 @@ def _maintenance_to_dict(m: MaintenanceRequest):
     }
 
 
-# =========================
-# OWNER: create maintenance request (listing OPTIONAL)
-# =========================
 @api_view(["POST"])
 @permission_classes([IsAuthenticated, IsOwnerRole])
 def owner_create_maintenance_request(request):
@@ -52,7 +51,6 @@ def owner_create_maintenance_request(request):
     if not title:
         return Response({"detail": "Title is required."}, status=status.HTTP_400_BAD_REQUEST)
 
-    # listing optional
     listing_id = request.data.get("listing") or request.data.get("listing_id") or ""
     listing = None
     if str(listing_id).strip():
@@ -63,8 +61,8 @@ def owner_create_maintenance_request(request):
 
     m = MaintenanceRequest.objects.create(
         owner=request.user,
-        listing=listing,                 # ✅ can be None
-        assigned_provider=None,          # ✅ not assigned yet
+        listing=listing,
+        assigned_provider=None,
         category=category,
         priority=priority,
         status="open",
@@ -74,9 +72,6 @@ def owner_create_maintenance_request(request):
     return Response(_maintenance_to_dict(m), status=status.HTTP_201_CREATED)
 
 
-# =========================
-# OWNER: list my maintenance requests
-# =========================
 @api_view(["GET"])
 @permission_classes([IsAuthenticated, IsOwnerRole])
 def owner_maintenance_requests(request):
@@ -84,9 +79,6 @@ def owner_maintenance_requests(request):
     return Response([_maintenance_to_dict(x) for x in qs], status=status.HTTP_200_OK)
 
 
-# =========================
-# OWNER: update status
-# =========================
 @api_view(["PATCH", "POST"])
 @permission_classes([IsAuthenticated, IsOwnerRole])
 def owner_update_maintenance_status(request, req_id):
@@ -103,10 +95,9 @@ def owner_update_maintenance_status(request, req_id):
     m.status = new_status
     m.save(update_fields=["status", "updated_at"])
 
-    # notify provider if assigned
     if m.assigned_provider:
         _create_notification(
-            user=m.assigned_provider.user,
+            user=m.assigned_provider,
             title="Maintenance status updated",
             message=f"Owner updated maintenance #{m.id} to {m.status}",
             link=f"/provider/jobs/{m.id}",
@@ -115,9 +106,6 @@ def owner_update_maintenance_status(request, req_id):
     return Response(_maintenance_to_dict(m), status=status.HTTP_200_OK)
 
 
-# =========================
-# OWNER: get available providers (filter by category/service_area optional)
-# =========================
 @api_view(["GET"])
 @permission_classes([IsAuthenticated, IsOwnerRole])
 def owner_available_providers(request):
@@ -126,21 +114,17 @@ def owner_available_providers(request):
 
     qs = ServiceProviderProfile.objects.select_related("user").all()
 
-    # optionally filter
     if category and category != "all":
         qs = qs.filter(category=category)
 
     if area:
         qs = qs.filter(service_area__icontains=area)
 
-    # you can also filter by availability if you want:
-    # qs = qs.filter(availability="available")
-
     data = []
     for p in qs.order_by("-updated_at"):
         data.append({
-            "id": p.id,
-            "user_id": p.user_id,
+            "id": p.id,                 # profile id
+            "user_id": p.user_id,       # provider user id
             "name": (p.user.get_full_name() or p.user.username),
             "email": p.user.email,
             "phone": p.phone or p.user.phone,
@@ -152,11 +136,7 @@ def owner_available_providers(request):
     return Response(data, status=status.HTTP_200_OK)
 
 
-# =========================
-# OWNER: assign provider to a maintenance request
-# body: { "provider_profile_id": 123 }  OR { "provider_id": 123 }
-# =========================
-@api_view(["POST"])
+@api_view(["POST", "PATCH"])
 @permission_classes([IsAuthenticated, IsOwnerRole])
 def owner_assign_provider(request, req_id):
     provider_profile_id = (
@@ -178,34 +158,57 @@ def owner_assign_provider(request, req_id):
     except (ServiceProviderProfile.DoesNotExist, ValueError):
         return Response({"detail": "Service provider not found."}, status=status.HTTP_404_NOT_FOUND)
 
-    m.assigned_provider = profile
-    m.status = "in_progress" if m.status == "open" else m.status
-    m.save(update_fields=["assigned_provider", "status", "updated_at"])
+    # ✅ assigned_provider expects USER
+    m.assigned_provider = profile.user
+    # keep status open until provider accepts (recommended)
+    # (if you want instant chat after assignment, then set in_progress here)
+    m.save(update_fields=["assigned_provider", "updated_at"])
 
-    # notify provider user
     _create_notification(
         user=profile.user,
-        title="New maintenance job assigned",
-        message=f"You have been assigned maintenance #{m.id} ({m.category})",
+        title="New maintenance request assigned",
+        message=f"You have a new maintenance request #{m.id}. Please Accept to start chat.",
         link=f"/provider/jobs/{m.id}",
     )
 
     return Response(_maintenance_to_dict(m), status=status.HTTP_200_OK)
 
 
-# =========================
-# PROVIDER: my assigned jobs
-# =========================
+# -----------------------------
+# PROVIDER SIDE
+# -----------------------------
 @api_view(["GET"])
 @permission_classes([IsAuthenticated, IsProviderRole])
 def provider_my_jobs(request):
-    qs = MaintenanceRequest.objects.filter(assigned_provider__user=request.user).order_by("-created_at")
+    qs = MaintenanceRequest.objects.filter(assigned_provider=request.user).order_by("-created_at")
     return Response([_maintenance_to_dict(x) for x in qs], status=status.HTTP_200_OK)
 
 
-# =========================
-# PROVIDER: update job status
-# =========================
+@api_view(["POST"])
+@permission_classes([IsAuthenticated, IsProviderRole])
+def provider_accept_job(request, req_id):
+    """
+    Provider accepts a maintenance request.
+    This opens chat: sets status=in_progress.
+    """
+    try:
+        m = MaintenanceRequest.objects.get(id=req_id, assigned_provider=request.user)
+    except MaintenanceRequest.DoesNotExist:
+        return Response({"detail": "Job not found."}, status=status.HTTP_404_NOT_FOUND)
+
+    m.status = "in_progress"
+    m.save(update_fields=["status", "updated_at"])
+
+    _create_notification(
+        user=m.owner,
+        title="Maintenance Accepted",
+        message=f"Provider accepted maintenance #{m.id}. Chat is now open.",
+        link=f"/owner/chat/{m.id}",
+    )
+
+    return Response(_maintenance_to_dict(m), status=status.HTTP_200_OK)
+
+
 @api_view(["PATCH", "POST"])
 @permission_classes([IsAuthenticated, IsProviderRole])
 def provider_update_job_status(request, req_id):
@@ -215,14 +218,13 @@ def provider_update_job_status(request, req_id):
         return Response({"detail": "Invalid status."}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
-        m = MaintenanceRequest.objects.get(id=req_id, assigned_provider__user=request.user)
+        m = MaintenanceRequest.objects.get(id=req_id, assigned_provider=request.user)
     except MaintenanceRequest.DoesNotExist:
         return Response({"detail": "Job not found."}, status=status.HTTP_404_NOT_FOUND)
 
     m.status = new_status
     m.save(update_fields=["status", "updated_at"])
 
-    # notify owner
     _create_notification(
         user=m.owner,
         title="Provider updated maintenance status",

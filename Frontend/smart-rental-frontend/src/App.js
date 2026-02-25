@@ -49,10 +49,14 @@ import BudgetSplitCalculator from "./pages/tools/BudgetSplitCalculator";
 
 // Maintenance/Emergency pages (protected)
 import TenantMaintenance from "./pages/tenant/TenantMaintenance";
-import OwnerMaintenance from "./pages/owner/OwnerMaintenance"; // ✅ make sure file exists here
+import OwnerMaintenance from "./pages/owner/OwnerMaintenance";
 
 // Reminders page (protected)
 import RemindersPage from "./pages/common/RemindersPage";
+
+// ✅ PROVIDER PAGES (Inbox + Chat)
+import ProviderInbox from "./pages/provider/ProviderInbox";
+import ProviderChat from "./pages/provider/ProviderChat";
 
 // COMMON
 import Unauthorized from "./pages/Unauthorized";
@@ -63,6 +67,8 @@ import GoDashboard from "./pages/GoDashboard";
 
 // PROTECTED
 import ProtectedRoute from "./auth/ProtectedRoute";
+
+import TenantAISearch from "./pages/tenant/TenantAISearch";
 
 export default function App() {
   return (
@@ -213,6 +219,26 @@ export default function App() {
         }
       />
 
+      {/* ✅ Provider Inbox (list assigned jobs to open chat) */}
+      <Route
+        path="/provider/messages"
+        element={
+          <ProtectedRoute allowRoles={["provider", "service_provider"]}>
+            <ProviderInbox />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* ✅ Provider Chat */}
+      <Route
+        path="/provider/chat/:req_id"
+        element={
+          <ProtectedRoute allowRoles={["provider", "service_provider"]}>
+            <ProviderChat />
+          </ProtectedRoute>
+        }
+      />
+
       {/* ======================
           ADMIN (Protected)
       ====================== */}
@@ -240,17 +266,28 @@ export default function App() {
       <Route
         path="/reminders"
         element={
-          <ProtectedRoute allowRoles={["admin", "owner", "tenant", "provider", "service_provider"]}>
+          <ProtectedRoute
+            allowRoles={["admin", "owner", "tenant", "provider", "service_provider"]}
+          >
             <RemindersPage />
           </ProtectedRoute>
         }
       />
-
+          <Route
+      path="/tenant/ai"
+      element={
+        <ProtectedRoute allowRoles={["tenant"]}>
+          <TenantAISearch />
+        </ProtectedRoute>
+      }
+    />
       {/* ======================
           COMMON
       ====================== */}
       <Route path="/unauthorized" element={<Unauthorized />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
+
+    
   );
 }

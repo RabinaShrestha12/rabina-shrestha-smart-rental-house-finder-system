@@ -18,8 +18,9 @@ function axiosMsg(err, fallback) {
   return data?.detail || data?.message || data?.error || err?.message || fallback;
 }
 
+// ✅ backend returns ServiceProviderProfile.id as "id"
 function getProviderId(p) {
-  return p?.id ?? p?.pk ?? null; // ✅ your backend returns ServiceProviderProfile.id as "id"
+  return p?.id ?? p?.pk ?? null;
 }
 
 function getProviderName(p) {
@@ -77,6 +78,9 @@ export default function OwnerMaintenance() {
   const [chatText, setChatText] = useState("");
   const [sendingChat, setSendingChat] = useState(false);
 
+  // ✅ requirement: owner can chat ONLY after provider assigned
+  const canChat = !!activeReq?.assigned_provider_id;
+
   useEffect(() => {
     const token = localStorage.getItem("access");
     if (!token) return nav("/auth", { replace: true });
@@ -84,14 +88,26 @@ export default function OwnerMaintenance() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [role]);
 
+  // ✅ clear selected provider when changing requests (prevents wrong assign)
+  useEffect(() => {
+    setSelectedProvider(null);
+    setChatText("");
+  }, [activeReq?.id]);
+
   // ----------------------------
-  // Load providers (REAL endpoint)
+  // Load providers
   // GET /api/owner/providers/
   // ----------------------------
   const loadProviders = async () => {
     setProvidersLoading(true);
     setProvidersError("");
     try {
+      // optional: you can load filtered on backend too:
+      // const qs = new URLSearchParams();
+      // if (filterCategory) qs.set("category", filterCategory);
+      // if (filterArea) qs.set("service_area", filterArea);
+      // const res = await api.get(`owner/providers/?${qs.toString()}`);
+
       const res = await api.get("owner/providers/");
       setProviders(safeArr(res.data));
     } catch (e) {
@@ -189,23 +205,57 @@ export default function OwnerMaintenance() {
   };
 
   // ----------------------------
-  // Assign provider
-  // PATCH /api/owner/maintenance/<id>/assign/
+  // Assign provider (required before chat)
+  // Use your backend endpoint:
+  // POST /api/owner/maintenance/<id>/assign-provider/
   // body: { provider_profile_id }
+  //
+  // If your backend uses PATCH /assign/ then change endpoint below.
   // ----------------------------
   const assignProvider = async () => {
-    if (!activeReq?.id) return setToast({ type: "error", msg: "Select a request first." });
-    if (!selectedProvider) return setToast({ type: "error", msg: "Select a provider first." });
+    if (!activeReq?.id) {
+      setToast({ type: "error", msg: "Select a request first." });
+      return;
+    }
+
+    if (!selectedProvider) {
+      setToast({ type: "error", msg: "Please select a service provider." });
+      return;
+    }
+
+    if (activeReq?.assigned_provider_id) {
+      setToast({ type: "info", msg: "Provider already assigned to this request." });
+      return;
+    }
+
+    const provider_profile_id = getProviderId(selectedProvider);
+    if (!provider_profile_id) {
+      setToast({ type: "error", msg: "Selected provider is invalid." });
+      return;
+    }
 
     try {
-      await api.patch(`owner/maintenance/${activeReq.id}/assign/`, {
-        provider_profile_id: getProviderId(selectedProvider),
+      // ✅ Preferred (matches code you shared earlier):
+      await api.post(`owner/maintenance/${activeReq.id}/assign-provider/`, {
+        provider_profile_id,
       });
 
-      setToast({ type: "success", msg: "Provider assigned ✅ Now you can message." });
+      setToast({ type: "success", msg: "Provider assigned ✅ Chat is now enabled." });
       await loadRequests(activeReq.id);
+      await loadChat(activeReq.id);
     } catch (e) {
-      setToast({ type: "error", msg: axiosMsg(e, "Failed to assign provider") });
+      // fallback if your backend is still using PATCH /assign/
+      // try that once automatically
+      try {
+        await api.patch(`owner/maintenance/${activeReq.id}/assign/`, {
+          provider_profile_id,
+        });
+        setToast({ type: "success", msg: "Provider assigned ✅ Chat is now enabled." });
+        await loadRequests(activeReq.id);
+        await loadChat(activeReq.id);
+      } catch (e2) {
+        setToast({ type: "error", msg: axiosMsg(e2, "Failed to assign provider") });
+      }
     }
   };
 
@@ -216,11 +266,20 @@ export default function OwnerMaintenance() {
   // ----------------------------
   const sendChat = async () => {
     if (!activeReq?.id) return setToast({ type: "error", msg: "Select a request first." });
+
+    // ✅ enforce requirement in frontend
+    if (!activeReq?.assigned_provider_id) {
+      setToast({ type: "error", msg: "Please assign a provider first to start chat." });
+      return;
+    }
+
     if (!chatText.trim()) return setToast({ type: "error", msg: "Write a message first." });
 
     setSendingChat(true);
     try {
-      await api.post(`owner/maintenance/${activeReq.id}/messages/send/`, { text: chatText.trim() });
+      await api.post(`owner/maintenance/${activeReq.id}/messages/send/`, {
+        text: chatText.trim(),
+      });
       setChatText("");
       await loadChat(activeReq.id);
       await loadRequests(activeReq.id);
@@ -233,7 +292,7 @@ export default function OwnerMaintenance() {
   };
 
   // ----------------------------
-  // Filters
+  // Filters (frontend)
   // ----------------------------
   const categories = useMemo(() => {
     const set = new Set();
@@ -461,7 +520,9 @@ export default function OwnerMaintenance() {
                         type="button"
                         onClick={() => setSelectedProvider(p)}
                         className={`text-left rounded-2xl border p-4 transition ${
-                          selected ? "border-emerald-500/40 bg-emerald-500/5" : "border-white/10 bg-black/20 hover:bg-white/5"
+                          selected
+                            ? "border-emerald-500/40 bg-emerald-500/5"
+                            : "border-white/10 bg-black/20 hover:bg-white/5"
                         }`}
                       >
                         <div className="text-sm font-semibold text-white">{getProviderName(p)}</div>
@@ -479,9 +540,10 @@ export default function OwnerMaintenance() {
                 <button
                   type="button"
                   onClick={assignProvider}
-                  className="mt-4 w-full rounded-2xl bg-emerald-600 px-4 py-3 text-white font-semibold hover:bg-emerald-500 transition"
+                  disabled={!activeReq?.id || !!activeReq?.assigned_provider_id}
+                  className="mt-4 w-full rounded-2xl bg-emerald-600 px-4 py-3 text-white font-semibold hover:bg-emerald-500 transition disabled:opacity-60"
                 >
-                  Assign Selected Provider to Active Request
+                  {activeReq?.assigned_provider_id ? "Provider Already Assigned" : "Assign Selected Provider to Active Request"}
                 </button>
               </>
             )}
@@ -492,7 +554,7 @@ export default function OwnerMaintenance() {
                 Chat {activeReq?.id ? `(Request #${activeReq.id})` : ""}
               </div>
               <div className="mt-1 text-xs text-slate-400">
-                You can send message only after provider is assigned.
+                {canChat ? "You can chat with the assigned provider." : "⚠️ Please assign a provider first to start chat."}
               </div>
 
               <div className="mt-3 rounded-xl border border-white/10 bg-black/30 p-3 min-h-[220px]">
@@ -524,14 +586,15 @@ export default function OwnerMaintenance() {
                   value={chatText}
                   onChange={(e) => setChatText(e.target.value)}
                   rows={3}
-                  className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-slate-100 outline-none focus:border-white/20"
-                  placeholder="Write your message to provider..."
+                  disabled={!canChat}
+                  className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-slate-100 outline-none focus:border-white/20 disabled:opacity-60"
+                  placeholder={canChat ? "Write your message to provider..." : "Assign a provider to enable chat..."}
                 />
                 <div className="mt-2 flex gap-2">
                   <button
                     type="button"
                     onClick={sendChat}
-                    disabled={sendingChat}
+                    disabled={sendingChat || !canChat}
                     className="rounded-2xl border border-white/10 bg-white/10 px-4 py-2 text-sm hover:bg-white/15 transition disabled:opacity-60"
                   >
                     {sendingChat ? "Sending…" : "Send Message"}
