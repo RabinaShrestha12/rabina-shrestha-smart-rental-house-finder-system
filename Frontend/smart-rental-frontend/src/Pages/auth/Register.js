@@ -1,7 +1,9 @@
-// src/pages/auth/Register.jsx
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../../auth/AuthContext"; // adjust path if needed
+import { useAuth } from "../../auth/AuthContext";
+
+// ✅ IMPORTANT: import your css here
+import "./UserAuth.css";
 
 export default function Register() {
   const nav = useNavigate();
@@ -16,7 +18,7 @@ export default function Register() {
     address: "",
     email: "",
     password: "",
-    role: "tenant", // ✅ selected option will be sent
+    role: "tenant",
   });
 
   const [otpOpen, setOtpOpen] = useState(false);
@@ -26,7 +28,8 @@ export default function Register() {
   const normalizeRole = (r) => {
     const role = String(r || "").trim().toLowerCase();
     if (["tenant", "owner", "provider"].includes(role)) return role;
-    if (["service_provider", "service provider", "service-provider"].includes(role)) return "provider";
+    if (["service_provider", "service provider", "service-provider"].includes(role))
+      return "provider";
     return "tenant";
   };
 
@@ -50,11 +53,11 @@ export default function Register() {
         password: form.password || "",
         address: form.address || "",
         phone: form.phone || "",
-        role: roleToSend, // ✅ send selected role
+        role: roleToSend,
       });
 
       sessionStorage.setItem("otp_email", cleanEmail);
-      sessionStorage.setItem("otp_role", roleToSend); // ✅ store role for OTP step
+      sessionStorage.setItem("otp_role", roleToSend);
       setOtpOpen(true);
 
       setMsg(res?.message || `OTP sent to ${cleanEmail}. Check Inbox/Spam.`);
@@ -69,7 +72,10 @@ export default function Register() {
     e.preventDefault();
     if (loading) return;
 
-    const email = (sessionStorage.getItem("otp_email") || form.email || "").trim().toLowerCase();
+    const email = (sessionStorage.getItem("otp_email") || form.email || "")
+      .trim()
+      .toLowerCase();
+
     const code = String(otpCode || "").trim();
 
     if (!email) return setMsg("Email missing. Please register again.");
@@ -79,7 +85,6 @@ export default function Register() {
     setMsg("");
 
     try {
-      // ✅ backend decides the real role (not frontend)
       const data = await verifyOtp({ email, code, purpose: "signup" });
 
       sessionStorage.removeItem("otp_email");
@@ -88,7 +93,6 @@ export default function Register() {
       setOtpOpen(false);
       setOtpCode("");
 
-      // ✅ after OTP verified, role comes from backend response
       const finalRole = (data?.role || "").toLowerCase();
 
       setMsg("OTP verified! Redirecting...");
@@ -110,16 +114,23 @@ export default function Register() {
         {!otpOpen ? (
           <form onSubmit={handleRegister}>
             <label style={styles.label}>Register as</label>
-            <select
-              name="role"
-              value={form.role}
-              onChange={onChange}
-              style={styles.select}
-            >
-              <option value="tenant">Tenant</option>
-              <option value="owner">Owner</option>
-              <option value="provider">Provider</option>
-            </select>
+
+            {/* ✅ COLORFUL DROPDOWN */}
+            <div className="selectWrap">
+              <select
+                name="role"
+                value={form.role}
+                onChange={onChange}
+                className="roleSelect"
+              >
+                <option value="tenant">Tenant</option>
+                <option value="owner">Owner</option>
+                <option value="provider">Service Provider</option>
+              </select>
+
+              {/* ✅ custom arrow */}
+              <span className="selectArrow">▾</span>
+            </div>
 
             <label style={styles.label}>Username</label>
             <input
@@ -229,18 +240,14 @@ const styles = {
     border: "1px solid rgba(255,255,255,0.10)",
     boxShadow: "0 20px 60px rgba(0,0,0,0.45)",
   },
-  label: { display: "block", fontSize: 12, opacity: 0.85, marginBottom: 6, marginTop: 10 },
-  input: {
-    width: "100%",
-    padding: 12,
-    marginBottom: 12,
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.06)",
-    color: "white",
-    outline: "none",
+  label: {
+    display: "block",
+    fontSize: 12,
+    opacity: 0.85,
+    marginBottom: 6,
+    marginTop: 10,
   },
-  select: {
+  input: {
     width: "100%",
     padding: 12,
     marginBottom: 12,
