@@ -18,6 +18,10 @@ from .models import (
     Notification,
     Reminder,
     ListingFacility,
+    RoommateProfile,
+    RoommateRequest,
+    RoommateChatMessage,
+    RoommateChatThread,
 )
 
 User = get_user_model()
@@ -91,7 +95,6 @@ class TenantSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "user_id", "username", "email", "address", "phone", "created_at", "updated_at"]
 
 
-
 # SERVICE PROVIDER PROFILE SERIALIZER
 class ServiceProviderProfileSerializer(serializers.ModelSerializer):
     user_id = serializers.IntegerField(source="user.id", read_only=True)
@@ -114,7 +117,6 @@ class ServiceProviderProfileSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["id", "user_id", "username", "email", "created_at", "updated_at"]
-
 
 
 # LISTING SERIALIZER (+360 + owner info + lat/lng + optional distance_km)
@@ -426,7 +428,6 @@ class BookingRequestListSerializer(serializers.ModelSerializer):
         }
 
 
-
 # Reviews
 class ReviewSerializer(serializers.ModelSerializer):
     listing_title = serializers.CharField(source="listing.title", read_only=True)
@@ -486,7 +487,6 @@ class MaintenanceRequestSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
-        # ✅ owner comes from request.user in view
         read_only_fields = ["id", "created_at", "updated_at", "owner", "owner_username", "owner_email"]
 
 
@@ -524,7 +524,6 @@ class ProviderMessageSerializer(serializers.ModelSerializer):
             "created_at",
             "is_read",
         ]
-        # ✅ owner/provider/sender should be set in view based on logged in user
         read_only_fields = ["id", "created_at", "owner", "provider", "sender", "is_read"]
 
 
@@ -550,3 +549,80 @@ class ListingFacilitySerializer(serializers.ModelSerializer):
         model = ListingFacility
         fields = "__all__"
         read_only_fields = ["id"]
+
+
+# =========================
+# ✅ Roommate Finder Serializers
+# =========================
+class RoommateProfileSerializer(serializers.ModelSerializer):
+    user_id = serializers.IntegerField(source="user.id", read_only=True)
+    username = serializers.CharField(source="user.username", read_only=True)
+    email = serializers.EmailField(source="user.email", read_only=True)
+
+    class Meta:
+        model = RoommateProfile
+        fields = [
+            "id", "user_id", "username", "email",
+            "gender", "preferred_gender",
+            "min_budget", "max_budget",
+            "city", "preferred_area",
+            "move_in_date", "stay_length_months",
+            "smoker", "pets_ok", "tidy_level", "quiet_level",
+            "bio", "is_active",
+            "created_at", "updated_at"
+        ]
+
+
+class RoommateRequestSerializer(serializers.ModelSerializer):
+    from_user_id = serializers.IntegerField(source="from_user.id", read_only=True)
+    to_user_id = serializers.IntegerField(source="to_user.id", read_only=True)
+
+    from_username = serializers.CharField(source="from_user.username", read_only=True)
+    to_username = serializers.CharField(source="to_user.username", read_only=True)
+
+    # ✅ return thread id if accepted
+    thread_id = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = RoommateRequest
+        fields = [
+            "id",
+            "from_user_id", "to_user_id",
+            "from_username", "to_username",
+            "message", "status",
+            "created_at", "responded_at",
+            "thread_id",
+        ]
+        read_only_fields = ["created_at", "responded_at", "thread_id"]
+
+
+# =========================
+# ✅ Roommate Chat Serializers
+# =========================
+class RoommateChatThreadSerializer(serializers.ModelSerializer):
+    other_user_id = serializers.SerializerMethodField()
+    other_username = serializers.SerializerMethodField()
+
+    class Meta:
+        model = RoommateChatThread
+        fields = ["id", "created_at", "other_user_id", "other_username"]
+
+    def get_other_user_id(self, obj):
+        me = self.context["request"].user
+        other = obj.user2 if obj.user1_id == me.id else obj.user1
+        return other.id
+
+    def get_other_username(self, obj):
+        me = self.context["request"].user
+        other = obj.user2 if obj.user1_id == me.id else obj.user1
+        return other.username
+
+
+class RoommateChatMessageSerializer(serializers.ModelSerializer):
+    sender_id = serializers.IntegerField(source="sender.id", read_only=True)
+    sender_username = serializers.CharField(source="sender.username", read_only=True)
+
+    class Meta:
+        model = RoommateChatMessage
+        fields = ["id", "thread", "sender_id", "sender_username", "text", "created_at"]
+        read_only_fields = ["id", "thread", "sender_id", "sender_username", "created_at"]

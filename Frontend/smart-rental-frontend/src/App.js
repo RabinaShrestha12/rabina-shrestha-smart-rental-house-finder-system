@@ -58,6 +58,14 @@ import RemindersPage from "./pages/common/RemindersPage";
 import ProviderInbox from "./pages/provider/ProviderInbox";
 import ProviderChat from "./pages/provider/ProviderChat";
 
+// ✅ Roommate Finder Pages (Tenant)
+import RoommateFinder from "./pages/tenant/RoommateFinder";
+import RoommateRequests from "./pages/tenant/RoommateRequests";
+
+// ✅ Roommate Chat Pages (Tenant) ⭐ NEW
+import TenantChats from "./pages/tenant/Chats";
+import RoommateChat from "./pages/tenant/RoommateChat";
+
 // COMMON
 import Unauthorized from "./pages/Unauthorized";
 import NotFound from "./pages/NotFound";
@@ -68,6 +76,7 @@ import GoDashboard from "./pages/GoDashboard";
 // PROTECTED
 import ProtectedRoute from "./auth/ProtectedRoute";
 
+// ✅ Tenant AI Search
 import TenantAISearch from "./pages/tenant/TenantAISearch";
 
 export default function App() {
@@ -207,6 +216,56 @@ export default function App() {
         }
       />
 
+      {/* ✅ TENANT: AI Search */}
+      <Route
+        path="/tenant/ai"
+        element={
+          <ProtectedRoute allowRoles={["tenant"]}>
+            <TenantAISearch />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* ✅ TENANT: Roommate Finder */}
+      <Route
+        path="/tenant/roommates"
+        element={
+          <ProtectedRoute allowRoles={["tenant"]}>
+            <RoommateFinder />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* ✅ TENANT: Roommate Requests */}
+      <Route
+        path="/tenant/roommates/requests"
+        element={
+          <ProtectedRoute allowRoles={["tenant"]}>
+            <RoommateRequests />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* ✅ TENANT: Roommate Chats LIST (matches your URL) */}
+      <Route
+        path="/tenant/roommates/chats"
+        element={
+          <ProtectedRoute allowRoles={["tenant"]}>
+            <TenantChats />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* ✅ TENANT: Roommate Chat ROOM (matches your URL) */}
+      <Route
+        path="/tenant/roommates/chats/:roomId"
+        element={
+          <ProtectedRoute allowRoles={["tenant"]}>
+            <RoommateChat />
+          </ProtectedRoute>
+        }
+      />
+
       {/* ======================
           PROVIDER (Protected)
       ====================== */}
@@ -219,7 +278,7 @@ export default function App() {
         }
       />
 
-      {/* ✅ Provider Inbox (list assigned jobs to open chat) */}
+      {/* ✅ Provider Inbox */}
       <Route
         path="/provider/messages"
         element={
@@ -267,27 +326,24 @@ export default function App() {
         path="/reminders"
         element={
           <ProtectedRoute
-            allowRoles={["admin", "owner", "tenant", "provider", "service_provider"]}
+            allowRoles={[
+              "admin",
+              "owner",
+              "tenant",
+              "provider",
+              "service_provider",
+            ]}
           >
             <RemindersPage />
           </ProtectedRoute>
         }
       />
-          <Route
-      path="/tenant/ai"
-      element={
-        <ProtectedRoute allowRoles={["tenant"]}>
-          <TenantAISearch />
-        </ProtectedRoute>
-      }
-    />
+
       {/* ======================
           COMMON
       ====================== */}
       <Route path="/unauthorized" element={<Unauthorized />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
-
-    
   );
 }

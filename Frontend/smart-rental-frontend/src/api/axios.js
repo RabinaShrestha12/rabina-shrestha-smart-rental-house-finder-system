@@ -1,19 +1,29 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_BASE_URL || "http://127.0.0.1:8000/api/",
+  baseURL:
+    process.env.REACT_APP_API_BASE_URL ||
+    "http://127.0.0.1:8000/api/",
 });
 
+/**
+ * Get access token safely
+ */
 function getAccessToken() {
-  return (
+  const token =
     localStorage.getItem("access") ||
-    localStorage.getItem("access_token") ||
-    ""
-  );
+    localStorage.getItem("access_token");
+
+  if (!token || token === "undefined" || token === "null") {
+    return null;
+  }
+  return token;
 }
 
 api.interceptors.request.use(
   (config) => {
+    config.headers = config.headers || {};
+
     const url = String(config.url || "").replace(/^\//, "");
 
     const isPublicEndpoint =
@@ -26,15 +36,18 @@ api.interceptors.request.use(
 
     const token = getAccessToken();
 
-    if (!isPublicEndpoint && token && token !== "undefined" && token !== "null") {
+    // ✅ attach token only for private endpoints
+    if (!isPublicEndpoint && token) {
       config.headers.Authorization = `Bearer ${token}`;
     } else {
       delete config.headers.Authorization;
     }
 
-    // FormData support
+    // ✅ FormData support
     const isFormData =
-      typeof FormData !== "undefined" && config.data instanceof FormData;
+      typeof FormData !== "undefined" &&
+      config.data instanceof FormData;
+
     if (isFormData) {
       delete config.headers["Content-Type"];
     } else if (!config.headers["Content-Type"]) {
@@ -49,6 +62,7 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (res) => res,
   (err) => {
+    // ✅ auto logout on unauthorized
     if (err?.response?.status === 401) {
       localStorage.removeItem("access");
       localStorage.removeItem("access_token");

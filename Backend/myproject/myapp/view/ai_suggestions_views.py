@@ -2,7 +2,6 @@
 import math
 import requests
 
-from django.utils import timezone
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -26,6 +25,13 @@ def _to_float(v):
         return float(v)
     except Exception:
         return None
+
+
+def _clamp(x, lo=0.0, hi=1.0):
+    try:
+        return max(lo, min(hi, float(x)))
+    except Exception:
+        return lo
 
 
 def _haversine_km(lat1, lon1, lat2, lon2):
@@ -64,7 +70,53 @@ def _geocode_place_nominatim(place_name: str):
         return None
 
 
-def _listing_to_dict(l: Listing, distance_km=None):
+def _score_listing(distance_km, price, min_price=None, max_price=None, radius_km=2.0):
+    """
+    Explainable scoring (no ML needed):
+    - closer distance => higher score
+    - closer to budget center => higher score
+    Returns (score, reasons[])
+    """
+    reasons = []
+
+    # Distance score (0..1): 1 at center, 0 at edge of radius
+    if radius_km and radius_km > 0:
+        distance_score = 1.0 - _clamp(distance_km / radius_km)
+    else:
+        distance_score = 0.0
+
+    reasons.append(f"{distance_km:.2f} km from your location")
+
+    # Budget score (0..1)
+    budget_score = 0.5  # neutral default
+    try:
+        p = float(price)
+    except Exception:
+        p = None
+
+    if p is not None:
+        if min_price is not None and max_price is not None and max_price >= min_price:
+            center = (min_price + max_price) / 2.0
+            half_range = max((max_price - min_price) / 2.0, 1.0)
+            diff = abs(p - center)
+            budget_score = 1.0 - _clamp(diff / half_range)
+            reasons.append(f"Within your budget ({min_price:.0f}–{max_price:.0f})")
+        elif min_price is not None:
+            # if only min is set, treat as good match if above min
+            budget_score = 0.8
+            reasons.append(f"Meets minimum budget (≥ {min_price:.0f})")
+        elif max_price is not None:
+            budget_score = 0.8
+            reasons.append(f"Within max budget (≤ {max_price:.0f})")
+
+    # Weighted final score (tune if you want)
+    score = (0.6 * distance_score) + (0.4 * budget_score)
+    score = round(_clamp(score), 3)
+
+    return score, reasons
+
+
+def _listing_to_dict(l: Listing, distance_km=None, score=None, reasons=None):
     return {
         "id": l.id,
         "title": l.title,
@@ -75,6 +127,8 @@ def _listing_to_dict(l: Listing, distance_km=None):
         "longitude": float(l.longitude) if l.longitude is not None else None,
         "image": l.image.url if getattr(l, "image", None) else None,
         "distance_km": round(distance_km, 2) if distance_km is not None else None,
+        "recommendation_score": score,
+        "recommend_reasons": reasons or [],
     }
 
 
@@ -85,8 +139,15 @@ def tenant_ai_suggest_nearby(request):
     ✅ Requirement 1:
     Tenant enters a place name (or lat/lng), choose radius (1km/2km/15km),
     system suggests nearby listings and creates a Notification.
+
     ✅ Requirement 2:
     filter by min_price/max_price/property_type.
+
+    ⭐ Enhancements (for better marks):
+    - Explainable recommendation score (distance + budget)
+    - Sort by score (desc), then distance (asc)
+    - "Why recommended?" reasons in API response
+    - Fallback radius if no results
     """
 
     place = (request.data.get("place") or "").strip()
@@ -126,34 +187,70 @@ def tenant_ai_suggest_nearby(request):
     if max_price is not None:
         qs = qs.filter(price_per_month__lte=max_price)
 
-    # 3) Compute distances and keep only within radius
-    results = []
-    for l in qs:
-        if l.latitude is None or l.longitude is None:
-            continue
-        d = _haversine_km(lat, lng, float(l.latitude), float(l.longitude))
-        if d <= radius_km:
-            results.append((d, l))
+    # 3) Build ranked results with fallback radius
+    radius_used = radius_km
+    fallback_used = False
 
-    results.sort(key=lambda x: x[0])  # nearest first
-    top = results[:30]  # limit
+    def build_ranked_results(current_radius):
+        ranked = []
+        for l in qs:
+            if l.latitude is None or l.longitude is None:
+                continue
 
-    payload = [_listing_to_dict(l, distance_km=d) for d, l in top]
+            d = _haversine_km(lat, lng, float(l.latitude), float(l.longitude))
+            if d <= current_radius:
+                score, reasons = _score_listing(
+                    distance_km=d,
+                    price=float(l.price_per_month),
+                    min_price=min_price,
+                    max_price=max_price,
+                    radius_km=current_radius,
+                )
+                ranked.append((score, d, reasons, l))
+
+        # Sort: higher score first, then closer distance
+        ranked.sort(key=lambda x: (-x[0], x[1]))
+        return ranked
+
+    ranked = build_ranked_results(radius_used)
+
+    # If no results, expand radius gradually
+    if len(ranked) == 0:
+        for r in [max(radius_used, 3.0), 5.0, 10.0]:
+            ranked = build_ranked_results(r)
+            if ranked:
+                radius_used = r
+                fallback_used = True
+                break
+
+    top = ranked[:30]
+    payload = [
+        _listing_to_dict(l, distance_km=d, score=score, reasons=reasons)
+        for (score, d, reasons, l) in top
+    ]
 
     # 4) Create notification (summary)
     title_txt = "AI Nearby Suggestions"
     place_txt = place if place else f"{lat:.4f},{lng:.4f}"
-    msg_txt = f"Found {len(payload)} listings within {radius_km} km of {place_txt}."
 
-    # Link can point to a frontend page you create later (recommended)
-    link = f"/tenant/ai?place={place_txt}&radius_km={radius_km}"
+    if fallback_used:
+        msg_txt = (
+            f"No listings found in {radius_km} km. "
+            f"Showing {len(payload)} listings within {radius_used} km of {place_txt}."
+        )
+    else:
+        msg_txt = f"Found {len(payload)} listings within {radius_used} km of {place_txt}."
+
+    link = f"/tenant/ai?place={place_txt}&radius_km={radius_used}"
 
     _create_notification(request.user, title_txt, msg_txt, link=link)
 
     return Response(
         {
             "center": {"lat": lat, "lng": lng, "place": place},
-            "radius_km": radius_km,
+            "radius_km_requested": radius_km,
+            "radius_km_used": radius_used,
+            "fallback_used": fallback_used,
             "count": len(payload),
             "results": payload,
         },

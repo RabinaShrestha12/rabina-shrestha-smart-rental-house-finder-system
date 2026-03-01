@@ -454,3 +454,132 @@ class ListingFacility(models.Model):
 
     def __str__(self):
         return f"{self.kind}: {self.name}"
+
+
+class RoommateProfile(models.Model):
+    """
+    One profile per tenant user.
+    """
+    GENDER_CHOICES = (
+        ("male", "Male"),
+        ("female", "Female"),
+        ("other", "Other"),
+        ("any", "Any"),
+    )
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="roommate_profile"
+    )
+
+    # Basic info / preferences
+    gender = models.CharField(max_length=10, choices=GENDER_CHOICES, default="any")
+    preferred_gender = models.CharField(max_length=10, choices=GENDER_CHOICES, default="any")
+
+    min_budget = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    max_budget = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+
+    city = models.CharField(max_length=120, blank=True, default="")
+    preferred_area = models.CharField(max_length=120, blank=True, default="")  # e.g., "Canberra CBD"
+
+    move_in_date = models.DateField(null=True, blank=True)
+    stay_length_months = models.IntegerField(null=True, blank=True)  # optional
+
+    # Lifestyle flags
+    smoker = models.BooleanField(default=False)
+    pets_ok = models.BooleanField(default=True)
+    tidy_level = models.IntegerField(default=3)  # 1..5
+    quiet_level = models.IntegerField(default=3)  # 1..5
+
+    # Free-text
+    bio = models.TextField(blank=True, default="")
+
+    is_active = models.BooleanField(default=True)  # hide profile if not looking
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"RoommateProfile({self.user.username})"
+
+
+class RoommateRequest(models.Model):
+    """
+    Tenant -> Tenant roommate request
+    """
+    STATUS_CHOICES = (
+        ("pending", "Pending"),
+        ("accepted", "Accepted"),
+        ("rejected", "Rejected"),
+        ("cancelled", "Cancelled"),
+    )
+
+    from_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="roommate_requests_sent"
+    )
+    to_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="roommate_requests_received"
+    )
+
+    message = models.TextField(blank=True, default="")
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default="pending")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    responded_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        unique_together = ("from_user", "to_user")  # prevent duplicates
+
+    def __str__(self):
+        return f"RoommateRequest({self.from_user} -> {self.to_user}, {self.status})"
+
+class RoommateChatThread(models.Model):
+    """
+    One chat thread for two tenants (created after request accepted)
+    """
+    user1 = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="roommate_threads_as_user1",
+        limit_choices_to={"role": "tenant"},
+    )
+    user2 = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="roommate_threads_as_user2",
+        limit_choices_to={"role": "tenant"},
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["user1", "user2"], name="uniq_roommate_thread_pair")
+        ]
+
+    def __str__(self):
+        return f"RoommateChatThread({self.user1_id}, {self.user2_id})"
+
+
+class RoommateChatMessage(models.Model):
+    """
+    Messages inside roommate chat thread
+    """
+    thread = models.ForeignKey(
+        RoommateChatThread,
+        on_delete=models.CASCADE,
+        related_name="messages",
+    )
+    sender = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="roommate_chat_messages_sent",
+    )
+    text = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"RoommateChatMessage(thread={self.thread_id}, sender={self.sender_id})"

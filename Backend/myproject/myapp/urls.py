@@ -11,22 +11,26 @@ from myapp.view.public.public_views import (
 )
 from myapp.view.public.owner_views import OwnerCreateListingView
 from myapp.view.owner_profile_views import owner_profile
+
 from myapp.view.booking_views import (
     tenant_create_booking_request, tenant_my_booking_requests, owner_booking_inbox,
     booking_messages, booking_send_message, owner_set_booking_status, create_message_legacy,
 )
+
 from myapp.view.owner_my_listings import (
     owner_my_listings, owner_my_listing_detail, owner_my_listing_update, owner_my_listing_delete,
 )
+
 from myapp.view.reviews_views import (tenant_create_review, listing_reviews, owner_my_reviews)
 
 from myapp.view.maintenance_views import (
     owner_create_maintenance_request, owner_maintenance_requests, owner_update_maintenance_status,
     owner_available_providers, owner_assign_provider,
-    provider_my_jobs, provider_update_job_status, provider_accept_job,   # ✅ UPDATED
+    provider_my_jobs, provider_update_job_status, provider_accept_job,
 )
 
 from myapp.view import notifications_views as nv
+
 from myapp.view.facilities_views import (
     listing_facilities, owner_add_facility, owner_delete_facility,
 )
@@ -37,6 +41,21 @@ from myapp.view.maintenance_chat_views import (
 )
 
 from myapp.view.ai_suggestions_views import tenant_ai_suggest_nearby
+
+from myapp.view.roommate_views import (
+    roommate_my_profile,
+    roommate_matches,
+    roommate_send_request,
+    roommate_my_requests,
+    roommate_respond_request,
+)
+
+from myapp.view.roommate_chat_views import (
+    roommate_my_threads,
+    roommate_thread_messages,
+    roommate_send_message,
+    roommate_sync_threads,   # ✅ add this
+)
 
 urlpatterns = [
     path("register_user/", register_user),
@@ -88,7 +107,7 @@ urlpatterns = [
     path("owner/maintenance/<int:req_id>/assign/", owner_assign_provider),
 
     path("provider/jobs/", provider_my_jobs),
-    path("provider/jobs/<int:req_id>/accept/", provider_accept_job),      # ✅ NEW
+    path("provider/jobs/<int:req_id>/accept/", provider_accept_job),
     path("provider/jobs/<int:req_id>/status/", provider_update_job_status),
 
     path("notifications/", nv.my_notifications),
@@ -110,4 +129,17 @@ urlpatterns = [
     path("provider/maintenance/<int:req_id>/messages/send/", provider_send_job_message),
 
     path("tenant/ai/suggest/", tenant_ai_suggest_nearby),
+
+    # Roommate Finder
+    path("tenant/roommates/profile/", roommate_my_profile),
+    path("tenant/roommates/matches/", roommate_matches),
+    path("tenant/roommates/request/send/", roommate_send_request),
+    path("tenant/roommates/requests/", roommate_my_requests),
+    path("tenant/roommates/request/<int:request_id>/respond/", roommate_respond_request),
+
+    # Roommate Chat
+    path("tenant/roommates/chats/sync/", roommate_sync_threads),  # ✅ add this line
+    path("tenant/roommates/chats/", roommate_my_threads),
+    path("tenant/roommates/chats/<int:thread_id>/messages/", roommate_thread_messages),
+    path("tenant/roommates/chats/<int:thread_id>/send/", roommate_send_message),
 ]
