@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from "react";
+// src/pages/tenant/RoommateRequests.jsx
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Shell from "../../components/Shell";
-import api from "../../api/axios";
+import axios from "../../api/axios";
 
 export default function RoommateRequests() {
   const nav = useNavigate();
@@ -9,164 +9,215 @@ export default function RoommateRequests() {
   const [loading, setLoading] = useState(true);
   const [received, setReceived] = useState([]);
   const [sent, setSent] = useState([]);
-  const [toast, setToast] = useState({ type: "info", msg: "" });
+  const [err, setErr] = useState("");
+  const [busyId, setBusyId] = useState(null);
 
-  const axiosErr = (e, fallback) =>
-    e?.response?.data?.detail ||
-    (typeof e?.response?.data === "string" ? e.response.data : "") ||
-    e?.message ||
-    fallback;
+  const REQ_URL = useMemo(() => "tenant/roommates/requests/", []);
+  const RESPOND_URL = (id) => `tenant/roommates/request/${id}/respond/`;
 
-  const fetchRequests = async () => {
+  const loadRequests = async () => {
+    setErr("");
+    setLoading(true);
     try {
-      setLoading(true);
-      setToast({ type: "info", msg: "" });
-      const res = await api.get("tenant/roommates/requests/");
-      setReceived(res.data?.received || []);
-      setSent(res.data?.sent || []);
+      const res = await axios.get(REQ_URL);
+      setReceived(Array.isArray(res?.data?.received) ? res.data.received : []);
+      setSent(Array.isArray(res?.data?.sent) ? res.data.sent : []);
     } catch (e) {
-      setToast({ type: "error", msg: axiosErr(e, "Failed to load roommate requests.") });
+      console.log("REQUESTS ERROR:", e?.response || e);
+      setErr(
+        e?.response?.data?.detail ||
+          e?.response?.data?.message ||
+          (typeof e?.response?.data === "string" ? e.response.data : "") ||
+          "Failed to load roommate requests."
+      );
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchRequests();
+    loadRequests();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const respond = async (requestId, action) => {
+    setBusyId(requestId);
+    setErr("");
     try {
-      setToast({ type: "info", msg: "" });
-      const res = await api.post(`tenant/roommates/request/${requestId}/respond/`, { action });
-
-      if (action === "accept") {
-        const chatId = res?.data?.chat_id;
-        setToast({ type: "success", msg: "Request accepted ✅ Chat created." });
-
-        // ✅ go to chat directly
-        if (chatId) {
-          nav(`/tenant/roommates/chat/${chatId}`);
-          return;
-        }
-      } else {
-        setToast({ type: "success", msg: `Request ${action}ed ✅` });
-      }
-
-      fetchRequests();
+      await axios.post(RESPOND_URL(requestId), { action });
+      await loadRequests();
     } catch (e) {
-      setToast({ type: "error", msg: axiosErr(e, "Failed to respond.") });
+      console.log("RESPOND ERROR:", e?.response || e);
+      setErr(
+        e?.response?.data?.detail ||
+          e?.response?.data?.message ||
+          (typeof e?.response?.data === "string" ? e.response.data : "") ||
+          "Failed to update request."
+      );
+    } finally {
+      setBusyId(null);
     }
   };
 
-  return (
-    <Shell
-      title="Roommate Requests"
-      subtitle="People who want to share with you"
-      right={
-        <div className="flex gap-2 flex-wrap">
-          <button
-            onClick={() => nav("/tenant/roommates/chats")}
-            className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm hover:bg-white/10 transition"
-          >
-            💬 Chats
-          </button>
-          <button
-            onClick={() => nav("/tenant/roommates")}
-            className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm hover:bg-white/10 transition"
-          >
-            ← Back
-          </button>
+  // ✅ one tenant can chat with multiple tenants
+  // each accepted request has its own thread_id
+  const openChat = (req) => {
+    const tid = req?.thread_id;
+    if (tid) nav(`/tenant/roommates/chats/${tid}`);
+    else nav("/tenant/roommates/chats");
+  };
+
+  // ✅ show tenant names (NO more "User")
+  const receivedName = (r) => r?.from_username || "Tenant";
+  const sentName = (r) => r?.to_username || "Tenant";
+
+  const card =
+    "p-4 rounded-xl bg-white shadow-sm flex items-center justify-between gap-4";
+
+  const renderReceived = (r) => {
+    const status = (r?.status || "").toLowerCase();
+    return (
+      <div key={r.id} className={card}>
+        <div className="min-w-0">
+          <div className="font-semibold text-gray-900 truncate">
+            {receivedName(r)}
+          </div>
+          <div className="text-sm text-gray-700 mt-1 whitespace-pre-wrap break-words">
+            {r.message ? `Hi! ${r.message}` : "No message"}
+          </div>
+          <div className="text-xs text-gray-500 mt-2">
+            Status: <span className="font-medium">{status}</span>
+          </div>
         </div>
-      }
-    >
-      {toast.msg && (
-        <div
-          className={`mb-3 rounded-xl border p-3 text-sm whitespace-pre-wrap ${
-            toast.type === "success"
-              ? "border-green-500/20 bg-green-500/10 text-green-200"
-              : toast.type === "error"
-              ? "border-red-500/20 bg-red-500/10 text-red-200"
-              : "border-white/10 bg-white/5 text-slate-200"
-          }`}
-        >
-          {toast.msg}
-        </div>
-      )}
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        {/* RECEIVED */}
-        <div className="rounded-2xl border border-white/10 bg-black/30 p-6">
-          <div className="text-sm font-semibold mb-3">Received</div>
-
-          {loading ? (
-            <div className="text-sm text-slate-300">Loading…</div>
-          ) : received.length === 0 ? (
-            <div className="text-sm text-slate-300">No received requests yet.</div>
-          ) : (
-            <div className="space-y-3">
-              {received.map((r) => (
-                <div key={r.id} className="rounded-xl border border-white/10 bg-white/5 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="font-semibold text-sm">{r.from_username}</div>
-                      <div className="text-xs text-slate-300 mt-1">{r.message || "—"}</div>
-                      <div className="text-xs text-slate-300 mt-1">Status: {r.status}</div>
-                    </div>
-
-                    {r.status === "pending" && (
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => respond(r.id, "accept")}
-                          className="rounded-xl border border-white/10 bg-emerald-600/30 px-3 py-2 text-xs hover:bg-emerald-600/40 transition"
-                        >
-                          Accept
-                        </button>
-                        <button
-                          onClick={() => respond(r.id, "reject")}
-                          className="rounded-xl border border-white/10 bg-red-600/30 px-3 py-2 text-xs hover:bg-red-600/40 transition"
-                        >
-                          Reject
-                        </button>
-                      </div>
-                    )}
-
-                    {r.status === "accepted" && (
-                      <button
-                        onClick={() => nav("/tenant/roommates/chats")}
-                        className="rounded-xl border border-white/10 bg-sky-600/30 px-3 py-2 text-xs hover:bg-sky-600/40 transition"
-                      >
-                        Message
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
+        <div className="flex gap-2 shrink-0">
+          {status === "pending" && (
+            <>
+              <button
+                disabled={busyId === r.id}
+                onClick={() => respond(r.id, "accept")}
+                className={`px-4 py-2 rounded-lg text-white ${
+                  busyId === r.id ? "bg-green-300" : "bg-green-600 hover:bg-green-700"
+                }`}
+              >
+                Accept
+              </button>
+              <button
+                disabled={busyId === r.id}
+                onClick={() => respond(r.id, "reject")}
+                className={`px-4 py-2 rounded-lg text-white ${
+                  busyId === r.id ? "bg-red-300" : "bg-red-600 hover:bg-red-700"
+                }`}
+              >
+                Reject
+              </button>
+            </>
           )}
-        </div>
 
-        {/* SENT */}
-        <div className="rounded-2xl border border-white/10 bg-black/30 p-6">
-          <div className="text-sm font-semibold mb-3">Sent</div>
-
-          {loading ? (
-            <div className="text-sm text-slate-300">Loading…</div>
-          ) : sent.length === 0 ? (
-            <div className="text-sm text-slate-300">No sent requests yet.</div>
-          ) : (
-            <div className="space-y-3">
-              {sent.map((r) => (
-                <div key={r.id} className="rounded-xl border border-white/10 bg-white/5 p-4">
-                  <div className="font-semibold text-sm">To: {r.to_username}</div>
-                  <div className="text-xs text-slate-300 mt-1">{r.message || "—"}</div>
-                  <div className="text-xs text-slate-300 mt-1">Status: {r.status}</div>
-                </div>
-              ))}
-            </div>
+          {status === "accepted" && (
+            <button
+              onClick={() => openChat(r)}
+              className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+            >
+              Message
+            </button>
           )}
         </div>
       </div>
-    </Shell>
+    );
+  };
+
+  const renderSent = (r) => {
+    const status = (r?.status || "").toLowerCase();
+    return (
+      <div key={r.id} className={card}>
+        <div className="min-w-0">
+          <div className="font-semibold text-gray-900 truncate">
+            To: {sentName(r)}
+          </div>
+          <div className="text-sm text-gray-700 mt-1 whitespace-pre-wrap break-words">
+            {r.message ? `Hi! ${r.message}` : "No message"}
+          </div>
+          <div className="text-xs text-gray-500 mt-2">
+            Status: <span className="font-medium">{status}</span>
+          </div>
+        </div>
+
+        {status === "accepted" && (
+          <button
+            onClick={() => openChat(r)}
+            className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+          >
+            Message
+          </button>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-900 to-blue-950 text-white">
+      <div className="max-w-6xl mx-auto p-6">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-3xl font-bold">Roommate Requests</h1>
+            <div className="text-sm text-blue-200 mt-1">
+              People who want to share with you
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              onClick={() => nav("/tenant/roommates/chats")}
+              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700"
+            >
+              💬 Chats
+            </button>
+            <button
+              onClick={() => nav(-1)}
+              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700"
+            >
+              ← Back
+            </button>
+          </div>
+        </div>
+
+        {err && (
+          <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-400/30 text-red-200">
+            {err}
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white/5 border border-white/10 rounded-2xl p-6">
+          {/* RECEIVED */}
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
+            <div className="text-lg font-semibold mb-4">Received</div>
+            {loading ? (
+              <div className="text-blue-200">Loading...</div>
+            ) : received.length === 0 ? (
+              <div className="text-blue-200">No received requests.</div>
+            ) : (
+              <div className="space-y-3">{received.map(renderReceived)}</div>
+            )}
+          </div>
+
+          {/* SENT */}
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
+            <div className="text-lg font-semibold mb-4">Sent</div>
+            {loading ? (
+              <div className="text-blue-200">Loading...</div>
+            ) : sent.length === 0 ? (
+              <div className="text-blue-200">No sent requests.</div>
+            ) : (
+              <div className="space-y-3">{sent.map(renderSent)}</div>
+            )}
+          </div>
+        </div>
+
+        <div className="text-center text-xs text-blue-200 mt-6 opacity-80">
+          Smart Rental • React + Django + JWT
+        </div>
+      </div>
+    </div>
   );
 }

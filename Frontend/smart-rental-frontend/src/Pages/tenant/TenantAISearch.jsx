@@ -1,3 +1,4 @@
+// src/pages/tenant/TenantAISearch.jsx
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
@@ -14,6 +15,17 @@ export default function TenantAISearch() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
   const [results, setResults] = useState([]);
+
+  // ✅ Google Maps link helper
+  const mapsUrl = (x) => {
+    // Prefer coordinates
+    if (x?.latitude != null && x?.longitude != null) {
+      return `https://www.google.com/maps?q=${x.latitude},${x.longitude}`;
+    }
+    // Fallback to search by text
+    const q = encodeURIComponent(`${x?.title || ""} ${x?.location || ""}`.trim());
+    return `https://www.google.com/maps/search/?api=1&query=${q}`;
+  };
 
   const runAISearch = async () => {
     setErr("");
@@ -127,9 +139,20 @@ export default function TenantAISearch() {
           {results.length > 0 ? (
             <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {results.map((x) => (
-                <div key={x.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <div className="text-sm font-semibold line-clamp-1">{x.title}</div>
-                  <div className="mt-1 text-xs text-slate-300 line-clamp-2">{x.location}</div>
+                <div
+                  key={x.id}
+                  className="rounded-2xl border border-white/10 bg-white/5 p-4"
+                >
+                  {/* ✅ House/Listing name */}
+                  <div className="text-sm font-semibold line-clamp-1">
+                    {x.title}
+                  </div>
+
+                  {/* ✅ Full location */}
+                  <div className="mt-1 text-xs text-slate-300 line-clamp-2">
+                    {x.location}
+                  </div>
+
                   <div className="mt-2 text-xs text-slate-300">
                     Rs {x.price_per_month} • {x.property_type} • {x.distance_km} km away
                   </div>
@@ -141,12 +164,24 @@ export default function TenantAISearch() {
                     >
                       View
                     </button>
+
                     <button
                       onClick={() => nav(`/tenant/book/${x.id}`)}
                       className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs hover:bg-white/10 transition"
                     >
                       Request Visit
                     </button>
+
+                    {/* ✅ Open directly in Google Maps */}
+                    <a
+                      href={mapsUrl(x)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="rounded-2xl border border-white/10 bg-emerald-500/15 px-3 py-2 text-xs hover:bg-emerald-500/25 transition"
+                      title="Open location in Google Maps"
+                    >
+                      📍 Open Map
+                    </a>
                   </div>
                 </div>
               ))}

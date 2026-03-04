@@ -22,7 +22,8 @@ def _ordered_pair(a_id: int, b_id: int):
 def _sync_threads_for_user(user):
     """
     Create missing chat threads for all accepted roommate requests involving this user.
-    This fixes older accepted requests that were accepted before thread creation code existed.
+    Fixes older accepted requests that existed before thread-creation logic.
+    IMPORTANT: RoommateChatThread model does NOT have 'title', so don't pass defaults with title.
     """
     accepted = RoommateRequest.objects.filter(
         Q(from_user=user) | Q(to_user=user),
@@ -32,11 +33,13 @@ def _sync_threads_for_user(user):
     created_ids = []
     for req in accepted:
         a, b = _ordered_pair(req.from_user_id, req.to_user_id)
+
+        # ✅ FIX: remove defaults={"title": ...} because model has no title field
         thread, created = RoommateChatThread.objects.get_or_create(
             user1_id=a,
             user2_id=b,
-            defaults={"title": f"{req.from_user.username} & {req.to_user.username}"},
         )
+
         if created:
             created_ids.append(thread.id)
 
@@ -74,7 +77,7 @@ def roommate_thread_messages(request, thread_id: int):
 
     try:
         thread = RoommateChatThread.objects.get(id=thread_id)
-    except Exception:
+    except RoommateChatThread.DoesNotExist:
         return Response({"detail": "Thread not found"}, status=status.HTTP_404_NOT_FOUND)
 
     if not _allowed(thread, user):
@@ -96,7 +99,7 @@ def roommate_send_message(request, thread_id: int):
 
     try:
         thread = RoommateChatThread.objects.get(id=thread_id)
-    except Exception:
+    except RoommateChatThread.DoesNotExist:
         return Response({"detail": "Thread not found"}, status=status.HTTP_404_NOT_FOUND)
 
     if not _allowed(thread, user):

@@ -35,7 +35,6 @@ def _clamp(x, lo=0.0, hi=1.0):
 
 
 def _haversine_km(lat1, lon1, lat2, lon2):
-    # Earth radius km
     R = 6371.0
     phi1 = math.radians(lat1)
     phi2 = math.radians(lat2)
@@ -47,6 +46,7 @@ def _haversine_km(lat1, lon1, lat2, lon2):
     return R * c
 
 
+# ✅ REPLACE THIS FUNCTION
 def _geocode_place_nominatim(place_name: str):
     """
     Free geocoding using OpenStreetMap Nominatim.
@@ -56,30 +56,51 @@ def _geocode_place_nominatim(place_name: str):
         return None
 
     url = "https://nominatim.openstreetmap.org/search"
-    params = {"q": place_name, "format": "json", "limit": 1}
-    headers = {"User-Agent": "SmartRentalHouseFinder/1.0 (contact: your-email@example.com)"}
+    params = {
+        "q": place_name,
+        "format": "jsonv2",  # ✅ better format
+        "limit": 1,
+        "addressdetails": 0,
+        # ✅ use a real contact email (important for reliability)
+        "email": "kechan.shrestha@gmail.com",
+    }
+    headers = {
+        # ✅ use real contact
+        "User-Agent": "SmartRentalHouseFinder/1.0 (contact: kechan.shrestha@gmail.com)",
+        "Accept": "application/json",
+        "Accept-Language": "en",
+    }
 
     try:
-        r = requests.get(url, params=params, headers=headers, timeout=8)
-        r.raise_for_status()
-        data = r.json()
-        if not data:
+        r = requests.get(url, params=params, headers=headers, timeout=12)
+
+        # If blocked/limited
+        if r.status_code in (403, 429):
             return None
-        return float(data[0]["lat"]), float(data[0]["lon"])
-    except Exception:
+
+        # Must be 200
+        if r.status_code != 200:
+            return None
+
+        data = r.json()
+
+        # Nominatim returns a list
+        if not isinstance(data, list) or len(data) == 0:
+            return None
+
+        lat = float(data[0].get("lat"))
+        lon = float(data[0].get("lon"))
+        return lat, lon
+
+    except Exception as e:
+        # ✅ helpful debug in terminal
+        print("GEOCODE ERROR:", type(e).__name__, str(e))
         return None
 
 
 def _score_listing(distance_km, price, min_price=None, max_price=None, radius_km=2.0):
-    """
-    Explainable scoring (no ML needed):
-    - closer distance => higher score
-    - closer to budget center => higher score
-    Returns (score, reasons[])
-    """
     reasons = []
 
-    # Distance score (0..1): 1 at center, 0 at edge of radius
     if radius_km and radius_km > 0:
         distance_score = 1.0 - _clamp(distance_km / radius_km)
     else:
@@ -87,8 +108,7 @@ def _score_listing(distance_km, price, min_price=None, max_price=None, radius_km
 
     reasons.append(f"{distance_km:.2f} km from your location")
 
-    # Budget score (0..1)
-    budget_score = 0.5  # neutral default
+    budget_score = 0.5
     try:
         p = float(price)
     except Exception:
@@ -102,14 +122,12 @@ def _score_listing(distance_km, price, min_price=None, max_price=None, radius_km
             budget_score = 1.0 - _clamp(diff / half_range)
             reasons.append(f"Within your budget ({min_price:.0f}–{max_price:.0f})")
         elif min_price is not None:
-            # if only min is set, treat as good match if above min
             budget_score = 0.8
             reasons.append(f"Meets minimum budget (≥ {min_price:.0f})")
         elif max_price is not None:
             budget_score = 0.8
             reasons.append(f"Within max budget (≤ {max_price:.0f})")
 
-    # Weighted final score (tune if you want)
     score = (0.6 * distance_score) + (0.4 * budget_score)
     score = round(_clamp(score), 3)
 
@@ -135,21 +153,6 @@ def _listing_to_dict(l: Listing, distance_km=None, score=None, reasons=None):
 @api_view(["POST"])
 @permission_classes([IsAuthenticated, IsTenantRole])
 def tenant_ai_suggest_nearby(request):
-    """
-    ✅ Requirement 1:
-    Tenant enters a place name (or lat/lng), choose radius (1km/2km/15km),
-    system suggests nearby listings and creates a Notification.
-
-    ✅ Requirement 2:
-    filter by min_price/max_price/property_type.
-
-    ⭐ Enhancements (for better marks):
-    - Explainable recommendation score (distance + budget)
-    - Sort by score (desc), then distance (asc)
-    - "Why recommended?" reasons in API response
-    - Fallback radius if no results
-    """
-
     place = (request.data.get("place") or "").strip()
     lat = _to_float(request.data.get("lat"))
     lng = _to_float(request.data.get("lng"))
@@ -157,15 +160,13 @@ def tenant_ai_suggest_nearby(request):
     radius_km = _to_float(request.data.get("radius_km")) or 2.0
     min_price = _to_float(request.data.get("min_price"))
     max_price = _to_float(request.data.get("max_price"))
-    property_type = (request.data.get("property_type") or "").strip().lower()  # room/house/apartment
+    property_type = (request.data.get("property_type") or "").strip().lower()
 
     # 1) Determine target coordinate
     if lat is None or lng is None:
         if not place:
-            return Response(
-                {"detail": "Provide place OR lat/lng."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            return Response({"detail": "Provide place OR lat/lng."}, status=status.HTTP_400_BAD_REQUEST)
+
         geo = _geocode_place_nominatim(place)
         if not geo:
             return Response(
@@ -177,11 +178,9 @@ def tenant_ai_suggest_nearby(request):
     # 2) Base queryset
     qs = Listing.objects.filter(is_available=True)
 
-    # property type filter
     if property_type and property_type != "all":
         qs = qs.filter(property_type=property_type)
 
-    # price filters
     if min_price is not None:
         qs = qs.filter(price_per_month__gte=min_price)
     if max_price is not None:
@@ -208,13 +207,11 @@ def tenant_ai_suggest_nearby(request):
                 )
                 ranked.append((score, d, reasons, l))
 
-        # Sort: higher score first, then closer distance
         ranked.sort(key=lambda x: (-x[0], x[1]))
         return ranked
 
     ranked = build_ranked_results(radius_used)
 
-    # If no results, expand radius gradually
     if len(ranked) == 0:
         for r in [max(radius_used, 3.0), 5.0, 10.0]:
             ranked = build_ranked_results(r)
@@ -229,7 +226,7 @@ def tenant_ai_suggest_nearby(request):
         for (score, d, reasons, l) in top
     ]
 
-    # 4) Create notification (summary)
+    # 4) Notification
     title_txt = "AI Nearby Suggestions"
     place_txt = place if place else f"{lat:.4f},{lng:.4f}"
 
@@ -242,7 +239,6 @@ def tenant_ai_suggest_nearby(request):
         msg_txt = f"Found {len(payload)} listings within {radius_used} km of {place_txt}."
 
     link = f"/tenant/ai?place={place_txt}&radius_km={radius_used}"
-
     _create_notification(request.user, title_txt, msg_txt, link=link)
 
     return Response(

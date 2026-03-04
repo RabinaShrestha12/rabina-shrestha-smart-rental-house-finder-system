@@ -4,6 +4,7 @@ from django.contrib.auth import get_user_model
 from django.core.files.base import ContentFile
 from PIL import Image, ImageOps
 from rest_framework import serializers
+from django.db.models import Q
 
 from .models import (
     Owner,
@@ -22,6 +23,7 @@ from .models import (
     RoommateRequest,
     RoommateChatMessage,
     RoommateChatThread,
+    
 )
 
 User = get_user_model()
@@ -573,15 +575,59 @@ class RoommateProfileSerializer(serializers.ModelSerializer):
         ]
 
 
+# ✅ Roommate Chat Serializers
+
+class RoommateChatThreadSerializer(serializers.ModelSerializer):
+    other_user_id = serializers.SerializerMethodField()
+    other_username = serializers.SerializerMethodField()
+    last_message = serializers.SerializerMethodField()  # ✅ add this
+
+    class Meta:
+        model = RoommateChatThread
+        fields = ["id", "created_at", "other_user_id", "other_username", "last_message"]
+
+    def _other(self, obj):
+        me = self.context["request"].user
+        return obj.user2 if obj.user1_id == me.id else obj.user1
+
+    def get_other_user_id(self, obj):
+        return self._other(obj).id
+
+    def get_other_username(self, obj):
+        return self._other(obj).username
+
+    def get_last_message(self, obj):
+        m = obj.messages.order_by("-created_at").first()
+        if not m:
+            return None
+        return {
+            "text": m.text[:120],
+            "created_at": m.created_at,
+            "sender_id": m.sender_id,
+            "sender_username": m.sender.username,
+        }
+
+
+class RoommateChatMessageSerializer(serializers.ModelSerializer):
+    sender_id = serializers.IntegerField(source="sender.id", read_only=True)
+    sender_username = serializers.CharField(source="sender.username", read_only=True)
+
+    class Meta:
+        model = RoommateChatMessage
+        fields = ["id", "thread", "sender_id", "sender_username", "text", "created_at"]
+        read_only_fields = ["id", "thread", "sender_id", "sender_username", "created_at"]
+
+
 class RoommateRequestSerializer(serializers.ModelSerializer):
     from_user_id = serializers.IntegerField(source="from_user.id", read_only=True)
     to_user_id = serializers.IntegerField(source="to_user.id", read_only=True)
 
+    # ✅ these are what you will show on UI
     from_username = serializers.CharField(source="from_user.username", read_only=True)
     to_username = serializers.CharField(source="to_user.username", read_only=True)
 
-    # ✅ return thread id if accepted
-    thread_id = serializers.IntegerField(read_only=True)
+    # ✅ for message button (works for multiple accepted tenants)
+    thread_id = serializers.SerializerMethodField()
 
     class Meta:
         model = RoommateRequest
@@ -595,34 +641,11 @@ class RoommateRequestSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["created_at", "responded_at", "thread_id"]
 
-
-# =========================
-# ✅ Roommate Chat Serializers
-# =========================
-class RoommateChatThreadSerializer(serializers.ModelSerializer):
-    other_user_id = serializers.SerializerMethodField()
-    other_username = serializers.SerializerMethodField()
-
-    class Meta:
-        model = RoommateChatThread
-        fields = ["id", "created_at", "other_user_id", "other_username"]
-
-    def get_other_user_id(self, obj):
-        me = self.context["request"].user
-        other = obj.user2 if obj.user1_id == me.id else obj.user1
-        return other.id
-
-    def get_other_username(self, obj):
-        me = self.context["request"].user
-        other = obj.user2 if obj.user1_id == me.id else obj.user1
-        return other.username
-
-
-class RoommateChatMessageSerializer(serializers.ModelSerializer):
-    sender_id = serializers.IntegerField(source="sender.id", read_only=True)
-    sender_username = serializers.CharField(source="sender.username", read_only=True)
-
-    class Meta:
-        model = RoommateChatMessage
-        fields = ["id", "thread", "sender_id", "sender_username", "text", "created_at"]
-        read_only_fields = ["id", "thread", "sender_id", "sender_username", "created_at"]
+    def get_thread_id(self, obj):
+        if obj.status != "accepted":
+            return None
+        a, b = obj.from_user_id, obj.to_user_id
+        thread = RoommateChatThread.objects.filter(
+            Q(user1_id=a, user2_id=b) | Q(user1_id=b, user2_id=a)
+        ).first()
+        return thread.id if thread else None

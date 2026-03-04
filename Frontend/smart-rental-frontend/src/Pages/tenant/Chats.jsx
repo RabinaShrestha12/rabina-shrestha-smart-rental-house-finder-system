@@ -1,26 +1,54 @@
 // src/pages/tenant/Chats.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import axios from "../../api/axios"; // ✅ your axios instance
+import axios from "../../api/axios";
+import { useAuth } from "../../auth/AuthContext";
+
+function decodeJwtPayload(token) {
+  try {
+    const part = token.split(".")[1];
+    if (!part) return null;
+    let b64 = part.replace(/-/g, "+").replace(/_/g, "/");
+    while (b64.length % 4) b64 += "=";
+    return JSON.parse(atob(b64));
+  } catch {
+    return null;
+  }
+}
+
+function getMyIdFromToken() {
+  const token =
+    localStorage.getItem("access") ||
+    localStorage.getItem("access_token") ||
+    "";
+  if (!token) return null;
+  const payload = decodeJwtPayload(token);
+  return payload?.user_id ?? payload?.userId ?? payload?.sub ?? null;
+}
 
 export default function Chats() {
   const nav = useNavigate();
+  const { user } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [threads, setThreads] = useState([]);
   const [q, setQ] = useState("");
   const [err, setErr] = useState("");
 
-  // ✅ matches your urls.py
-  const THREADS_URL = useMemo(() => "/tenant/roommates/chats/", []);
+  const THREADS_URL = useMemo(() => "tenant/roommates/chats/", []);
+
+  const myId = useMemo(() => {
+    const id =
+      user?.id ?? user?.user_id ?? user?.pk ?? user?.user?.id ?? null;
+    const finalId = id ?? getMyIdFromToken();
+    return finalId ? Number(finalId) : null;
+  }, [user]);
 
   const loadThreads = async () => {
     setErr("");
     setLoading(true);
     try {
       const res = await axios.get(THREADS_URL);
-
-      // ✅ Your backend returns: { results: [...] }
       const list = Array.isArray(res?.data?.results) ? res.data.results : [];
       setThreads(list);
     } catch (e) {
@@ -46,14 +74,31 @@ export default function Chats() {
     if (!text) return threads;
 
     return threads.filter((t) => {
-      const title = (t.title || "").toLowerCase();
-      const other = (t.other_user?.username || t.other_username || "").toLowerCase();
-      return title.includes(text) || other.includes(text);
+      const name = (t.other_username || "").toLowerCase();
+      return name.includes(text);
     });
   }, [q, threads]);
 
-  const openThread = (id) => {
-    nav(`/tenant/roommates/chats/${id}`);
+  const openThread = (id) => nav(`/tenant/roommates/chats/${id}`);
+
+  const previewText = (t) => {
+    const lm = t?.last_message;
+    if (!lm) return "No messages yet";
+
+    const senderId = lm?.sender_id != null ? Number(lm.sender_id) : null;
+
+    // ✅ if last message is from other tenant
+    if (myId && senderId && senderId !== myId) {
+      return "Message received";
+    }
+
+    // if last message is mine (optional nicer text)
+    return `You: ${lm?.text || ""}`.trim();
+  };
+
+  const previewTime = (t) => {
+    const dt = t?.last_message?.created_at || t?.created_at;
+    return dt ? new Date(dt).toLocaleString() : "";
   };
 
   return (
@@ -115,27 +160,22 @@ export default function Chats() {
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="font-semibold text-gray-900">
-                        {t.title || t.other_user?.username || `Thread #${t.id}`}
+                        {t.other_username || `Thread #${t.id}`}
                       </div>
 
                       <div className="text-sm text-gray-600 truncate max-w-[280px]">
-                        {t.last_message?.text || t.last_message || "No messages yet"}
+                        {previewText(t)}
                       </div>
                     </div>
 
                     <div className="text-xs text-gray-500">
-                      {t.created_at ? new Date(t.created_at).toLocaleString() : ""}
+                      {previewTime(t)}
                     </div>
                   </div>
                 </div>
               ))}
             </div>
           )}
-
-          <div className="mt-4 text-xs text-gray-500">
-            Backend: <span className="font-mono">GET /api/tenant/roommates/chats/</span> returns{" "}
-            <span className="font-mono">{`{ results: [...] }`}</span>
-          </div>
         </div>
       </div>
     </div>
