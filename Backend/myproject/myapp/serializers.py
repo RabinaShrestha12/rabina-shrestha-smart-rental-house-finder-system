@@ -23,7 +23,7 @@ from .models import (
     RoommateRequest,
     RoommateChatMessage,
     RoommateChatThread,
-    
+    FurnitureItem,
 )
 
 User = get_user_model()
@@ -649,3 +649,29 @@ class RoommateRequestSerializer(serializers.ModelSerializer):
             Q(user1_id=a, user2_id=b) | Q(user1_id=b, user2_id=a)
         ).first()
         return thread.id if thread else None
+    
+class FurnitureItemSerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = FurnitureItem
+        fields = [
+            "id",
+            "name",
+            "category",
+            "furniture_type",
+            "color",
+            "image",
+            "image_url",
+            "width",
+            "height",
+            "is_active",
+            "created_at",
+            "updated_at",
+        ]
+
+    def get_image_url(self, obj):
+        request = self.context.get("request")
+        if obj.image and request:
+            return request.build_absolute_uri(obj.image.url)
+        return obj.image.url if obj.image else ""

@@ -583,3 +583,29 @@ class RoommateChatMessage(models.Model):
 
     def __str__(self):
         return f"RoommateChatMessage(thread={self.thread_id}, sender={self.sender_id})"
+
+class FurnitureItem(models.Model):
+    CATEGORY_CHOICES = [
+        ("Sofa", "Sofa"),
+        ("Bed", "Bed"),
+        ("Chair", "Chair"),
+        ("Table", "Table"),
+        ("Lamp", "Lamp"),
+        ("Plant", "Plant"),
+        ("Cabinet", "Cabinet"),
+        ("Other", "Other"),
+    ]
+
+    name = models.CharField(max_length=150)
+    category = models.CharField(max_length=50, choices=CATEGORY_CHOICES, default="Other")
+    furniture_type = models.CharField(max_length=100, blank=True)
+    color = models.CharField(max_length=100, blank=True)
+    image = models.ImageField(upload_to="furniture/")
+    width = models.PositiveIntegerField(default=120)
+    height = models.PositiveIntegerField(default=120)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name

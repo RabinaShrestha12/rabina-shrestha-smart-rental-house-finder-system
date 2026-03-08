@@ -15,6 +15,16 @@ def _create_notification(user, title, message, link=""):
         pass
 
 
+def _user_display_name(user):
+    if not user:
+        return ""
+    try:
+        full_name = (user.get_full_name() or "").strip()
+    except Exception:
+        full_name = ""
+    return full_name or getattr(user, "username", "") or getattr(user, "email", "") or "Unknown"
+
+
 def _maintenance_to_dict(m: MaintenanceRequest):
     provider_user = m.assigned_provider
     provider_profile = None
@@ -24,10 +34,14 @@ def _maintenance_to_dict(m: MaintenanceRequest):
     return {
         "id": m.id,
         "owner_id": m.owner_id,
+        "owner_name": _user_display_name(m.owner),
+        "owner_email": getattr(m.owner, "email", "") or "",
+
         "listing_id": m.listing_id,
 
         "assigned_provider_id": provider_user.id if provider_user else None,
-        "assigned_provider_name": (provider_user.get_full_name() or provider_user.username) if provider_user else "",
+        "assigned_provider_name": _user_display_name(provider_user) if provider_user else "",
+        "assigned_provider_email": getattr(provider_user, "email", "") if provider_user else "",
         "assigned_provider_category": provider_profile.category if provider_profile else "",
 
         "category": m.category,
@@ -99,8 +113,8 @@ def owner_update_maintenance_status(request, req_id):
         _create_notification(
             user=m.assigned_provider,
             title="Maintenance status updated",
-            message=f"Owner updated maintenance #{m.id} to {m.status}",
-            link=f"/provider/jobs/{m.id}",
+            message=f"{_user_display_name(request.user)} updated '{m.title or f'Maintenance #{m.id}'}' to {m.status}",
+            link=f"/provider/chat/{m.id}",
         )
 
     return Response(_maintenance_to_dict(m), status=status.HTTP_200_OK)
@@ -123,11 +137,11 @@ def owner_available_providers(request):
     data = []
     for p in qs.order_by("-updated_at"):
         data.append({
-            "id": p.id,                 # profile id
-            "user_id": p.user_id,       # provider user id
-            "name": (p.user.get_full_name() or p.user.username),
+            "id": p.id,
+            "user_id": p.user_id,
+            "name": _user_display_name(p.user),
             "email": p.user.email,
-            "phone": p.phone or p.user.phone,
+            "phone": p.phone or getattr(p.user, "phone", ""),
             "category": p.category,
             "service_area": p.service_area,
             "availability": p.availability,
@@ -158,17 +172,14 @@ def owner_assign_provider(request, req_id):
     except (ServiceProviderProfile.DoesNotExist, ValueError):
         return Response({"detail": "Service provider not found."}, status=status.HTTP_404_NOT_FOUND)
 
-    # ✅ assigned_provider expects USER
     m.assigned_provider = profile.user
-    # keep status open until provider accepts (recommended)
-    # (if you want instant chat after assignment, then set in_progress here)
     m.save(update_fields=["assigned_provider", "updated_at"])
 
     _create_notification(
         user=profile.user,
         title="New maintenance request assigned",
-        message=f"You have a new maintenance request #{m.id}. Please Accept to start chat.",
-        link=f"/provider/jobs/{m.id}",
+        message=f"{_user_display_name(request.user)} assigned you '{m.title or f'Maintenance #{m.id}'}'",
+        link=f"/provider/chat/{m.id}",
     )
 
     return Response(_maintenance_to_dict(m), status=status.HTTP_200_OK)
@@ -180,7 +191,7 @@ def owner_assign_provider(request, req_id):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated, IsProviderRole])
 def provider_my_jobs(request):
-    qs = MaintenanceRequest.objects.filter(assigned_provider=request.user).order_by("-created_at")
+    qs = MaintenanceRequest.objects.filter(assigned_provider=request.user).order_by("-updated_at", "-created_at")
     return Response([_maintenance_to_dict(x) for x in qs], status=status.HTTP_200_OK)
 
 
@@ -201,9 +212,9 @@ def provider_accept_job(request, req_id):
 
     _create_notification(
         user=m.owner,
-        title="Maintenance Accepted",
-        message=f"Provider accepted maintenance #{m.id}. Chat is now open.",
-        link=f"/owner/chat/{m.id}",
+        title="Maintenance accepted",
+        message=f"{_user_display_name(request.user)} accepted '{m.title or f'Maintenance #{m.id}'}'. Chat is now open.",
+        link=f"/owner/maintenance/{m.id}",
     )
 
     return Response(_maintenance_to_dict(m), status=status.HTTP_200_OK)
@@ -213,7 +224,7 @@ def provider_accept_job(request, req_id):
 @permission_classes([IsAuthenticated, IsProviderRole])
 def provider_update_job_status(request, req_id):
     new_status = (request.data.get("status") or "").strip()
-    allowed = {"open", "in_progress", "resolved", "rejected"}
+    allowed = {"open", "in_progress", "resolved", "rejected", "completed"}
     if new_status not in allowed:
         return Response({"detail": "Invalid status."}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -222,13 +233,16 @@ def provider_update_job_status(request, req_id):
     except MaintenanceRequest.DoesNotExist:
         return Response({"detail": "Job not found."}, status=status.HTTP_404_NOT_FOUND)
 
-    m.status = new_status
+    # If your model does not allow "completed", map it to "resolved"
+    save_status = "resolved" if new_status == "completed" else new_status
+
+    m.status = save_status
     m.save(update_fields=["status", "updated_at"])
 
     _create_notification(
         user=m.owner,
         title="Provider updated maintenance status",
-        message=f"Provider updated maintenance #{m.id} to {m.status}",
+        message=f"{_user_display_name(request.user)} updated '{m.title or f'Maintenance #{m.id}'}' to {save_status}",
         link=f"/owner/maintenance/{m.id}",
     )
 

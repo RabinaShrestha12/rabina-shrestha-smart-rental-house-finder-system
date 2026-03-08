@@ -1,4 +1,3 @@
-// src/pages/dashboard/OwnerDashboard.jsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
@@ -28,37 +27,58 @@ function haversineMeters(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 
+function readStoredUser() {
+  try {
+    return JSON.parse(localStorage.getItem("user") || "null");
+  } catch {
+    return null;
+  }
+}
+
 export default function OwnerDashboard() {
-  const { role, email, logout } = useAuth();
+  const { role, email, logout, booting } = useAuth();
   const nav = useNavigate();
+
+  const storedUser = useMemo(() => readStoredUser(), []);
+  const displayEmail =
+    email ||
+    storedUser?.email ||
+    localStorage.getItem("email") ||
+    storedUser?.username ||
+    "Owner";
+
+  const bookingSeenKey = useMemo(
+    () => `owner_seen_bookings_${displayEmail || "owner"}`,
+    [displayEmail]
+  );
+
+  const reviewSeenKey = useMemo(
+    () => `owner_seen_reviews_${displayEmail || "owner"}`,
+    [displayEmail]
+  );
 
   const [toast, setToast] = useState({ type: "info", msg: "" });
 
-  // profile
   const [profile, setProfile] = useState(null);
-
-  // show/hide property form
   const [showAddProperty, setShowAddProperty] = useState(false);
-
-  // booking requests inbox
   const [requests, setRequests] = useState([]);
   const [loadingMsgs, setLoadingMsgs] = useState(false);
 
-  // ✅ REVIEWS
   const [showReviews, setShowReviews] = useState(false);
   const [reviews, setReviews] = useState([]);
   const [reviewsLoading, setReviewsLoading] = useState(false);
   const [reviewsError, setReviewsError] = useState("");
   const [reviewQuery, setReviewQuery] = useState("");
 
-  // ✅ NOTIFICATIONS
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [notifLoading, setNotifLoading] = useState(false);
   const [notifError, setNotifError] = useState("");
   const [notifQuery, setNotifQuery] = useState("");
 
-  // ---- PROPERTY FORM STATE ----
+  const [seenBookingIds, setSeenBookingIds] = useState([]);
+  const [seenReviewIds, setSeenReviewIds] = useState([]);
+
   const [form, setForm] = useState({
     title: "",
     description: "",
@@ -72,10 +92,8 @@ export default function OwnerDashboard() {
     longitude: "",
   });
 
-  // map-picked marker
-  const [picked, setPicked] = useState(null); // {lat, lng}
+  const [picked, setPicked] = useState(null);
 
-  // Cover + 360 files
   const [coverImage, setCoverImage] = useState(null);
   const [pano, setPano] = useState({
     front: null,
@@ -88,7 +106,6 @@ export default function OwnerDashboard() {
 
   const [posting, setPosting] = useState(false);
 
-  // Address details (Nominatim)
   const [geoLoading, setGeoLoading] = useState(false);
   const [place, setPlace] = useState({
     display: "",
@@ -100,9 +117,8 @@ export default function OwnerDashboard() {
     postcode: "",
   });
 
-  // Nearby places (Overpass)
   const [nearbyLoading, setNearbyLoading] = useState(false);
-  const [radius, setRadius] = useState(1200); // meters
+  const [radius, setRadius] = useState(1200);
   const [nearby, setNearby] = useState({
     schools: [],
     colleges: [],
@@ -112,29 +128,67 @@ export default function OwnerDashboard() {
     atms: [],
   });
 
-  // Avoid spamming APIs on repeated clicks quickly
   const inFlightRef = useRef({ nominatim: null, overpass: null });
+  const notifToastTimerRef = useRef(null);
+  const reviewToastTimerRef = useRef(null);
 
-  // ---------------------------
-  // Helpers
-  // ---------------------------
+  const notifInitRef = useRef(false);
+  const seenNotifIdsRef = useRef(new Set());
+
+  const reviewInitRef = useRef(false);
+  const seenReviewIdsRef = useRef(new Set());
+
   const arrify = (data) =>
     Array.isArray(data) ? data : Array.isArray(data?.results) ? data.results : [];
 
+  const loadSeenIds = (key) => {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const saveSeenIds = (key, ids) => {
+    try {
+      localStorage.setItem(key, JSON.stringify(ids));
+    } catch {}
+  };
+
   const getBookingId = (b) => b?.id ?? b?.booking_id ?? b?.pk;
   const getStatus = (b) => (b?.status ?? b?.state ?? "pending").toLowerCase();
+
   const getTenantEmail = (b) =>
     b?.tenant_email ||
     b?.tenant?.email ||
     b?.tenant_username ||
     b?.tenant?.username ||
     "Tenant";
+
+  const getTenantName = (b) =>
+    b?.tenant_name ||
+    b?.tenant?.username ||
+    b?.tenant?.name ||
+    b?.tenant_username ||
+    "Tenant";
+
+  const getTenantPhone = (b) =>
+    b?.tenant_phone ||
+    b?.tenant?.phone ||
+    b?.phone ||
+    "";
+
+  const getTenantDisplay = (b) =>
+    getTenantEmail(b) || getTenantName(b) || "Tenant";
+
   const getListingTitle = (b) =>
     b?.listing_title ||
     b?.listing?.title ||
     b?.property_title ||
     b?.property?.title ||
     "Property";
+
   const getFirstMessage = (b) =>
     b?.first_message || b?.message || b?.text || b?.latest_message || "";
 
@@ -149,7 +203,6 @@ export default function OwnerDashboard() {
     }
   };
 
-  // ✅ Review helpers
   const getReviewId = (r, idx) => r?.id ?? r?.review_id ?? r?.pk ?? `${idx}`;
   const getReviewRating = (r) =>
     r?.rating ?? r?.stars ?? r?.score ?? r?.overall_rating ?? null;
@@ -178,21 +231,171 @@ export default function OwnerDashboard() {
     return "★".repeat(full) + "☆".repeat(5 - full);
   };
 
-  // ✅ Notification helpers
-  const getNotifId = (n, idx) => n?.id ?? n?.notification_id ?? n?.pk ?? `${idx}`;
-  const getNotifTitle = (n) => n?.title ?? n?.subject ?? n?.type ?? "Notification";
-  const getNotifBody = (n) => n?.message ?? n?.body ?? n?.text ?? n?.detail ?? "";
+  const getNotifId = (n, idx = 0) =>
+    n?.id ?? n?.notification_id ?? n?.pk ?? `${idx}`;
+  const getNotifTitle = (n) =>
+    n?.title ?? n?.subject ?? n?.type ?? "Notification";
+  const getNotifBody = (n) =>
+    n?.message ?? n?.body ?? n?.text ?? n?.detail ?? "";
   const getNotifCreatedAt = (n) =>
     n?.created_at || n?.created || n?.timestamp || n?.date || "";
+  const getNotifLink = (n) => n?.link ?? n?.url ?? "";
+
+  const getOwnerSafeNotifLink = (nOrLink) => {
+    const raw = typeof nOrLink === "string" ? nOrLink : getNotifLink(nOrLink);
+    const link = String(raw || "").trim();
+
+    if (!link) return "";
+
+    if (link.includes("/provider/chat/")) {
+      const jobId = link.split("/provider/chat/")[1]?.split(/[/?#]/)[0];
+      if (jobId) return `/owner/provider-chat/${jobId}`;
+    }
+
+    if (link.includes("/owner/maintenance/")) {
+      const jobId = link.split("/owner/maintenance/")[1]?.split(/[/?#]/)[0];
+      if (jobId) return `/owner/provider-chat/${jobId}`;
+    }
+
+    return link;
+  };
+
   const isNotifUnread = (n) => {
     const v = n?.is_read ?? n?.read ?? n?.seen;
     if (v === undefined || v === null) return false;
     return !Boolean(v);
   };
 
-  // ---------------------------
-  // Validation helpers
-  // ---------------------------
+  const getNotifKind = (n) => {
+    const title = String(getNotifTitle(n) || "").toLowerCase();
+    const body = String(getNotifBody(n) || "").toLowerCase();
+    const link = String(getOwnerSafeNotifLink(n) || "").toLowerCase();
+
+    if (
+      title.includes("booking") ||
+      body.includes("booking") ||
+      body.includes("tenant") ||
+      link.includes("/owner/messages") ||
+      link.includes("/tenant/inbox")
+    ) {
+      return "booking";
+    }
+
+    if (
+      title.includes("provider") ||
+      title.includes("maintenance") ||
+      body.includes("provider") ||
+      body.includes("maintenance") ||
+      body.includes("job") ||
+      link.includes("/owner/maintenance") ||
+      link.includes("/provider/chat") ||
+      link.includes("/owner/provider-chat")
+    ) {
+      return "provider";
+    }
+
+    if (
+      title.includes("review") ||
+      body.includes("review") ||
+      body.includes("rating")
+    ) {
+      return "review";
+    }
+
+    return "other";
+  };
+
+  const getNotifKindLabel = (n) => {
+    const kind = getNotifKind(n);
+    if (kind === "booking") return "📅 Booking";
+    if (kind === "provider") return "🧰 Provider";
+    if (kind === "review") return "⭐ Review";
+    return "🔔 General";
+  };
+
+  const getNotifKindClasses = (n) => {
+    const kind = getNotifKind(n);
+    if (kind === "booking") {
+      return "border-blue-500/20 bg-blue-500/10 text-blue-200";
+    }
+    if (kind === "provider") {
+      return "border-emerald-500/20 bg-emerald-500/10 text-emerald-200";
+    }
+    if (kind === "review") {
+      return "border-amber-500/20 bg-amber-500/10 text-amber-200";
+    }
+    return "border-purple-500/20 bg-purple-500/10 text-purple-200";
+  };
+
+  const getNotifSender = (n) => {
+    const body = String(getNotifBody(n) || "").trim();
+
+    const patterns = [
+      /^(.+?)\s+sent\b/i,
+      /^(.+?)\s+updated\b/i,
+      /^(.+?)\s+replied\b/i,
+      /^(.+?)\s+accepted\b/i,
+      /^(.+?)\s+rejected\b/i,
+      /^(.+?)\s+requested\b/i,
+    ];
+
+    for (const p of patterns) {
+      const m = body.match(p);
+      if (m?.[1]) return m[1].trim();
+    }
+
+    if (getNotifKind(n) === "booking") return "Tenant";
+    if (getNotifKind(n) === "provider") return "Service Provider";
+    if (getNotifKind(n) === "review") return "Reviewer";
+    return "Someone";
+  };
+
+  const getGroupedTitle = (group) => {
+    if (group.kind === "booking") {
+      return group.count === 1
+        ? "New booking notification"
+        : `${group.count} booking notifications`;
+    }
+
+    if (group.kind === "provider") {
+      return group.count === 1
+        ? "New service provider notification"
+        : `${group.count} service provider notifications`;
+    }
+
+    if (group.kind === "review") {
+      return group.count === 1
+        ? "New review notification"
+        : `${group.count} review notifications`;
+    }
+
+    return group.count === 1 ? "New notification" : `${group.count} notifications`;
+  };
+
+  const getGroupedBody = (group) => {
+    if (group.kind === "booking") {
+      return `${group.sender} sent ${group.count} booking notification${
+        group.count > 1 ? "s" : ""
+      } to you.`;
+    }
+
+    if (group.kind === "provider") {
+      return `${group.sender} sent ${group.count} provider notification${
+        group.count > 1 ? "s" : ""
+      } to you.`;
+    }
+
+    if (group.kind === "review") {
+      return `${group.sender} sent ${group.count} review notification${
+        group.count > 1 ? "s" : ""
+      } to you.`;
+    }
+
+    return `${group.sender} sent ${group.count} notification${
+      group.count > 1 ? "s" : ""
+    } to you.`;
+  };
+
   const isEmail = (v) =>
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || "").trim());
   const isPhone = (v) => /^[0-9+\-\s]{7,20}$/.test(String(v || "").trim());
@@ -216,13 +419,15 @@ export default function OwnerDashboard() {
       errors.push("Price per month must be a positive number.");
     }
 
-    if (!form.owner_contact_number.trim())
+    if (!form.owner_contact_number.trim()) {
       errors.push("Owner contact number is required.");
-    else if (!isPhone(form.owner_contact_number))
+    } else if (!isPhone(form.owner_contact_number)) {
       errors.push("Owner contact number looks invalid.");
+    }
 
-    if (form.owner_contact_email && !isEmail(form.owner_contact_email))
+    if (form.owner_contact_email && !isEmail(form.owner_contact_email)) {
       errors.push("Owner contact email looks invalid.");
+    }
 
     if (!coverImage) errors.push("Cover image is required.");
 
@@ -234,8 +439,9 @@ export default function OwnerDashboard() {
     }
 
     const okImage = (f) => f && f.type && f.type.startsWith("image/");
-    if (coverImage && !okImage(coverImage))
+    if (coverImage && !okImage(coverImage)) {
       errors.push("Cover image must be an image file.");
+    }
 
     Object.entries(pano).forEach(([k, f]) => {
       if (f && !okImage(f)) errors.push(`${k.toUpperCase()} must be an image file.`);
@@ -250,56 +456,56 @@ export default function OwnerDashboard() {
     return { ok: errors.length === 0, errors };
   }, [form, coverImage, pano]);
 
-  // ---------------------------
-  // Guard + Load profile + inbox
-  // ---------------------------
-  useEffect(() => {
-    const token = localStorage.getItem("access");
-    if (!token) return nav("/auth", { replace: true });
-    if (role !== "owner") return nav("/unauthorized", { replace: true });
-
-    const loadProfile = async () => {
-      try {
-        const res = await api.get("owner-profile/");
-        const data = res.data || {};
-        const ownerObj = data.owner || data;
-        setProfile(ownerObj);
-      } catch (err) {
-        const m =
-          err?.response?.data?.detail ||
-          err?.response?.data?.error ||
-          "Failed to load owner profile.";
-        setToast({ type: "error", msg: m });
-      }
-    };
-
-    const loadInbox = async () => {
-      setLoadingMsgs(true);
-      try {
-        const res = await api.get("owner/booking-requests/");
-        setRequests(arrify(res.data));
-      } catch {
-        setRequests([]);
-      } finally {
-        setLoadingMsgs(false);
-      }
-    };
-
-    loadProfile();
-    loadInbox();
-  }, [role, nav]);
-
-  const handleLogout = () => {
-    logout();
-    nav("/auth", { replace: true });
+  const markBookingsSeen = (ids = []) => {
+    const merged = Array.from(new Set([...(seenBookingIds || []), ...ids])).filter(
+      Boolean
+    );
+    setSeenBookingIds(merged);
+    saveSeenIds(bookingSeenKey, merged);
   };
 
-  // ---------------------------
-  // ✅ Reviews loader
-  // ---------------------------
-  const loadReviews = async () => {
-    setReviewsLoading(true);
-    setReviewsError("");
+  const markReviewsSeen = (ids = []) => {
+    const merged = Array.from(new Set([...(seenReviewIds || []), ...ids])).filter(
+      Boolean
+    );
+    setSeenReviewIds(merged);
+    saveSeenIds(reviewSeenKey, merged);
+  };
+
+  const showNotificationPopup = (notif) => {
+    const title = getNotifTitle(notif);
+    const body = getNotifBody(notif);
+    const msg = body ? `${title}: ${body}` : title;
+
+    setToast({ type: "success", msg });
+
+    if (notifToastTimerRef.current) clearTimeout(notifToastTimerRef.current);
+    notifToastTimerRef.current = setTimeout(() => {
+      setToast({ type: "info", msg: "" });
+    }, 5000);
+  };
+
+  const showReviewPopup = (review) => {
+    const listing = getReviewListingTitle(review);
+    const tenant = getReviewTenant(review);
+
+    setToast({
+      type: "success",
+      msg: `New review received from ${tenant} for ${listing}.`,
+    });
+
+    if (reviewToastTimerRef.current) clearTimeout(reviewToastTimerRef.current);
+    reviewToastTimerRef.current = setTimeout(() => {
+      setToast({ type: "info", msg: "" });
+    }, 5000);
+  };
+
+  const loadReviews = async (silent = false) => {
+    if (!silent) {
+      setReviewsLoading(true);
+      setReviewsError("");
+    }
+
     try {
       const endpoints = [
         "owner/reviews/",
@@ -329,33 +535,63 @@ export default function OwnerDashboard() {
           "Reviews API not found. Please create GET /api/owner/reviews/.";
         setReviewsError(m);
         setReviews([]);
+        return;
+      }
+
+      const list = arrify(data);
+      setReviews(list);
+
+      const ids = list
+        .map((r, idx) => String(getReviewId(r, idx)))
+        .filter(Boolean);
+
+      if (!reviewInitRef.current) {
+        seenReviewIdsRef.current = new Set(ids);
+        reviewInitRef.current = true;
       } else {
-        setReviews(arrify(data));
+        const newReviews = list.filter((r, idx) => {
+          const id = String(getReviewId(r, idx));
+          return id && !seenReviewIdsRef.current.has(id);
+        });
+
+        if (newReviews.length > 0) {
+          const newIds = newReviews
+            .map((r, idx) => {
+              const realIdx = list.findIndex(
+                (x) => String(getReviewId(x, 0)) === String(getReviewId(r, idx))
+              );
+              return String(getReviewId(r, realIdx >= 0 ? realIdx : idx));
+            })
+            .filter(Boolean);
+
+          if (showReviews) {
+            markReviewsSeen(newIds);
+          } else {
+            showReviewPopup(newReviews[0]);
+          }
+        }
+
+        ids.forEach((id) => seenReviewIdsRef.current.add(id));
       }
     } finally {
-      setReviewsLoading(false);
+      if (!silent) setReviewsLoading(false);
     }
   };
 
-  useEffect(() => {
-    if (showReviews) loadReviews();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showReviews]);
+  const loadNotifications = async (silent = false) => {
+    if (!silent) {
+      setNotifLoading(true);
+      setNotifError("");
+    }
 
-  // ---------------------------
-  // ✅ Notifications loader
-  // ---------------------------
-  const loadNotifications = async () => {
-    setNotifLoading(true);
-    setNotifError("");
     try {
       const endpoints = [
+        "notifications/",
+        "notifications",
         "owner/notifications/",
         "owner/notifications",
         "notifications/owner/",
         "notifications/owner",
-        "notifications/",
-        "notifications",
       ];
 
       let data = null;
@@ -376,44 +612,76 @@ export default function OwnerDashboard() {
         const m =
           lastErr?.response?.data?.detail ||
           lastErr?.response?.data?.error ||
-          "Notifications API not found. Please create GET /api/owner/notifications/.";
+          "Notifications API not found.";
         setNotifError(m);
         setNotifications([]);
-      } else {
-        setNotifications(arrify(data));
+        return;
       }
+
+      const list = arrify(data);
+      setNotifications(list);
+
+      const unread = list.filter((n) => isNotifUnread(n));
+      const unreadIds = unread
+        .map((n, idx) => String(getNotifId(n, idx)))
+        .filter(Boolean);
+
+      if (!notifInitRef.current) {
+        seenNotifIdsRef.current = new Set(unreadIds);
+        notifInitRef.current = true;
+      } else {
+        const newUnread = unread.filter((n, idx) => {
+          const id = String(getNotifId(n, idx));
+          return id && !seenNotifIdsRef.current.has(id);
+        });
+
+        if (newUnread.length > 0 && !showNotifications) {
+          showNotificationPopup(newUnread[0]);
+        }
+
+        unreadIds.forEach((id) => seenNotifIdsRef.current.add(id));
+      }
+    } catch (err) {
+      if (!silent) {
+        const m =
+          err?.response?.data?.detail ||
+          err?.response?.data?.error ||
+          "Failed to load notifications.";
+        setNotifError(m);
+      }
+      if (!silent) setNotifications([]);
     } finally {
-      setNotifLoading(false);
+      if (!silent) setNotifLoading(false);
     }
   };
 
-  useEffect(() => {
-    if (showNotifications) loadNotifications();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showNotifications]);
-
-  // mark notification read (optional)
   const markNotificationRead = async (notif) => {
     const id = notif?.id ?? notif?.notification_id ?? notif?.pk;
     if (!id) return;
 
     const endpoints = [
-      `owner/notifications/${id}/read/`,
-      `owner/notifications/${id}/read`,
-      `notifications/${id}/read/`,
-      `notifications/${id}/read`,
-      `owner/notifications/${id}/`,
-      `notifications/${id}/`,
+      { method: "post", url: `notifications/${id}/read/`, body: {} },
+      { method: "post", url: `notifications/${id}/read`, body: {} },
+      { method: "patch", url: `notifications/${id}/`, body: { is_read: true } },
+      { method: "patch", url: `notifications/${id}`, body: { is_read: true } },
+      { method: "post", url: `owner/notifications/${id}/read/`, body: {} },
+      { method: "patch", url: `owner/notifications/${id}/`, body: { is_read: true } },
     ];
 
     for (const ep of endpoints) {
       try {
-        await api.patch(ep, { is_read: true });
+        if (ep.method === "post") {
+          await api.post(ep.url, ep.body);
+        } else {
+          await api.patch(ep.url, ep.body);
+        }
+
         setNotifications((prev) =>
           (prev || []).map((n) => {
             const nid = n?.id ?? n?.notification_id ?? n?.pk;
-            if (String(nid) === String(id))
+            if (String(nid) === String(id)) {
               return { ...n, is_read: true, read: true, seen: true };
+            }
             return n;
           })
         );
@@ -424,19 +692,57 @@ export default function OwnerDashboard() {
     }
   };
 
-  // ---------------------------
-  // Form handlers
-  // ---------------------------
+  const openNotificationGroup = async (group) => {
+    if (!group) return;
+
+    const unreadItems = (group.items || []).filter((n) => isNotifUnread(n));
+    for (const item of unreadItems) {
+      await markNotificationRead(item);
+    }
+
+    if (group.kind === "provider") {
+      const chatLink =
+        (group.items || [])
+          .map((n) => getOwnerSafeNotifLink(n))
+          .find((link) => link && link.includes("/owner/provider-chat/")) || "";
+
+      const latestLink = getOwnerSafeNotifLink(group.latest);
+
+      nav(chatLink || latestLink || "/owner/maintenance");
+      return;
+    }
+
+    if (group.kind === "booking") {
+      const ids = (requests || []).map((r) => getBookingId(r)).filter(Boolean);
+      markBookingsSeen(ids);
+      nav("/owner/messages");
+      return;
+    }
+
+    if (group.kind === "review") {
+      const ids = (reviews || []).map((r, idx) => getReviewId(r, idx)).filter(Boolean);
+      markReviewsSeen(ids);
+      setShowReviews(true);
+      setShowNotifications(false);
+      return;
+    }
+
+    const latestLink = getOwnerSafeNotifLink(group.latest);
+    if (latestLink) {
+      nav(latestLink);
+    }
+  };
+
   const onChange = (e) =>
     setForm((s) => ({ ...s, [e.target.name]: e.target.value }));
-  const onPanoChange = (side, file) => setPano((s) => ({ ...s, [side]: file }));
 
-  // ---------------------------
-  // Reverse Geocode (Nominatim)
-  // ---------------------------
+  const onPanoChange = (side, file) =>
+    setPano((s) => ({ ...s, [side]: file }));
+
   async function reverseGeocode(lat, lng) {
-    if (inFlightRef.current.nominatim?.abort)
+    if (inFlightRef.current.nominatim?.abort) {
       inFlightRef.current.nominatim.abort();
+    }
     const ctrl = new AbortController();
     inFlightRef.current.nominatim = ctrl;
 
@@ -484,9 +790,6 @@ export default function OwnerDashboard() {
     }
   }
 
-  // ---------------------------
-  // Nearby Places (Overpass)
-  // ---------------------------
   function normalizeOverpassElement(el) {
     const lat = el?.lat ?? el?.center?.lat;
     const lon = el?.lon ?? el?.center?.lon;
@@ -520,7 +823,9 @@ export default function OwnerDashboard() {
   }
 
   async function fetchNearbyPlaces(lat, lng, radMeters) {
-    if (inFlightRef.current.overpass?.abort) inFlightRef.current.overpass.abort();
+    if (inFlightRef.current.overpass?.abort) {
+      inFlightRef.current.overpass.abort();
+    }
     const ctrl = new AbortController();
     inFlightRef.current.overpass = ctrl;
 
@@ -603,12 +908,9 @@ out center;
         const highway = t.highway;
 
         if (amenity === "school") schools.push(it);
-        else if (amenity === "college" || amenity === "university")
-          colleges.push(it);
-        else if (amenity === "hospital" || amenity === "clinic")
-          hospitals.push(it);
-        else if (shop === "supermarket" || amenity === "marketplace")
-          markets.push(it);
+        else if (amenity === "college" || amenity === "university") colleges.push(it);
+        else if (amenity === "hospital" || amenity === "clinic") hospitals.push(it);
+        else if (shop === "supermarket" || amenity === "marketplace") markets.push(it);
         else if (highway === "bus_stop") bus.push(it);
         else if (amenity === "atm") atms.push(it);
       }
@@ -635,7 +937,6 @@ out center;
     }
   }
 
-  // Map pick handler
   const onPick = ({ lat, lng }) => {
     const lat6 = Number(lat).toFixed(6);
     const lng6 = Number(lng).toFixed(6);
@@ -674,15 +975,146 @@ out center;
     });
   };
 
+  const handleLogout = () => {
+    logout();
+    nav("/", { replace: true });
+  };
+
+  const goHome = () => {
+    nav("/");
+  };
+
+  useEffect(() => {
+    setSeenBookingIds(loadSeenIds(bookingSeenKey));
+    setSeenReviewIds(loadSeenIds(reviewSeenKey));
+  }, [bookingSeenKey, reviewSeenKey]);
+
   useEffect(() => {
     if (!form.latitude || !form.longitude) return;
     fetchNearbyPlaces(form.latitude, form.longitude, radius);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [radius]);
+  }, [radius]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ---------------------------
-  // Submit property
-  // ---------------------------
+  useEffect(() => {
+    if (booting) return;
+
+    const token =
+      localStorage.getItem("access") || localStorage.getItem("access_token");
+    const savedUser = readStoredUser();
+    const savedRole = (
+      localStorage.getItem("role") ||
+      savedUser?.role ||
+      ""
+    )
+      .toString()
+      .toLowerCase();
+
+    const currentRole = (role || savedRole || "").toString().toLowerCase();
+
+    if (!token) {
+      nav("/auth", { replace: true });
+      return;
+    }
+
+    if (currentRole && currentRole !== "owner") {
+      nav("/unauthorized", { replace: true });
+      return;
+    }
+
+    const loadProfile = async () => {
+      try {
+        const res = await api.get("owner-profile/");
+        const data = res.data || {};
+        const ownerObj = data.owner || data;
+        setProfile(ownerObj);
+      } catch (err) {
+        const status = err?.response?.status;
+        if (status === 401) {
+          nav("/auth", { replace: true });
+          return;
+        }
+        if (status === 403) {
+          nav("/unauthorized", { replace: true });
+          return;
+        }
+
+        const m =
+          err?.response?.data?.detail ||
+          err?.response?.data?.error ||
+          "Failed to load owner profile.";
+        setToast({ type: "error", msg: m });
+      }
+    };
+
+    const loadInbox = async (silent = false) => {
+      if (!silent) setLoadingMsgs(true);
+
+      try {
+        const res = await api.get("owner/booking-requests/");
+        const list = arrify(res.data);
+        setRequests(list);
+      } catch (err) {
+        const status = err?.response?.status;
+        if (status === 401) {
+          nav("/auth", { replace: true });
+          return;
+        }
+        if (status === 403) {
+          nav("/unauthorized", { replace: true });
+          return;
+        }
+        setRequests([]);
+      } finally {
+        if (!silent) setLoadingMsgs(false);
+      }
+    };
+
+    loadProfile();
+    loadInbox(false);
+    loadNotifications(false);
+    loadReviews(false);
+
+    const inboxInterval = setInterval(() => {
+      loadInbox(true);
+    }, 5000);
+
+    const notifInterval = setInterval(() => {
+      loadNotifications(true);
+    }, 5000);
+
+    const reviewInterval = setInterval(() => {
+      loadReviews(true);
+    }, 5000);
+
+    return () => {
+      clearInterval(inboxInterval);
+      clearInterval(notifInterval);
+      clearInterval(reviewInterval);
+      if (notifToastTimerRef.current) clearTimeout(notifToastTimerRef.current);
+      if (reviewToastTimerRef.current) clearTimeout(reviewToastTimerRef.current);
+    };
+  }, [booting, role, nav]);
+
+  useEffect(() => {
+    if (showReviews) {
+      loadReviews(false);
+      const ids = (reviews || []).map((r, idx) => getReviewId(r, idx)).filter(Boolean);
+      if (ids.length) markReviewsSeen(ids);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showReviews]);
+
+  useEffect(() => {
+    if (showNotifications) loadNotifications(false);
+  }, [showNotifications]);
+
+  useEffect(() => {
+    if (showReviews && reviews.length > 0) {
+      const ids = reviews.map((r, idx) => getReviewId(r, idx)).filter(Boolean);
+      markReviewsSeen(ids);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reviews, showReviews]);
+
   const submitProperty = async (e) => {
     e.preventDefault();
 
@@ -759,13 +1191,19 @@ out center;
     }
   };
 
-  // ---------------------------
-  // Derived UI info
-  // ---------------------------
-  const pendingCount = useMemo(
-    () => (requests || []).filter((r) => getStatus(r) === "pending").length,
-    [requests]
-  );
+  const unreadBookingCount = useMemo(() => {
+    return (requests || []).filter((r) => {
+      const id = getBookingId(r);
+      return id && !seenBookingIds.includes(id);
+    }).length;
+  }, [requests, seenBookingIds]);
+
+  const unreadReviewCount = useMemo(() => {
+    return (reviews || []).filter((r, idx) => {
+      const id = getReviewId(r, idx);
+      return id && !seenReviewIds.includes(id);
+    }).length;
+  }, [reviews, seenReviewIds]);
 
   const latestRequests = useMemo(() => {
     const list = [...(requests || [])];
@@ -795,17 +1233,81 @@ out center;
   const filteredNotifs = useMemo(() => {
     const q = String(notifQuery || "").trim().toLowerCase();
     const list = [...(notifications || [])];
+
     list.sort((a, b) =>
       String(getNotifCreatedAt(b) || "").localeCompare(
         String(getNotifCreatedAt(a) || "")
       )
     );
+
     if (!q) return list;
+
     return list.filter((n) => {
-      const t = `${getNotifTitle(n)} ${getNotifBody(n)}`.toLowerCase();
+      const t = `${getNotifTitle(n)} ${getNotifBody(n)} ${getNotifKindLabel(n)}`.toLowerCase();
       return t.includes(q);
     });
   }, [notifications, notifQuery]);
+
+  const groupedNotifications = useMemo(() => {
+    const map = new Map();
+
+    filteredNotifs.forEach((n) => {
+      const kind = getNotifKind(n);
+      const sender = getNotifSender(n);
+      const key = `${kind}::${sender.toLowerCase()}`;
+      const createdAt = getNotifCreatedAt(n);
+      const unread = isNotifUnread(n);
+
+      if (!map.has(key)) {
+        map.set(key, {
+          key,
+          kind,
+          sender,
+          count: 1,
+          unreadCount: unread ? 1 : 0,
+          latest: n,
+          latestDate: createdAt || "",
+          items: [n],
+        });
+      } else {
+        const existing = map.get(key);
+        existing.count += 1;
+        if (unread) existing.unreadCount += 1;
+        existing.items.push(n);
+
+        const oldDate = String(existing.latestDate || "");
+        const newDate = String(createdAt || "");
+        if (newDate.localeCompare(oldDate) > 0) {
+          existing.latest = n;
+          existing.latestDate = newDate;
+        }
+      }
+    });
+
+    return Array.from(map.values()).sort((a, b) =>
+      String(b.latestDate || "").localeCompare(String(a.latestDate || ""))
+    );
+  }, [filteredNotifs]);
+
+  const bookingNotifications = useMemo(
+    () => groupedNotifications.filter((g) => g.kind === "booking"),
+    [groupedNotifications]
+  );
+
+  const providerNotifications = useMemo(
+    () => groupedNotifications.filter((g) => g.kind === "provider"),
+    [groupedNotifications]
+  );
+
+  const reviewNotifications = useMemo(
+    () => groupedNotifications.filter((g) => g.kind === "review"),
+    [groupedNotifications]
+  );
+
+  const otherNotifications = useMemo(
+    () => groupedNotifications.filter((g) => g.kind === "other"),
+    [groupedNotifications]
+  );
 
   const unreadNotifCount = useMemo(
     () => (notifications || []).filter((n) => isNotifUnread(n)).length,
@@ -824,13 +1326,83 @@ out center;
               key={it.id}
               className="rounded-xl border border-white/10 bg-black/20 p-3"
             >
-              <div className="text-sm text-white font-semibold">{it.name}</div>
+              <div className="text-sm font-semibold text-white">{it.name}</div>
               <div className="mt-1 text-xs text-slate-300">
                 {it.kind ? `Type: ${it.kind} • ` : ""}
                 Distance: {kmOrM(it.distance_m)}
               </div>
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  );
+
+  const NotificationSection = ({ title, items, emptyText }) => (
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <div className="text-sm font-semibold text-white">{title}</div>
+        <div className="text-xs text-slate-400">{items.length}</div>
+      </div>
+
+      {items.length === 0 ? (
+        <div className="text-sm text-slate-400">{emptyText}</div>
+      ) : (
+        <div className="grid gap-3">
+          {items.map((group) => {
+            const unread = group.unreadCount > 0;
+
+            return (
+              <button
+                key={group.key}
+                onClick={() => openNotificationGroup(group)}
+                className={`rounded-2xl border border-white/10 p-4 text-left transition ${
+                  unread
+                    ? "bg-purple-500/10 hover:bg-purple-500/15"
+                    : "bg-black/20 hover:bg-white/10"
+                }`}
+                title="Open notification"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="line-clamp-1 text-sm font-semibold text-white">
+                        {getGroupedTitle(group)}
+                      </div>
+
+                      <span
+                        className={`rounded-full border px-2 py-[2px] text-[10px] font-bold ${getNotifKindClasses(
+                          group.latest
+                        )}`}
+                      >
+                        {getNotifKindLabel(group.latest)}
+                      </span>
+
+                      {unread ? (
+                        <span className="rounded-full bg-purple-500/70 px-2 py-[2px] text-[10px] font-bold text-white">
+                          {group.unreadCount} NEW
+                        </span>
+                      ) : null}
+                    </div>
+
+                    <div className="mt-2 text-sm font-medium text-slate-200">
+                      {group.sender}
+                    </div>
+
+                    <div className="mt-1 whitespace-pre-wrap text-sm text-slate-300">
+                      {getGroupedBody(group)}
+                    </div>
+                  </div>
+
+                  <div className="shrink-0 text-right">
+                    <div className="text-[11px] text-slate-400">
+                      {formatDate(getNotifCreatedAt(group.latest))}
+                    </div>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
@@ -844,43 +1416,38 @@ out center;
         onClose={() => setToast({ type: "info", msg: "" })}
       />
 
-      {/* ✅ CLEAN HEADER (FIXED ACTION BAR) */}
       <div className="mb-6 rounded-3xl border border-white/10 bg-black/20 p-5">
-        {/* Top row: Title + Logout */}
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <div className="text-2xl font-extrabold text-white">
               Owner Dashboard
             </div>
             <div className="mt-1 text-sm text-slate-300">
-              Welcome{" "}
-              <span className="text-slate-200">{email || "Owner"}</span>. Manage
+              Welcome <span className="text-slate-200">{displayEmail}</span>. Manage
               your profile and properties.
             </div>
           </div>
 
-          {/* Logout always visible */}
           <button
             onClick={handleLogout}
-            className="shrink-0 rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-100 hover:bg-red-500/15 transition"
+            className="shrink-0 rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-100 transition hover:bg-red-500/15"
           >
             Logout
           </button>
         </div>
 
-        {/* Action bar: wrapped on desktop, scroll on mobile */}
         <div className="mt-4">
           <div className="flex gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible">
             <button
-              onClick={() => nav("/")}
-              className="shrink-0 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-100 hover:bg-white/10 transition"
+              onClick={goHome}
+              className="shrink-0 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:bg-white/10"
             >
               🏠 Home
             </button>
 
             <button
               onClick={() => nav("/owner/my-properties")}
-              className="shrink-0 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-100 hover:bg-white/10 transition"
+              className="shrink-0 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:bg-white/10"
             >
               🏘️ My Properties
             </button>
@@ -897,18 +1464,34 @@ out center;
             </button>
 
             <button
-              onClick={() => nav("/owner/messages")}
-              className="shrink-0 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-100 hover:bg-white/10 transition"
+              onClick={() => {
+                markBookingsSeen(
+                  (requests || []).map((r) => getBookingId(r)).filter(Boolean)
+                );
+                nav("/owner/messages");
+              }}
+              className="shrink-0 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:bg-white/10"
               title="View booking requests + chat"
             >
               💬 Messages
               <span className="ml-2 inline-flex min-w-[22px] items-center justify-center rounded-full bg-blue-500/80 px-2 py-[2px] text-[11px] font-extrabold text-white">
-                {loadingMsgs ? "..." : pendingCount}
+                {loadingMsgs ? "..." : unreadBookingCount}
               </span>
             </button>
 
             <button
-              onClick={() => setShowReviews((s) => !s)}
+              onClick={() => {
+                const next = !showReviews;
+                setShowReviews(next);
+
+                if (!showReviews) {
+                  markReviewsSeen(
+                    (reviews || [])
+                      .map((r, idx) => getReviewId(r, idx))
+                      .filter(Boolean)
+                  );
+                }
+              }}
               className={`shrink-0 rounded-2xl border px-4 py-2 text-sm font-semibold transition ${
                 showReviews
                   ? "border-amber-400/30 bg-amber-500/15 text-amber-100 hover:bg-amber-500/20"
@@ -918,7 +1501,7 @@ out center;
             >
               ⭐ Reviews
               <span className="ml-2 inline-flex min-w-[22px] items-center justify-center rounded-full bg-amber-500/80 px-2 py-[2px] text-[11px] font-extrabold text-white">
-                {reviewsLoading ? "..." : reviews?.length ?? 0}
+                {reviewsLoading ? "..." : unreadReviewCount}
               </span>
             </button>
 
@@ -929,7 +1512,7 @@ out center;
                   ? "border-purple-400/30 bg-purple-500/15 text-purple-100 hover:bg-purple-500/20"
                   : "border-white/10 bg-white/5 text-slate-100 hover:bg-white/10"
               }`}
-              title="Notifications (rent / water / electricity / system)"
+              title="Notifications"
             >
               🔔 Notifications
               <span className="ml-2 inline-flex min-w-[22px] items-center justify-center rounded-full bg-purple-500/80 px-2 py-[2px] text-[11px] font-extrabold text-white">
@@ -939,8 +1522,7 @@ out center;
 
             <button
               onClick={() => nav("/owner/maintenance")}
-              className="shrink-0 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-100 hover:bg-emerald-500/15 transition"
-              title="Open maintenance & service requests"
+              className="shrink-0 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15"
             >
               🧰 Maintenance
             </button>
@@ -952,30 +1534,27 @@ out center;
         </div>
       </div>
 
-      {/* ✅ NOTIFICATIONS PANEL */}
       {showNotifications && (
         <div className="mb-6 rounded-3xl border border-white/10 bg-black/20 p-6">
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div className="text-lg font-semibold text-white">
-              🔔 Notifications
-            </div>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="text-lg font-semibold text-white">🔔 Notifications</div>
 
             <div className="flex items-center gap-2">
               <input
                 value={notifQuery}
                 onChange={(e) => setNotifQuery(e.target.value)}
                 placeholder="Search notifications"
-                className="w-[260px] max-w-[70vw] rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white outline-none focus:border-white/20"
+                className="w-[260px] max-w-[70vw] rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-white/20"
               />
               <button
-                onClick={loadNotifications}
-                className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-100 hover:bg-white/10 transition"
+                onClick={() => loadNotifications(false)}
+                className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-100 transition hover:bg-white/10"
               >
                 Refresh
               </button>
               <button
                 onClick={() => setShowNotifications(false)}
-                className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-100 hover:bg-white/10 transition"
+                className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-100 transition hover:bg-white/10"
               >
                 Close
               </button>
@@ -990,80 +1569,64 @@ out center;
               <div className="mt-1 text-sm text-red-100/90">{notifError}</div>
             </div>
           ) : notifLoading ? (
-            <div className="mt-4 text-sm text-slate-300">
-              Loading notifications...
-            </div>
+            <div className="mt-4 text-sm text-slate-300">Loading notifications...</div>
           ) : filteredNotifs.length === 0 ? (
-            <div className="mt-4 text-sm text-slate-300">
-              No notifications found.
-            </div>
+            <div className="mt-4 text-sm text-slate-300">No notifications found.</div>
           ) : (
-            <div className="mt-4 grid gap-3">
-              {filteredNotifs.map((n, idx) => {
-                const unread = isNotifUnread(n);
-                return (
-                  <button
-                    key={getNotifId(n, idx)}
-                    onClick={() => markNotificationRead(n)}
-                    className={`text-left rounded-2xl border border-white/10 p-4 transition ${
-                      unread
-                        ? "bg-purple-500/10 hover:bg-purple-500/15"
-                        : "bg-white/5 hover:bg-white/10"
-                    }`}
-                    title={unread ? "Click to mark as read" : "Read"}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="text-sm text-white font-semibold line-clamp-1">
-                          {getNotifTitle(n)}
-                          {unread ? (
-                            <span className="ml-2 inline-flex items-center rounded-full bg-purple-500/70 px-2 py-[2px] text-[10px] font-bold text-white">
-                              NEW
-                            </span>
-                          ) : null}
-                        </div>
-                        <div className="mt-2 text-sm text-slate-200/90 whitespace-pre-wrap">
-                          {getNotifBody(n) || "—"}
-                        </div>
-                      </div>
-                      <div className="shrink-0 text-right">
-                        <div className="text-[11px] text-slate-400">
-                          {formatDate(getNotifCreatedAt(n))}
-                        </div>
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+            <>
+              <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                <NotificationSection
+                  title="📅 Tenant / Booking Notifications"
+                  items={bookingNotifications}
+                  emptyText="No tenant booking notifications."
+                />
+
+                <NotificationSection
+                  title="🧰 Service Provider Notifications"
+                  items={providerNotifications}
+                  emptyText="No service provider notifications."
+                />
+              </div>
+
+              <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                <NotificationSection
+                  title="⭐ Review Notifications"
+                  items={reviewNotifications}
+                  emptyText="No review notifications."
+                />
+
+                <NotificationSection
+                  title="🔔 Other Notifications"
+                  items={otherNotifications}
+                  emptyText="No other notifications."
+                />
+              </div>
+            </>
           )}
         </div>
       )}
 
-      {/* ✅ REVIEWS PANEL */}
       {showReviews && (
         <div className="mb-6 rounded-3xl border border-white/10 bg-black/20 p-6">
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div className="text-lg font-semibold text-white">
-              ⭐ Tenant Reviews
-            </div>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="text-lg font-semibold text-white">⭐ Tenant Reviews</div>
 
             <div className="flex items-center gap-2">
               <input
                 value={reviewQuery}
                 onChange={(e) => setReviewQuery(e.target.value)}
                 placeholder="Search (property / tenant / comment / rating)"
-                className="w-[260px] max-w-[70vw] rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-sm text-white outline-none focus:border-white/20"
+                className="w-[260px] max-w-[70vw] rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-white/20"
               />
               <button
-                onClick={loadReviews}
-                className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-100 hover:bg-white/10 transition"
+                onClick={() => loadReviews(false)}
+                className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-100 transition hover:bg-white/10"
               >
                 Refresh
               </button>
               <button
                 onClick={() => setShowReviews(false)}
-                className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-100 hover:bg-white/10 transition"
+                className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-100 transition hover:bg-white/10"
               >
                 Close
               </button>
@@ -1093,10 +1656,10 @@ out center;
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="text-sm text-white font-semibold line-clamp-1">
+                        <div className="line-clamp-1 text-sm font-semibold text-white">
                           {getReviewListingTitle(r)}
                         </div>
-                        <div className="mt-1 text-xs text-slate-300 line-clamp-1">
+                        <div className="mt-1 line-clamp-1 text-xs text-slate-300">
                           From: {getReviewTenant(r)}
                         </div>
                       </div>
@@ -1105,7 +1668,7 @@ out center;
                         {rating != null ? (
                           <div className="text-sm font-semibold text-amber-200">
                             {stars}{" "}
-                            <span className="text-slate-300 font-normal">
+                            <span className="font-normal text-slate-300">
                               ({Number(rating)}/5)
                             </span>
                           </div>
@@ -1118,7 +1681,7 @@ out center;
                       </div>
                     </div>
 
-                    <div className="mt-3 text-sm text-slate-200/90 whitespace-pre-wrap">
+                    <div className="mt-3 whitespace-pre-wrap text-sm text-slate-200/90">
                       {getReviewComment(r) || "—"}
                     </div>
 
@@ -1127,7 +1690,7 @@ out center;
                         <div className="text-xs font-semibold text-slate-200">
                           Owner reply
                         </div>
-                        <div className="mt-1 text-sm text-slate-200/90 whitespace-pre-wrap">
+                        <div className="mt-1 whitespace-pre-wrap text-sm text-slate-200/90">
                           {String(r.owner_reply)}
                         </div>
                       </div>
@@ -1140,16 +1703,14 @@ out center;
         </div>
       )}
 
-      {/* ✅ CONTENT GRID */}
       <div className="grid gap-4 lg:grid-cols-2">
-        {/* Profile */}
         <div className="rounded-3xl border border-white/10 bg-black/20 p-6">
           <div className="text-lg font-semibold text-white">My Profile</div>
 
           {!profile ? (
             <p className="mt-2 text-sm text-slate-300">Loading...</p>
           ) : (
-            <div className="mt-4 text-sm text-slate-200 grid gap-2">
+            <div className="mt-4 grid gap-2 text-sm text-slate-200">
               <div>
                 <b>Owner ID:</b> {profile.id ?? "-"}
               </div>
@@ -1157,7 +1718,7 @@ out center;
                 <b>Username:</b> {profile.username ?? "-"}
               </div>
               <div>
-                <b>Email:</b> {profile.email ?? email ?? "-"}
+                <b>Email:</b> {profile.email ?? displayEmail ?? "-"}
               </div>
               <div>
                 <b>Phone:</b> {profile.phone ?? "-"}
@@ -1169,15 +1730,19 @@ out center;
           )}
         </div>
 
-        {/* Latest requests */}
         <div className="rounded-3xl border border-white/10 bg-black/20 p-6">
-          <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="text-lg font-semibold text-white">
               Latest Tenant Requests
             </div>
             <button
-              onClick={() => nav("/owner/messages")}
-              className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm hover:bg-white/10 transition text-slate-100"
+              onClick={() => {
+                markBookingsSeen(
+                  (requests || []).map((r) => getBookingId(r)).filter(Boolean)
+                );
+                nav("/owner/messages");
+              }}
+              className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-100 transition hover:bg-white/10"
             >
               View All
             </button>
@@ -1201,26 +1766,41 @@ out center;
                 return (
                   <button
                     key={getBookingId(b) ?? idx}
-                    onClick={() => nav("/owner/messages")}
-                    className="text-left rounded-2xl border border-white/10 bg-white/5 p-4 hover:bg-white/10 transition"
+                    onClick={() => {
+                      const id = getBookingId(b);
+                      if (id) markBookingsSeen([id]);
+                      nav(`/owner/messages?open=${id ?? ""}`);
+                    }}
+                    className="rounded-2xl border border-white/10 bg-white/5 p-4 text-left transition hover:bg-white/10"
                   >
                     <div className="flex items-center justify-between gap-3">
-                      <div className="text-sm text-white font-semibold line-clamp-1">
+                      <div className="line-clamp-1 text-sm font-semibold text-white">
                         {getListingTitle(b)} • #{getBookingId(b) ?? "—"}
                       </div>
                       <span
-                        className={`text-[11px] border px-2 py-[2px] rounded-full ${badge}`}
+                        className={`rounded-full border px-2 py-[2px] text-[11px] ${badge}`}
                       >
                         {st}
                       </span>
                     </div>
 
-                    <div className="mt-1 text-xs text-slate-300 line-clamp-1">
-                      From: {getTenantEmail(b)}
+                    <div className="mt-1 line-clamp-1 text-xs text-slate-300">
+                      Tenant: {getTenantName(b)}
                     </div>
 
-                    <div className="mt-2 text-xs text-slate-200/90 line-clamp-2">
-                      {getFirstMessage(b) || "—"}
+                    <div className="mt-1 line-clamp-1 text-xs text-slate-300">
+                      Email: {getTenantEmail(b)}
+                    </div>
+
+                    {getTenantPhone(b) ? (
+                      <div className="mt-1 line-clamp-1 text-xs text-slate-300">
+                        Phone: {getTenantPhone(b)}
+                      </div>
+                    ) : null}
+
+                    <div className="mt-2 line-clamp-2 text-xs text-slate-200/90">
+                      {getFirstMessage(b) ||
+                        `${getTenantDisplay(b)} has sent a booking request.`}
                     </div>
 
                     <div className="mt-2 text-[11px] text-slate-400">
@@ -1234,7 +1814,6 @@ out center;
         </div>
       </div>
 
-      {/* ✅ ADD PROPERTY */}
       {showAddProperty && (
         <div className="mt-6 rounded-3xl border border-white/10 bg-black/20 p-6">
           <div className="flex flex-col gap-1">
@@ -1252,7 +1831,7 @@ out center;
               <div className="text-sm font-semibold text-red-200">
                 Please fix these requirements:
               </div>
-              <ul className="mt-2 list-disc pl-5 text-sm text-red-100/90 space-y-1">
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-red-100/90">
                 {validation.errors.map((e, i) => (
                   <li key={i}>{e}</li>
                 ))}
@@ -1262,7 +1841,7 @@ out center;
 
           <form onSubmit={submitProperty} className="mt-4 grid gap-3">
             <input
-              className="rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-white outline-none focus:border-white/20"
+              className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none focus:border-white/20"
               name="title"
               placeholder="Title (e.g., 2 Bedroom House near City)"
               value={form.title}
@@ -1271,7 +1850,7 @@ out center;
             />
 
             <textarea
-              className="rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-white outline-none focus:border-white/20"
+              className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none focus:border-white/20"
               name="description"
               placeholder="Description"
               value={form.description}
@@ -1279,9 +1858,9 @@ out center;
               rows={3}
             />
 
-            <div className="grid md:grid-cols-2 gap-3">
+            <div className="grid gap-3 md:grid-cols-2">
               <select
-                className="rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-white outline-none focus:border-white/20"
+                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none focus:border-white/20"
                 name="property_type"
                 value={form.property_type}
                 onChange={onChange}
@@ -1292,7 +1871,7 @@ out center;
               </select>
 
               <input
-                className="rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-white outline-none focus:border-white/20"
+                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none focus:border-white/20"
                 name="location"
                 placeholder="Location (auto filled from map, you can edit)"
                 value={form.location}
@@ -1301,9 +1880,9 @@ out center;
               />
             </div>
 
-            <div className="grid md:grid-cols-2 gap-3">
+            <div className="grid gap-3 md:grid-cols-2">
               <input
-                className="rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-white outline-none focus:border-white/20"
+                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none focus:border-white/20"
                 name="price_per_month"
                 type="number"
                 placeholder="Price per month"
@@ -1313,7 +1892,7 @@ out center;
               />
 
               <input
-                className="rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-white outline-none focus:border-white/20"
+                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none focus:border-white/20"
                 name="electricity_bill"
                 placeholder="Electricity bill (optional)"
                 value={form.electricity_bill}
@@ -1321,9 +1900,9 @@ out center;
               />
             </div>
 
-            <div className="grid md:grid-cols-2 gap-3">
+            <div className="grid gap-3 md:grid-cols-2">
               <input
-                className="rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-white outline-none focus:border-white/20"
+                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none focus:border-white/20"
                 name="owner_contact_number"
                 placeholder="Contact number"
                 value={form.owner_contact_number}
@@ -1331,7 +1910,7 @@ out center;
                 required
               />
               <input
-                className="rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-white outline-none focus:border-white/20"
+                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none focus:border-white/20"
                 name="owner_contact_email"
                 placeholder="Contact email (optional)"
                 value={form.owner_contact_email}
@@ -1339,16 +1918,15 @@ out center;
               />
             </div>
 
-            {/* MAP */}
             <div className="mt-2">
-              <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="text-sm font-semibold text-slate-200">
                   📍 Pick Property Location *
                 </div>
                 <button
                   type="button"
                   onClick={clearPicked}
-                  className="rounded-xl border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-200 hover:bg-white/10 transition"
+                  className="rounded-xl border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-200 transition hover:bg-white/10"
                 >
                   Clear Pin
                 </button>
@@ -1359,27 +1937,77 @@ out center;
                 will load automatically.
               </div>
 
-              <div className="mt-3 rounded-2xl border border-white/10 overflow-hidden">
+              <div className="mt-3 overflow-hidden rounded-2xl border border-white/10">
                 <LocationPicker value={picked} onChange={onPick} height={320} />
               </div>
 
-              <div className="mt-3 grid md:grid-cols-2 gap-3">
+              <div className="mt-3 grid gap-3 md:grid-cols-2">
                 <input
-                  className="rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-white"
+                  className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white"
                   value={form.latitude}
                   readOnly
                   placeholder="Latitude"
                 />
                 <input
-                  className="rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-white"
+                  className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white"
                   value={form.longitude}
                   readOnly
                   placeholder="Longitude"
                 />
               </div>
+
+              <div className="mt-3 grid gap-3 md:grid-cols-3">
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <div className="text-xs text-slate-300">Selected address</div>
+                  <div className="mt-1 text-sm text-white">
+                    {geoLoading ? "Loading address..." : place.display || "—"}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <div className="text-xs text-slate-300">Nearby scan radius</div>
+                  <div className="mt-2 flex items-center gap-3">
+                    <input
+                      type="range"
+                      min="300"
+                      max="3000"
+                      step="100"
+                      value={radius}
+                      onChange={(e) => setRadius(Number(e.target.value))}
+                      className="w-full"
+                    />
+                    <span className="min-w-[70px] text-sm text-white">
+                      {kmOrM(radius)}
+                    </span>
+                  </div>
+                  <div className="mt-1 text-xs text-slate-400">
+                    {nearbyLoading ? "Loading nearby places..." : "Auto updates"}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <div className="text-xs text-slate-300">Quick summary</div>
+                  <div className="mt-2 grid gap-1 text-sm text-white">
+                    <div>Schools: {nearby.schools.length}</div>
+                    <div>Colleges: {nearby.colleges.length}</div>
+                    <div>Hospitals: {nearby.hospitals.length}</div>
+                    <div>Markets: {nearby.markets.length}</div>
+                    <div>Bus Stops: {nearby.bus.length}</div>
+                    <div>ATMs: {nearby.atms.length}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                <NearbySection title="🏫 Schools" items={nearby.schools} />
+                <NearbySection title="🎓 Colleges / Universities" items={nearby.colleges} />
+                <NearbySection title="🏥 Hospitals / Clinics" items={nearby.hospitals} />
+                <NearbySection title="🛒 Markets / Supermarkets" items={nearby.markets} />
+                <NearbySection title="🚌 Bus Stops" items={nearby.bus} />
+                <NearbySection title="🏧 ATMs" items={nearby.atms} />
+              </div>
             </div>
 
-            {/* Images */}
             <div className="mt-2 rounded-2xl border border-white/10 bg-white/5 p-4">
               <div className="text-sm font-semibold text-slate-200">
                 🖼️ Cover image *
@@ -1396,13 +2024,13 @@ out center;
               <div className="text-sm font-semibold text-slate-200">
                 🧊 360° Photos (6 sides) *
               </div>
-              <div className="mt-3 grid md:grid-cols-3 gap-3">
+              <div className="mt-3 grid gap-3 md:grid-cols-3">
                 {["front", "back", "left", "right", "up", "down"].map((side) => (
                   <div
                     key={side}
                     className="rounded-xl border border-white/10 bg-black/20 p-3"
                   >
-                    <div className="text-xs text-slate-200 mb-2">
+                    <div className="mb-2 text-xs text-slate-200">
                       {side.toUpperCase()}
                     </div>
                     <input
@@ -1419,7 +2047,7 @@ out center;
             <button
               type="submit"
               disabled={posting}
-              className="mt-2 rounded-2xl bg-blue-600 px-4 py-3 text-white hover:bg-blue-500 transition disabled:opacity-60"
+              className="mt-2 rounded-2xl bg-blue-600 px-4 py-3 text-white transition hover:bg-blue-500 disabled:opacity-60"
             >
               {posting ? "Posting..." : "Post Property"}
             </button>

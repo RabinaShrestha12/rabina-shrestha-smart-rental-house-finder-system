@@ -1,4 +1,3 @@
-// src/App.jsx
 import React from "react";
 import { Routes, Route } from "react-router-dom";
 
@@ -8,18 +7,16 @@ import PublicListings from "./pages/home/PublicListings";
 import PublicListingDetails from "./pages/home/PublicListingDetails";
 import Listing360Page from "./pages/home/Listing360Page";
 
-// ✅ MAP SEARCH
+// MAP SEARCH
 import MapSearch from "./pages/home/MapSearch";
 
 // AUTH
 import UserAuth from "./pages/auth/UserAuth";
 import AdminLogin from "./pages/auth/AdminLogin";
 import Otp from "./pages/auth/Otp";
-
-// ✅ Service Provider Register Page
 import RegisterProvider from "./pages/auth/RegisterProvider";
 
-// ✅ HIDDEN ADMIN SETUP PAGE
+// ADMIN SETUP
 import AdminSetup from "./pages/admin/AdminSetup";
 
 // DASHBOARDS
@@ -27,93 +24,68 @@ import AdminDashboard from "./pages/dashboard/AdminDashboard";
 import OwnerDashboard from "./pages/dashboard/OwnerDashboard";
 import TenantDashboard from "./pages/dashboard/TenantDashboard";
 import ProviderDashboard from "./pages/dashboard/ProviderDashboard";
+import ProviderChat from "./pages/dashboard/ProviderChat";
 
-// ✅ TENANT PAGES
+// TENANT PAGES
 import TenantInbox from "./pages/dashboard/TenantInbox";
+import TenantMaintenance from "./pages/tenant/TenantMaintenance";
+import TenantAISearch from "./pages/tenant/TenantAISearch";
+import RoommateFinder from "./pages/tenant/RoommateFinder";
+import RoommateRequests from "./pages/tenant/RoommateRequests";
+import TenantChats from "./pages/tenant/Chats";
+import RoommateChat from "./pages/tenant/RoommateChat";
+import VirtualFurniturePage from "./pages/tenant/VirtualFurniturePage";
 
-// ✅ OWNER PAGES
+// OWNER PAGES
 import OwnerMyProperties from "./pages/dashboard/OwnerMyProperties";
 import OwnerListingDetail from "./pages/dashboard/OwnerListingDetail";
 import OwnerListingEdit from "./pages/dashboard/OwnerListingEdit";
 import OwnerMessages from "./pages/dashboard/OwnerMessages";
+import OwnerMaintenance from "./pages/owner/OwnerMaintenance";
 
-// ✅ ADMIN PAGE (Email UI)
+// ADMIN PAGE
 import EmailBroadcast from "./pages/dashboard/EmailBroadcast";
+import Furnitures from "./pages/admin/Furnitures";
 
 // OWNER / TENANT
 import OwnerAddListing from "./pages/home/OwnerAddListing";
 import TenantBookPage from "./pages/home/TenantBookPage";
 
-// ✅ NEW FEATURES
+// TOOLS
 import BudgetSplitCalculator from "./pages/tools/BudgetSplitCalculator";
 
-// Maintenance/Emergency pages (protected)
-import TenantMaintenance from "./pages/tenant/TenantMaintenance";
-import OwnerMaintenance from "./pages/owner/OwnerMaintenance";
-
-// Reminders page (protected)
+// REMINDERS
 import RemindersPage from "./pages/common/RemindersPage";
 
-// ✅ PROVIDER PAGES (Inbox + Chat)
+// PROVIDER PAGES
 import ProviderInbox from "./pages/provider/ProviderInbox";
-import ProviderChat from "./pages/provider/ProviderChat";
-
-// ✅ Roommate Finder Pages (Tenant)
-import RoommateFinder from "./pages/tenant/RoommateFinder";
-import RoommateRequests from "./pages/tenant/RoommateRequests";
-
-// ✅ Roommate Chat Pages (Tenant) ⭐ NEW
-import TenantChats from "./pages/tenant/Chats";
-import RoommateChat from "./pages/tenant/RoommateChat";
 
 // COMMON
 import Unauthorized from "./pages/Unauthorized";
 import NotFound from "./pages/NotFound";
-
-// ✅ NEW: dashboard redirect by role
 import GoDashboard from "./pages/GoDashboard";
 
 // PROTECTED
 import ProtectedRoute from "./auth/ProtectedRoute";
 
-// ✅ Tenant AI Search
-import TenantAISearch from "./pages/tenant/TenantAISearch";
-
 export default function App() {
   return (
     <Routes>
-      {/* ======================
-          PUBLIC
-      ====================== */}
       <Route path="/" element={<HomePublic />} />
       <Route path="/listings" element={<PublicListings />} />
       <Route path="/listings/:id" element={<PublicListingDetails />} />
       <Route path="/public/listings/:id" element={<PublicListingDetails />} />
       <Route path="/listing/:id/360" element={<Listing360Page />} />
-
-      {/* ✅ MAP SEARCH */}
       <Route path="/map" element={<MapSearch />} />
-
-      {/* ✅ TOOL */}
       <Route path="/tools/budget-split" element={<BudgetSplitCalculator />} />
-
-      {/* ✅ AUTO REDIRECT TO CORRECT DASHBOARD */}
       <Route path="/dashboard" element={<GoDashboard />} />
 
-      {/* ======================
-          AUTH
-      ====================== */}
       <Route path="/auth" element={<UserAuth />} />
       <Route path="/otp" element={<Otp />} />
       <Route path="/super-admin-login-9382" element={<AdminLogin />} />
       <Route path="/setup-admin-9x2k" element={<AdminSetup />} />
-
-      {/* ✅ PROVIDER REGISTER (Public) */}
       <Route path="/register-provider" element={<RegisterProvider />} />
 
-      {/* ======================
-          OWNER (Protected)
-      ====================== */}
       <Route
         path="/owner"
         element={
@@ -177,9 +149,15 @@ export default function App() {
         }
       />
 
-      {/* ======================
-          TENANT (Protected)
-      ====================== */}
+      <Route
+        path="/owner/provider-chat/:jobId"
+        element={
+          <ProtectedRoute allowRoles={["owner"]}>
+            <ProviderChat />
+          </ProtectedRoute>
+        }
+      />
+
       <Route
         path="/tenant"
         element={
@@ -191,6 +169,15 @@ export default function App() {
 
       <Route
         path="/tenant/inbox"
+        element={
+          <ProtectedRoute allowRoles={["tenant"]}>
+            <TenantInbox />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/tenant/bookings"
         element={
           <ProtectedRoute allowRoles={["tenant"]}>
             <TenantInbox />
@@ -216,7 +203,6 @@ export default function App() {
         }
       />
 
-      {/* ✅ TENANT: AI Search */}
       <Route
         path="/tenant/ai"
         element={
@@ -226,7 +212,6 @@ export default function App() {
         }
       />
 
-      {/* ✅ TENANT: Roommate Finder */}
       <Route
         path="/tenant/roommates"
         element={
@@ -236,7 +221,6 @@ export default function App() {
         }
       />
 
-      {/* ✅ TENANT: Roommate Requests */}
       <Route
         path="/tenant/roommates/requests"
         element={
@@ -246,7 +230,6 @@ export default function App() {
         }
       />
 
-      {/* ✅ TENANT: Roommate Chats LIST (matches your URL) */}
       <Route
         path="/tenant/roommates/chats"
         element={
@@ -256,7 +239,6 @@ export default function App() {
         }
       />
 
-      {/* ✅ TENANT: Roommate Chat ROOM (matches your URL) */}
       <Route
         path="/tenant/roommates/chats/:roomId"
         element={
@@ -266,9 +248,15 @@ export default function App() {
         }
       />
 
-      {/* ======================
-          PROVIDER (Protected)
-      ====================== */}
+      <Route
+        path="/tenant/virtual-furniture"
+        element={
+          <ProtectedRoute allowRoles={["tenant"]}>
+            <VirtualFurniturePage />
+          </ProtectedRoute>
+        }
+      />
+
       <Route
         path="/provider"
         element={
@@ -278,7 +266,6 @@ export default function App() {
         }
       />
 
-      {/* ✅ Provider Inbox */}
       <Route
         path="/provider/messages"
         element={
@@ -288,9 +275,8 @@ export default function App() {
         }
       />
 
-      {/* ✅ Provider Chat */}
       <Route
-        path="/provider/chat/:req_id"
+        path="/provider/chat/:jobId"
         element={
           <ProtectedRoute allowRoles={["provider", "service_provider"]}>
             <ProviderChat />
@@ -298,9 +284,6 @@ export default function App() {
         }
       />
 
-      {/* ======================
-          ADMIN (Protected)
-      ====================== */}
       <Route
         path="/admin"
         element={
@@ -319,9 +302,15 @@ export default function App() {
         }
       />
 
-      {/* ======================
-          COMMON (Protected)
-      ====================== */}
+      <Route
+        path="/admin/furnitures"
+        element={
+          <ProtectedRoute allowRoles={["admin"]}>
+            <Furnitures />
+          </ProtectedRoute>
+        }
+      />
+
       <Route
         path="/reminders"
         element={
@@ -339,9 +328,6 @@ export default function App() {
         }
       />
 
-      {/* ======================
-          COMMON
-      ====================== */}
       <Route path="/unauthorized" element={<Unauthorized />} />
       <Route path="*" element={<NotFound />} />
     </Routes>

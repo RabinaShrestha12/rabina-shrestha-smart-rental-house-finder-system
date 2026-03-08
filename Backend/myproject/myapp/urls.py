@@ -57,6 +57,12 @@ from myapp.view.roommate_chat_views import (
     roommate_sync_threads,   # ✅ add this
 )
 
+from myapp.view.furniture_views import (
+    furniture_list,
+    furniture_create,
+    furniture_update,
+    furniture_delete,
+)
 urlpatterns = [
     path("register_user/", register_user),
     path("verify-otp/", verify_otp),
@@ -142,4 +148,12 @@ urlpatterns = [
     path("tenant/roommates/chats/", roommate_my_threads),
     path("tenant/roommates/chats/<int:thread_id>/messages/", roommate_thread_messages),
     path("tenant/roommates/chats/<int:thread_id>/send/", roommate_send_message),
+
+    # Furniture Management
+    path("furniture/", furniture_list),
+    path("admin/furniture/create/", furniture_create),
+    path("admin/furniture/<int:pk>/update/", furniture_update),
+    path("admin/furniture/<int:pk>/delete/", furniture_delete),
+
+
 ]

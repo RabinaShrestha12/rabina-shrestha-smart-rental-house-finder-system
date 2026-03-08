@@ -5,7 +5,7 @@ import { useAuth } from "../auth/AuthContext";
 
 export default function GoDashboard() {
   const nav = useNavigate();
-  const { role, booting, isAuthed } = useAuth();
+  const { booting, isAuthed, dashboardPath } = useAuth();
 
   useEffect(() => {
     if (booting) return;
@@ -15,14 +15,8 @@ export default function GoDashboard() {
       return;
     }
 
-    const r = String(role || "").toLowerCase();
-
-    if (r === "admin") nav("/admin", { replace: true });
-    else if (r === "owner") nav("/owner", { replace: true });
-    else if (r === "tenant") nav("/tenant", { replace: true });
-    else if (r === "provider" || r === "service_provider") nav("/provider", { replace: true });
-    else nav("/unauthorized", { replace: true });
-  }, [booting, isAuthed, role, nav]);
+    nav(dashboardPath || "/unauthorized", { replace: true });
+  }, [booting, isAuthed, dashboardPath, nav]);
 
   return <div style={{ padding: 20 }}>Redirecting to your dashboard...</div>;
 }
