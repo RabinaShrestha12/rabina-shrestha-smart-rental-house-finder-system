@@ -1,5 +1,3 @@
-# myapp/view/reviews_views.py
-
 from django.db.models import Q
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated

@@ -3,6 +3,16 @@ import { useNavigate } from "react-router-dom";
 import Shell from "../../components/Shell";
 import api from "../../api/axios";
 
+const FURNITURE_CATEGORIES = [
+  "Sofa",
+  "Bed",
+  "Chair",
+  "Table",
+  "Lamp",
+  "Cabinet",
+  "Other",
+];
+
 const EMPTY_FORM = {
   name: "",
   category: "Sofa",
@@ -65,16 +75,29 @@ export default function Furnitures() {
     return () => clearTimeout(t);
   }, [toast]);
 
+  useEffect(() => {
+    return () => {
+      if (preview && preview.startsWith("blob:")) {
+        URL.revokeObjectURL(preview);
+      }
+    };
+  }, [preview]);
+
   const resetForm = () => {
+    if (preview && preview.startsWith("blob:")) {
+      URL.revokeObjectURL(preview);
+    }
     setForm(EMPTY_FORM);
     setEditingId(null);
     setPreview("");
   };
 
   const categories = useMemo(() => {
-    const base = ["all"];
-    const set = new Set(items.map((x) => x.category).filter(Boolean));
-    return [...base, ...Array.from(set)];
+    const existing = new Set(items.map((x) => x.category).filter(Boolean));
+
+    FURNITURE_CATEGORIES.forEach((cat) => existing.add(cat));
+
+    return ["all", ...FURNITURE_CATEGORIES, ...Array.from(existing).filter((cat) => !FURNITURE_CATEGORIES.includes(cat))];
   }, [items]);
 
   const filteredItems = useMemo(() => {
@@ -105,6 +128,10 @@ export default function Furnitures() {
 
   const handleImageChange = (file) => {
     handleChange("image", file || null);
+
+    if (preview && preview.startsWith("blob:")) {
+      URL.revokeObjectURL(preview);
+    }
 
     if (!file) {
       setPreview("");
@@ -149,6 +176,10 @@ export default function Furnitures() {
   };
 
   const startEdit = (item) => {
+    if (preview && preview.startsWith("blob:")) {
+      URL.revokeObjectURL(preview);
+    }
+
     setEditingId(item.id);
     setForm({
       name: item.name || "",
@@ -283,14 +314,11 @@ export default function Furnitures() {
                   onChange={(e) => handleChange("category", e.target.value)}
                   className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400/40"
                 >
-                  <option value="Sofa">Sofa</option>
-                  <option value="Bed">Bed</option>
-                  <option value="Chair">Chair</option>
-                  <option value="Table">Table</option>
-                  <option value="Lamp">Lamp</option>
-                  <option value="Plant">Plant</option>
-                  <option value="Cabinet">Cabinet</option>
-                  <option value="Other">Other</option>
+                  {FURNITURE_CATEGORIES.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -423,7 +451,8 @@ export default function Furnitures() {
             </div>
 
             <div className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs text-slate-300">
-              {filteredItems.length} furniture item{filteredItems.length === 1 ? "" : "s"}
+              {filteredItems.length} furniture item
+              {filteredItems.length === 1 ? "" : "s"}
             </div>
           </div>
 
@@ -472,9 +501,12 @@ export default function Furnitures() {
                   </div>
 
                   <div className="mt-4">
-                    <div className="text-lg font-bold text-white">{item.name}</div>
+                    <div className="text-lg font-bold text-white">
+                      {item.name}
+                    </div>
                     <div className="mt-1 text-xs text-slate-400">
-                      {item.category} • {item.furniture_type || "—"} • {item.color || "—"}
+                      {item.category} • {item.furniture_type || "—"} •{" "}
+                      {item.color || "—"}
                     </div>
                     <div className="mt-1 text-xs text-slate-400">
                       {item.width} × {item.height}

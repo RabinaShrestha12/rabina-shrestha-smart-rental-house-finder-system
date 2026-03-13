@@ -11,10 +11,23 @@ function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
+const FIXED_CATEGORIES = [
+  "Sofa",
+  "Bed",
+  "Chair",
+  "Table",
+  "Lamp",
+  "Cabinet",
+  "Other",
+];
+
+const DEFAULT_ITEM_SIZE = 120;
+
 export default function VirtualFurniturePage() {
   const nav = useNavigate();
   const roomRef = useRef(null);
   const roomUrlRef = useRef("");
+  const pinchStateRef = useRef(null);
 
   const [catalog, setCatalog] = useState([]);
   const [loadingCatalog, setLoadingCatalog] = useState(true);
@@ -85,8 +98,13 @@ export default function VirtualFurniturePage() {
   );
 
   const categories = useMemo(() => {
-    const set = new Set(catalog.map((item) => item.category).filter(Boolean));
-    return ["all", ...Array.from(set)];
+    const existing = new Set(catalog.map((item) => item.category).filter(Boolean));
+    FIXED_CATEGORIES.forEach((cat) => existing.add(cat));
+    return [
+      "all",
+      ...FIXED_CATEGORIES,
+      ...Array.from(existing).filter((cat) => !FIXED_CATEGORIES.includes(cat)),
+    ];
   }, [catalog]);
 
   const filteredCatalog = useMemo(() => {
@@ -115,7 +133,7 @@ export default function VirtualFurniturePage() {
     const rect = roomRef.current?.getBoundingClientRect();
     return {
       width: rect?.width || 900,
-      height: rect?.height || 560,
+      height: rect?.height || 620,
     };
   };
 
@@ -123,7 +141,7 @@ export default function VirtualFurniturePage() {
     const rect = roomRef.current?.getBoundingClientRect();
 
     if (!rect) {
-      return { x: 450, y: 280, width: 900, height: 560 };
+      return { x: 450, y: 310, width: 900, height: 620 };
     }
 
     return {
@@ -138,6 +156,29 @@ export default function VirtualFurniturePage() {
     const current = placedItemsRef.current;
     if (!current.length) return 1;
     return Math.max(...current.map((item) => item.z || 1)) + 1;
+  };
+
+  const getVisualScale = (item) => {
+    const { height } = getRoomRect();
+    if (!item.autoDepth) return 1;
+    const scale = 0.72 + (item.y / Math.max(height, 1)) * 0.55;
+    return clamp(scale, 0.7, 1.35);
+  };
+
+  const fitPlacedItemInsideRoom = (item) => {
+    const { width: roomWidth, height: roomHeight } = getRoomRect();
+    const scale = getVisualScale(item);
+    const visualWidth = item.width * scale;
+    const visualHeight = item.height * scale;
+
+    const halfW = visualWidth / 2;
+    const halfH = visualHeight / 2;
+
+    return {
+      ...item,
+      x: clamp(item.x, halfW, roomWidth - halfW),
+      y: clamp(item.y, halfH, roomHeight - halfH),
+    };
   };
 
   const handleUploadRoomFile = (e) => {
@@ -188,13 +229,10 @@ export default function VirtualFurniturePage() {
   const addFurnitureToRoom = (catalogItem, x, y) => {
     const { width: roomWidth, height: roomHeight } = getRoomRect();
 
-    const img =
-      catalogItem.image_url ||
-      catalogItem.image ||
-      "/no-image.png";
+    const img = catalogItem.image_url || catalogItem.image || "/no-image.png";
 
-    const itemWidth = clamp(Number(catalogItem.width) || 120, 40, 500);
-    const itemHeight = clamp(Number(catalogItem.height) || 120, 40, 500);
+    const itemWidth = clamp(Number(catalogItem.width) || DEFAULT_ITEM_SIZE, 50, 500);
+    const itemHeight = clamp(Number(catalogItem.height) || DEFAULT_ITEM_SIZE, 50, 500);
 
     const safeX = clamp(x, itemWidth / 2, roomWidth - itemWidth / 2);
     const safeY = clamp(y, itemHeight / 2, roomHeight - itemHeight / 2);
@@ -210,10 +248,19 @@ export default function VirtualFurniturePage() {
       height: itemHeight,
       rotation: 0,
       z: nextZ(),
+      opacity: 1,
+      autoDepth: true,
+      cropLeft: 0,
+      cropRight: 0,
+      cropTop: 0,
+      cropBottom: 0,
+      shadowStrength: 0.35,
     };
 
-    setPlacedItems((prev) => [...prev, placedItem]);
-    setSelectedPlacedId(placedItem.instanceId);
+    const fitted = fitPlacedItemInsideRoom(placedItem);
+
+    setPlacedItems((prev) => [...prev, fitted]);
+    setSelectedPlacedId(fitted.instanceId);
     setToast(`${catalogItem.name} added to room.`);
   };
 
@@ -225,23 +272,13 @@ export default function VirtualFurniturePage() {
   const duplicateSelectedFurniture = () => {
     if (!selectedPlacedItem) return;
 
-    const { width: roomWidth, height: roomHeight } = getRoomRect();
-
-    const newItem = {
+    const newItem = fitPlacedItemInsideRoom({
       ...selectedPlacedItem,
       instanceId: makeId("placed"),
-      x: clamp(
-        selectedPlacedItem.x + 30,
-        selectedPlacedItem.width / 2,
-        roomWidth - selectedPlacedItem.width / 2
-      ),
-      y: clamp(
-        selectedPlacedItem.y + 30,
-        selectedPlacedItem.height / 2,
-        roomHeight - selectedPlacedItem.height / 2
-      ),
+      x: selectedPlacedItem.x + 30,
+      y: selectedPlacedItem.y + 30,
       z: nextZ(),
-    };
+    });
 
     setPlacedItems((prev) => [...prev, newItem]);
     setSelectedPlacedId(newItem.instanceId);
@@ -262,6 +299,26 @@ export default function VirtualFurniturePage() {
     setPlacedItems([]);
     setSelectedPlacedId(null);
     setToast("All placed furniture cleared.");
+  };
+
+  const bringSelectedToFront = () => {
+    if (!selectedPlacedId) return;
+    updateSelectedPlacedItem({ z: nextZ() });
+  };
+
+  const sendSelectedBackward = () => {
+    if (!selectedPlacedItem) return;
+    updateSelectedPlacedItem({ z: Math.max(1, selectedPlacedItem.z - 1) });
+  };
+
+  const resetSelectedCrop = () => {
+    if (!selectedPlacedItem) return;
+    updateSelectedPlacedItem({
+      cropLeft: 0,
+      cropRight: 0,
+      cropTop: 0,
+      cropBottom: 0,
+    });
   };
 
   const handleCatalogDragStart = (e, itemId) => {
@@ -295,6 +352,8 @@ export default function VirtualFurniturePage() {
     );
     if (!currentItem) return;
 
+    const scale = getVisualScale(currentItem);
+
     setSelectedPlacedId(instanceId);
 
     setPlacedItems((prev) =>
@@ -307,6 +366,7 @@ export default function VirtualFurniturePage() {
       instanceId,
       offsetX: point.x - currentItem.x,
       offsetY: point.y - currentItem.y,
+      scale,
     });
   };
 
@@ -320,8 +380,9 @@ export default function VirtualFurniturePage() {
         prev.map((item) => {
           if (item.instanceId !== dragging.instanceId) return item;
 
-          const halfW = item.width / 2;
-          const halfH = item.height / 2;
+          const scale = getVisualScale(item);
+          const halfW = (item.width * scale) / 2;
+          const halfH = (item.height * scale) / 2;
 
           const newX = clamp(point.x - dragging.offsetX, halfW, point.width - halfW);
           const newY = clamp(point.y - dragging.offsetY, halfH, point.height - halfH);
@@ -346,27 +407,27 @@ export default function VirtualFurniturePage() {
     };
   }, [dragging]);
 
+  const updatePlacedItemById = (instanceId, patch) => {
+    setPlacedItems((prev) =>
+      prev.map((item) => {
+        if (item.instanceId !== instanceId) return item;
+        const updated = fitPlacedItemInsideRoom({ ...item, ...patch });
+        return updated;
+      })
+    );
+  };
+
   const updateSelectedPlacedItem = (patch) => {
     if (!selectedPlacedId) return;
-
-    setPlacedItems((prev) =>
-      prev.map((item) =>
-        item.instanceId === selectedPlacedId ? { ...item, ...patch } : item
-      )
-    );
+    updatePlacedItemById(selectedPlacedId, patch);
   };
 
   const moveSelectedBy = (dx, dy) => {
     if (!selectedPlacedItem) return;
-
-    const { width: roomWidth, height: roomHeight } = getRoomRect();
-    const halfW = selectedPlacedItem.width / 2;
-    const halfH = selectedPlacedItem.height / 2;
-
-    const newX = clamp(selectedPlacedItem.x + dx, halfW, roomWidth - halfW);
-    const newY = clamp(selectedPlacedItem.y + dy, halfH, roomHeight - halfH);
-
-    updateSelectedPlacedItem({ x: newX, y: newY });
+    updateSelectedPlacedItem({
+      x: selectedPlacedItem.x + dx,
+      y: selectedPlacedItem.y + dy,
+    });
   };
 
   const resizeSelected = (delta) => {
@@ -377,17 +438,116 @@ export default function VirtualFurniturePage() {
     const newWidth = clamp(
       selectedPlacedItem.width + delta,
       40,
-      Math.min(500, roomWidth - 10)
+      Math.min(700, roomWidth - 10)
     );
     const newHeight = clamp(
       selectedPlacedItem.height + delta,
       40,
-      Math.min(500, roomHeight - 10)
+      Math.min(700, roomHeight - 10)
     );
 
     updateSelectedPlacedItem({
       width: newWidth,
       height: newHeight,
+    });
+  };
+
+  const resizePlacedItemFromWheel = (instanceId, deltaY) => {
+    const item = placedItemsRef.current.find((x) => x.instanceId === instanceId);
+    if (!item) return;
+
+    const { width: roomWidth, height: roomHeight } = getRoomRect();
+    const step = deltaY > 0 ? -10 : 10;
+
+    const newWidth = clamp(item.width + step, 40, Math.min(700, roomWidth - 10));
+    const newHeight = clamp(item.height + step, 40, Math.min(700, roomHeight - 10));
+
+    updatePlacedItemById(instanceId, {
+      width: newWidth,
+      height: newHeight,
+    });
+  };
+
+  const handlePlacedWheel = (e, instanceId) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setSelectedPlacedId(instanceId);
+    resizePlacedItemFromWheel(instanceId, e.deltaY);
+  };
+
+  const getTouchDistance = (touches) => {
+    if (touches.length < 2) return 0;
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  };
+
+  const handlePlacedTouchStart = (e, instanceId) => {
+    if (e.touches.length === 2) {
+      e.stopPropagation();
+      setSelectedPlacedId(instanceId);
+
+      const item = placedItemsRef.current.find((x) => x.instanceId === instanceId);
+      if (!item) return;
+
+      pinchStateRef.current = {
+        instanceId,
+        startDistance: getTouchDistance(e.touches),
+        startWidth: item.width,
+        startHeight: item.height,
+      };
+    }
+  };
+
+  const handlePlacedTouchMove = (e, instanceId) => {
+    if (e.touches.length !== 2) return;
+    if (!pinchStateRef.current) return;
+    if (pinchStateRef.current.instanceId !== instanceId) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const { width: roomWidth, height: roomHeight } = getRoomRect();
+
+    const currentDistance = getTouchDistance(e.touches);
+    const ratio = currentDistance / pinchStateRef.current.startDistance;
+
+    const newWidth = clamp(
+      pinchStateRef.current.startWidth * ratio,
+      40,
+      Math.min(700, roomWidth - 10)
+    );
+    const newHeight = clamp(
+      pinchStateRef.current.startHeight * ratio,
+      40,
+      Math.min(700, roomHeight - 10)
+    );
+
+    updatePlacedItemById(instanceId, {
+      width: newWidth,
+      height: newHeight,
+    });
+  };
+
+  const handlePlacedTouchEnd = () => {
+    pinchStateRef.current = null;
+  };
+
+  const setSelectedWidth = (value) => {
+    if (!selectedPlacedItem) return;
+    const { width: roomWidth } = getRoomRect();
+
+    updateSelectedPlacedItem({
+      width: clamp(Number(value) || 40, 40, Math.min(700, roomWidth - 10)),
+    });
+  };
+
+  const setSelectedHeight = (value) => {
+    if (!selectedPlacedItem) return;
+    const { height: roomHeight } = getRoomRect();
+
+    updateSelectedPlacedItem({
+      height: clamp(Number(value) || 40, 40, Math.min(700, roomHeight - 10)),
     });
   };
 
@@ -399,10 +559,35 @@ export default function VirtualFurniturePage() {
     });
   };
 
+  const setSelectedCrop = (key, value) => {
+    if (!selectedPlacedItem) return;
+    updateSelectedPlacedItem({
+      [key]: clamp(Number(value) || 0, 0, 45),
+    });
+  };
+
+  const getPlacedImageStyle = (item) => {
+    const widthBoost = item.cropLeft + item.cropRight;
+    const heightBoost = item.cropTop + item.cropBottom;
+
+    return {
+      position: "absolute",
+      left: `-${item.cropLeft}%`,
+      top: `-${item.cropTop}%`,
+      width: `${100 + widthBoost}%`,
+      height: `${100 + heightBoost}%`,
+      objectFit: "contain",
+      opacity: item.opacity,
+      filter: `drop-shadow(0 12px 20px rgba(0,0,0,${item.shadowStrength}))`,
+      userSelect: "none",
+      pointerEvents: "none",
+    };
+  };
+
   return (
     <Shell
       title="Virtual Furniture"
-      subtitle="Upload a room image, load shared furniture from backend, and drag furniture into the room."
+      subtitle="Upload a room image, place furniture visually, resize, crop, and make it fit naturally in the room."
       right={
         <div className="flex flex-wrap items-center gap-2">
           <button
@@ -564,7 +749,7 @@ export default function VirtualFurniturePage() {
             <div>
               <div className="text-xl font-bold text-white">Room Preview Area</div>
               <div className="mt-1 text-sm text-slate-400">
-                Drag furniture from the list or click Add To Room.
+                Drag furniture from the list or click Add To Room. Use wheel or pinch to resize. Crop the image to make sofa, bed, cabinet fit more naturally.
               </div>
             </div>
 
@@ -613,39 +798,77 @@ export default function VirtualFurniturePage() {
             <div className="absolute inset-0">
               {placedItems.map((item) => {
                 const isSelected = item.instanceId === selectedPlacedId;
+                const visualScale = getVisualScale(item);
+                const visualWidth = item.width * visualScale;
+                const visualHeight = item.height * visualScale;
+                const shadowWidth = Math.max(visualWidth * 0.62, 30);
+                const shadowHeight = Math.max(visualHeight * 0.12, 10);
 
                 return (
                   <div
                     key={item.instanceId}
                     onPointerDown={(e) => startDraggingPlacedItem(e, item.instanceId)}
+                    onTouchStart={(e) => handlePlacedTouchStart(e, item.instanceId)}
+                    onTouchMove={(e) => handlePlacedTouchMove(e, item.instanceId)}
+                    onTouchEnd={handlePlacedTouchEnd}
+                    onWheel={(e) => handlePlacedWheel(e, item.instanceId)}
                     onClick={(e) => {
                       e.stopPropagation();
                       setSelectedPlacedId(item.instanceId);
                     }}
                     className={`absolute cursor-move select-none ${
-                      isSelected ? "ring-2 ring-cyan-300/70" : ""
+                      isSelected ? "z-50" : ""
                     }`}
                     style={{
                       left: item.x,
                       top: item.y,
-                      width: item.width,
-                      height: item.height,
+                      width: visualWidth,
+                      height: visualHeight,
                       zIndex: item.z,
                       transform: `translate(-50%, -50%) rotate(${item.rotation}deg)`,
+                      touchAction: "none",
                     }}
                     title={`${item.name} - drag to move`}
                   >
-                    <div className="relative h-full w-full rounded-2xl border border-white/10 bg-black/15 shadow-2xl backdrop-blur-sm">
-                      <img
-                        src={item.image}
-                        alt={item.name}
-                        draggable={false}
-                        className="h-full w-full object-contain p-1"
-                        onError={(e) => {
-                          e.currentTarget.onerror = null;
-                          e.currentTarget.src = "/no-image.png";
+                    <div
+                      className="absolute left-1/2 top-[90%] -translate-x-1/2 rounded-full bg-black/35 blur-md"
+                      style={{
+                        width: shadowWidth,
+                        height: shadowHeight,
+                        opacity: 0.28 + item.shadowStrength * 0.4,
+                      }}
+                    />
+
+                    <div className="relative h-full w-full">
+                      <div
+                        className="absolute inset-0 overflow-hidden rounded-2xl"
+                        style={{
+                          outline: isSelected ? "2px solid rgba(103, 232, 249, 0.95)" : "none",
+                          boxShadow: isSelected
+                            ? "0 0 0 4px rgba(34,211,238,0.12)"
+                            : "none",
                         }}
-                      />
+                      >
+                        <img
+                          src={item.image}
+                          alt={item.name}
+                          draggable={false}
+                          style={getPlacedImageStyle(item)}
+                          onError={(e) => {
+                            e.currentTarget.onerror = null;
+                            e.currentTarget.src = "/no-image.png";
+                          }}
+                        />
+                      </div>
+
+                      {isSelected && (
+                        <>
+                          <div className="absolute -left-2 -top-2 h-4 w-4 rounded-full border-2 border-white bg-cyan-400" />
+                          <div className="absolute -right-2 -top-2 h-4 w-4 rounded-full border-2 border-white bg-cyan-400" />
+                          <div className="absolute -bottom-2 -left-2 h-4 w-4 rounded-full border-2 border-white bg-cyan-400" />
+                          <div className="absolute -bottom-2 -right-2 h-4 w-4 rounded-full border-2 border-white bg-cyan-400" />
+                        </>
+                      )}
                     </div>
                   </div>
                 );
@@ -653,7 +876,7 @@ export default function VirtualFurniturePage() {
             </div>
           </div>
 
-          <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_320px]">
+          <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_360px]">
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
               <div className="font-semibold text-white">Project Paths</div>
               <div className="mt-2">
@@ -664,6 +887,9 @@ export default function VirtualFurniturePage() {
                 Furniture images are uploaded from backend and usually stored in:
                 <span className="ml-2 text-cyan-300">media/furniture/</span>
               </div>
+              <div className="mt-3 text-xs text-slate-400">
+                Tip: Place the item, drag it into position, then use crop + resize to make it look more realistic in that exact location.
+              </div>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
@@ -671,20 +897,174 @@ export default function VirtualFurniturePage() {
 
               {!selectedPlacedItem ? (
                 <div className="mt-3 text-sm text-slate-400">
-                  Select furniture from the room to move, resize, rotate, duplicate, or delete it.
+                  Select furniture from the room to move, resize, crop, rotate, duplicate, or delete it.
                 </div>
               ) : (
-                <div className="mt-4 space-y-3">
+                <div className="mt-4 space-y-4">
                   <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
                     <div className="font-semibold text-white">{selectedPlacedItem.name}</div>
                     <div className="mt-1 text-xs text-slate-400">
                       Position: {Math.round(selectedPlacedItem.x)}, {Math.round(selectedPlacedItem.y)}
                     </div>
                     <div className="text-xs text-slate-400">
-                      Size: {Math.round(selectedPlacedItem.width)} × {Math.round(selectedPlacedItem.height)}
+                      Width: {Math.round(selectedPlacedItem.width)} px
+                    </div>
+                    <div className="text-xs text-slate-400">
+                      Height: {Math.round(selectedPlacedItem.height)} px
                     </div>
                     <div className="text-xs text-slate-400">
                       Rotation: {selectedPlacedItem.rotation}°
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/5 p-3">
+                    <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-cyan-200">
+                      Smooth Size Control
+                    </div>
+
+                    <div className="space-y-3">
+                      <div>
+                        <div className="mb-1 flex items-center justify-between text-xs text-slate-300">
+                          <span>Width</span>
+                          <span>{Math.round(selectedPlacedItem.width)} px</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="40"
+                          max="700"
+                          value={selectedPlacedItem.width}
+                          onChange={(e) => setSelectedWidth(e.target.value)}
+                          className="w-full accent-cyan-400"
+                        />
+                      </div>
+
+                      <div>
+                        <div className="mb-1 flex items-center justify-between text-xs text-slate-300">
+                          <span>Height</span>
+                          <span>{Math.round(selectedPlacedItem.height)} px</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="40"
+                          max="700"
+                          value={selectedPlacedItem.height}
+                          onChange={(e) => setSelectedHeight(e.target.value)}
+                          className="w-full accent-cyan-400"
+                        />
+                      </div>
+
+                      <div>
+                        <div className="mb-1 flex items-center justify-between text-xs text-slate-300">
+                          <span>Opacity</span>
+                          <span>{Math.round(selectedPlacedItem.opacity * 100)}%</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="30"
+                          max="100"
+                          value={Math.round(selectedPlacedItem.opacity * 100)}
+                          onChange={(e) =>
+                            updateSelectedPlacedItem({
+                              opacity: clamp(Number(e.target.value) / 100, 0.3, 1),
+                            })
+                          }
+                          className="w-full accent-cyan-400"
+                        />
+                      </div>
+
+                      <div>
+                        <div className="mb-1 flex items-center justify-between text-xs text-slate-300">
+                          <span>Shadow</span>
+                          <span>{Math.round(selectedPlacedItem.shadowStrength * 100)}%</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          value={Math.round(selectedPlacedItem.shadowStrength * 100)}
+                          onChange={(e) =>
+                            updateSelectedPlacedItem({
+                              shadowStrength: clamp(Number(e.target.value) / 100, 0, 1),
+                            })
+                          }
+                          className="w-full accent-cyan-400"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-emerald-400/15 bg-emerald-500/5 p-3">
+                    <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-emerald-200">
+                      Crop Image To Fit Better
+                    </div>
+
+                    <div className="space-y-3">
+                      <div>
+                        <div className="mb-1 flex items-center justify-between text-xs text-slate-300">
+                          <span>Crop Left</span>
+                          <span>{selectedPlacedItem.cropLeft}%</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0"
+                          max="45"
+                          value={selectedPlacedItem.cropLeft}
+                          onChange={(e) => setSelectedCrop("cropLeft", e.target.value)}
+                          className="w-full accent-emerald-400"
+                        />
+                      </div>
+
+                      <div>
+                        <div className="mb-1 flex items-center justify-between text-xs text-slate-300">
+                          <span>Crop Right</span>
+                          <span>{selectedPlacedItem.cropRight}%</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0"
+                          max="45"
+                          value={selectedPlacedItem.cropRight}
+                          onChange={(e) => setSelectedCrop("cropRight", e.target.value)}
+                          className="w-full accent-emerald-400"
+                        />
+                      </div>
+
+                      <div>
+                        <div className="mb-1 flex items-center justify-between text-xs text-slate-300">
+                          <span>Crop Top</span>
+                          <span>{selectedPlacedItem.cropTop}%</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0"
+                          max="45"
+                          value={selectedPlacedItem.cropTop}
+                          onChange={(e) => setSelectedCrop("cropTop", e.target.value)}
+                          className="w-full accent-emerald-400"
+                        />
+                      </div>
+
+                      <div>
+                        <div className="mb-1 flex items-center justify-between text-xs text-slate-300">
+                          <span>Crop Bottom</span>
+                          <span>{selectedPlacedItem.cropBottom}%</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0"
+                          max="45"
+                          value={selectedPlacedItem.cropBottom}
+                          onChange={(e) => setSelectedCrop("cropBottom", e.target.value)}
+                          className="w-full accent-emerald-400"
+                        />
+                      </div>
+
+                      <button
+                        onClick={resetSelectedCrop}
+                        className="w-full rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-sm font-medium text-emerald-100 transition hover:bg-emerald-500/15"
+                      >
+                        Reset Crop
+                      </button>
                     </div>
                   </div>
 
@@ -744,6 +1124,31 @@ export default function VirtualFurniturePage() {
 
                   <div className="grid grid-cols-2 gap-2">
                     <button
+                      onClick={() =>
+                        updateSelectedPlacedItem({
+                          autoDepth: !selectedPlacedItem.autoDepth,
+                        })
+                      }
+                      className="rounded-xl border border-fuchsia-400/20 bg-fuchsia-500/10 px-3 py-2 text-sm font-medium text-fuchsia-100 transition hover:bg-fuchsia-500/15"
+                    >
+                      {selectedPlacedItem.autoDepth ? "Auto Depth On" : "Auto Depth Off"}
+                    </button>
+
+                    <button
+                      onClick={bringSelectedToFront}
+                      className="rounded-xl border border-cyan-400/20 bg-cyan-500/10 px-3 py-2 text-sm font-medium text-cyan-100 transition hover:bg-cyan-500/15"
+                    >
+                      Bring Front
+                    </button>
+
+                    <button
+                      onClick={sendSelectedBackward}
+                      className="rounded-xl border border-slate-400/20 bg-slate-500/10 px-3 py-2 text-sm font-medium text-slate-100 transition hover:bg-slate-500/15"
+                    >
+                      Send Back
+                    </button>
+
+                    <button
                       onClick={duplicateSelectedFurniture}
                       className="rounded-xl border border-blue-400/20 bg-blue-500/10 px-3 py-2 text-sm font-medium text-blue-100 transition hover:bg-blue-500/15"
                     >
@@ -752,7 +1157,7 @@ export default function VirtualFurniturePage() {
 
                     <button
                       onClick={deleteSelectedPlacedItem}
-                      className="rounded-xl border border-red-400/20 bg-red-500/10 px-3 py-2 text-sm font-medium text-red-100 transition hover:bg-red-500/15"
+                      className="col-span-2 rounded-xl border border-red-400/20 bg-red-500/10 px-3 py-2 text-sm font-medium text-red-100 transition hover:bg-red-500/15"
                     >
                       Delete
                     </button>
