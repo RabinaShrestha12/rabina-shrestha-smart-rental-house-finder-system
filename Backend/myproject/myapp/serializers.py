@@ -675,3 +675,68 @@ class FurnitureItemSerializer(serializers.ModelSerializer):
         if obj.image and request:
             return request.build_absolute_uri(obj.image.url)
         return obj.image.url if obj.image else ""
+    
+from rest_framework import serializers
+from .models import BookingPayment
+
+
+class BookingPaymentSerializer(serializers.ModelSerializer):
+    tenant_name = serializers.SerializerMethodField()
+    tenant_email = serializers.SerializerMethodField()
+    owner_name = serializers.SerializerMethodField()
+    owner_email = serializers.SerializerMethodField()
+    listing_title = serializers.SerializerMethodField()
+
+    class Meta:
+        model = BookingPayment
+        fields = [
+            "id",
+            "tenant",
+            "tenant_name",
+            "tenant_email",
+            "owner",
+            "owner_name",
+            "owner_email",
+            "listing",
+            "listing_title",
+            "amount",
+            "admin_share_percent",
+            "owner_share_percent",
+            "admin_share_amount",
+            "owner_share_amount",
+            "is_first_property_payment",
+            "transaction_uuid",
+            "product_code",
+            "ref_id",
+            "payment_status",
+            "owner_payout_status",
+            "owner_payout_date",
+            "owner_payout_note",
+            "payment_month",
+            "raw_response",
+            "created_at",
+            "verified_at",
+        ]
+
+    def get_tenant_name(self, obj):
+        return (
+            getattr(obj.tenant, "username", None)
+            or getattr(obj.tenant, "email", None)
+            or str(obj.tenant)
+        )
+
+    def get_tenant_email(self, obj):
+        return getattr(obj.tenant, "email", None)
+
+    def get_owner_name(self, obj):
+        return (
+            getattr(obj.owner, "username", None)
+            or getattr(obj.owner, "email", None)
+            or str(obj.owner)
+        )
+
+    def get_owner_email(self, obj):
+        return getattr(obj.owner, "email", None)
+
+    def get_listing_title(self, obj):
+        return getattr(obj.listing, "title", f"Listing #{obj.listing_id}")

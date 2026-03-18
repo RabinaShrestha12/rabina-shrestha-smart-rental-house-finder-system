@@ -76,6 +76,11 @@ export default function OwnerDashboard() {
   const [notifError, setNotifError] = useState("");
   const [notifQuery, setNotifQuery] = useState("");
 
+  const [showPayments, setShowPayments] = useState(false);
+  const [payments, setPayments] = useState([]);
+  const [paymentsLoading, setPaymentsLoading] = useState(false);
+  const [paymentsError, setPaymentsError] = useState("");
+
   const [seenBookingIds, setSeenBookingIds] = useState([]);
   const [seenReviewIds, setSeenReviewIds] = useState([]);
 
@@ -396,6 +401,24 @@ export default function OwnerDashboard() {
     } to you.`;
   };
 
+  const getPaymentId = (p, idx) => p?.id ?? p?.payment_id ?? p?.pk ?? `${idx}`;
+  const getPaymentTenant = (p) =>
+    p?.tenant_name ||
+    p?.tenant_username ||
+    p?.tenant_email ||
+    p?.tenant?.username ||
+    p?.tenant?.email ||
+    "Tenant";
+  const getPaymentListing = (p) =>
+    p?.listing_title ||
+    p?.listing?.title ||
+    p?.property_title ||
+    "Property";
+  const getPaymentStatus = (p) =>
+    String(p?.payment_status || p?.status || "PENDING").toUpperCase();
+  const getPaymentDate = (p) =>
+    p?.verified_at || p?.created_at || p?.payment_date || "";
+
   const isEmail = (v) =>
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || "").trim());
   const isPhone = (v) => /^[0-9+\-\s]{7,20}$/.test(String(v || "").trim());
@@ -652,6 +675,32 @@ export default function OwnerDashboard() {
       if (!silent) setNotifications([]);
     } finally {
       if (!silent) setNotifLoading(false);
+    }
+  };
+
+  const loadPayments = async (silent = false) => {
+    if (!silent) {
+      setPaymentsLoading(true);
+      setPaymentsError("");
+    }
+
+    try {
+      const res = await api.get("owner/booking-payments/");
+      const list = Array.isArray(res.data)
+        ? res.data
+        : Array.isArray(res.data?.results)
+        ? res.data.results
+        : [];
+      setPayments(list);
+    } catch (err) {
+      if (!silent) {
+        setPaymentsError(
+          err?.response?.data?.detail || "Failed to load payment records."
+        );
+      }
+      setPayments([]);
+    } finally {
+      if (!silent) setPaymentsLoading(false);
     }
   };
 
@@ -1072,6 +1121,7 @@ out center;
     loadInbox(false);
     loadNotifications(false);
     loadReviews(false);
+    loadPayments(false);
 
     const inboxInterval = setInterval(() => {
       loadInbox(true);
@@ -1085,10 +1135,15 @@ out center;
       loadReviews(true);
     }, 5000);
 
+    const paymentInterval = setInterval(() => {
+      loadPayments(true);
+    }, 5000);
+
     return () => {
       clearInterval(inboxInterval);
       clearInterval(notifInterval);
       clearInterval(reviewInterval);
+      clearInterval(paymentInterval);
       if (notifToastTimerRef.current) clearTimeout(notifToastTimerRef.current);
       if (reviewToastTimerRef.current) clearTimeout(reviewToastTimerRef.current);
     };
@@ -1204,6 +1259,12 @@ out center;
       return id && !seenReviewIds.includes(id);
     }).length;
   }, [reviews, seenReviewIds]);
+
+  const completedPaymentCount = useMemo(() => {
+    return (payments || []).filter(
+      (p) => String(p?.payment_status || "").toUpperCase() === "COMPLETE"
+    ).length;
+  }, [payments]);
 
   const latestRequests = useMemo(() => {
     const list = [...(requests || [])];
@@ -1521,6 +1582,21 @@ out center;
             </button>
 
             <button
+              onClick={() => setShowPayments((s) => !s)}
+              className={`shrink-0 rounded-2xl border px-4 py-2 text-sm font-semibold transition ${
+                showPayments
+                  ? "border-green-400/30 bg-green-500/15 text-green-100 hover:bg-green-500/20"
+                  : "border-white/10 bg-white/5 text-slate-100 hover:bg-white/10"
+              }`}
+              title="See tenant payment records"
+            >
+              💰 Payment Records
+              <span className="ml-2 inline-flex min-w-[22px] items-center justify-center rounded-full bg-green-500/80 px-2 py-[2px] text-[11px] font-extrabold text-white">
+                {paymentsLoading ? "..." : completedPaymentCount}
+              </span>
+            </button>
+
+            <button
               onClick={() => nav("/owner/maintenance")}
               className="shrink-0 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15"
             >
@@ -1533,6 +1609,56 @@ out center;
           </div>
         </div>
       </div>
+
+      {showPayments && (
+        <div className="mb-6 rounded-3xl border border-white/10 bg-black/20 p-6">
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-lg font-semibold text-white">💰 Tenant Payment Records</div>
+            <button
+              onClick={() => setShowPayments(false)}
+              className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-100 transition hover:bg-white/10"
+            >
+              Close
+            </button>
+          </div>
+
+          {paymentsError ? (
+            <div className="mt-4 text-sm text-red-300">{paymentsError}</div>
+          ) : paymentsLoading ? (
+            <div className="mt-4 text-sm text-slate-300">Loading payment records...</div>
+          ) : payments.length === 0 ? (
+            <div className="mt-4 text-sm text-slate-300">No payment records found.</div>
+          ) : (
+            <div className="mt-4 grid gap-3">
+              {payments.map((p, idx) => (
+                <div
+                  key={getPaymentId(p, idx)}
+                  className="rounded-2xl border border-white/10 bg-white/5 p-4"
+                >
+                  <div className="text-sm text-white">
+                    <b>Tenant:</b> {getPaymentTenant(p)}
+                  </div>
+                  <div className="text-sm text-white">
+                    <b>Property:</b> {getPaymentListing(p)}
+                  </div>
+                  <div className="text-sm text-white">
+                    <b>Amount:</b> Rs. {p.amount}
+                  </div>
+                  <div className="text-sm text-white">
+                    <b>Payment Month:</b> {p.payment_month || "-"}
+                  </div>
+                  <div className="text-sm text-white">
+                    <b>Status:</b> {getPaymentStatus(p)}
+                  </div>
+                  <div className="text-sm text-white">
+                    <b>Date:</b> {formatDate(getPaymentDate(p))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {showNotifications && (
         <div className="mb-6 rounded-3xl border border-white/10 bg-black/20 p-6">

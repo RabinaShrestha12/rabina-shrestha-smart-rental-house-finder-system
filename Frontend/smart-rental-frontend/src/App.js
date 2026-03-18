@@ -35,6 +35,11 @@ import RoommateRequests from "./pages/tenant/RoommateRequests";
 import TenantChats from "./pages/tenant/Chats";
 import RoommateChat from "./pages/tenant/RoommateChat";
 import VirtualFurniturePage from "./pages/tenant/VirtualFurniturePage";
+import TenantEsewaPay from "./pages/tenant/TenantEsewaPay";
+import PaymentSuccess from "./pages/tenant/PaymentSuccess";
+import PaymentFailed from "./pages/tenant/PaymentFailed";
+import TenantBookingPayments from "./pages/tenant/TenantBookingPayments";
+import TenantExpenseTracker from "./pages/tenant/TenantExpenseTracker";
 
 // OWNER PAGES
 import OwnerMyProperties from "./pages/dashboard/OwnerMyProperties";
@@ -42,10 +47,12 @@ import OwnerListingDetail from "./pages/dashboard/OwnerListingDetail";
 import OwnerListingEdit from "./pages/dashboard/OwnerListingEdit";
 import OwnerMessages from "./pages/dashboard/OwnerMessages";
 import OwnerMaintenance from "./pages/owner/OwnerMaintenance";
+import OwnerBookingPayments from "./pages/owner/OwnerBookingPayments";
 
 // ADMIN PAGE
 import EmailBroadcast from "./pages/dashboard/EmailBroadcast";
 import Furnitures from "./pages/admin/Furnitures";
+import AdminBookingPayments from "./pages/admin/AdminBookingPayments";
 
 // OWNER / TENANT
 import OwnerAddListing from "./pages/home/OwnerAddListing";
@@ -150,6 +157,15 @@ export default function App() {
       />
 
       <Route
+        path="/owner/booking-payments"
+        element={
+          <ProtectedRoute allowRoles={["owner"]}>
+            <OwnerBookingPayments />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
         path="/owner/provider-chat/:jobId"
         element={
           <ProtectedRoute allowRoles={["owner"]}>
@@ -160,6 +176,15 @@ export default function App() {
 
       <Route
         path="/tenant"
+        element={
+          <ProtectedRoute allowRoles={["tenant"]}>
+            <TenantDashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/tenant/dashboard"
         element={
           <ProtectedRoute allowRoles={["tenant"]}>
             <TenantDashboard />
@@ -258,6 +283,69 @@ export default function App() {
       />
 
       <Route
+        path="/tenant/payment/:bookingId"
+        element={
+          <ProtectedRoute allowRoles={["tenant"]}>
+            <TenantEsewaPay />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/tenant/esewa-pay"
+        element={
+          <ProtectedRoute allowRoles={["tenant"]}>
+            <TenantEsewaPay />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/tenant/payment-success"
+        element={
+          <ProtectedRoute allowRoles={["tenant"]}>
+            <PaymentSuccess />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/tenant/payment-failed"
+        element={
+          <ProtectedRoute allowRoles={["tenant"]}>
+            <PaymentFailed />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/tenant/my-booking-payments"
+        element={
+          <ProtectedRoute allowRoles={["tenant"]}>
+            <TenantBookingPayments />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/tenant/booking-payments"
+        element={
+          <ProtectedRoute allowRoles={["tenant"]}>
+            <TenantBookingPayments />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/tenant/expenses"
+        element={
+          <ProtectedRoute allowRoles={["tenant"]}>
+            <TenantExpenseTracker />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
         path="/provider"
         element={
           <ProtectedRoute allowRoles={["provider", "service_provider"]}>
@@ -307,6 +395,15 @@ export default function App() {
         element={
           <ProtectedRoute allowRoles={["admin"]}>
             <Furnitures />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/admin/booking-payments"
+        element={
+          <ProtectedRoute allowRoles={["admin"]}>
+            <AdminBookingPayments />
           </ProtectedRoute>
         }
       />

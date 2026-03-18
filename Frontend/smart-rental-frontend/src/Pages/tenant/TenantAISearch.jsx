@@ -4,6 +4,22 @@ import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import Shell from "../../components/Shell";
 
+const BACKEND = "http://127.0.0.1:8000";
+
+function toImageSrc(value) {
+  if (!value) return "/no-image.png";
+  const s = String(value).trim();
+
+  if (s.startsWith("http://") || s.startsWith("https://")) return s;
+
+  if (s.startsWith("/media/http://") || s.startsWith("/media/https://")) {
+    return s.replace(/^\/media\//, "");
+  }
+
+  if (s.startsWith("/")) return `${BACKEND}${s}`;
+  return `${BACKEND}/${s}`;
+}
+
 export default function TenantAISearch() {
   const nav = useNavigate();
   const [place, setPlace] = useState("");
@@ -141,47 +157,64 @@ export default function TenantAISearch() {
               {results.map((x) => (
                 <div
                   key={x.id}
-                  className="rounded-2xl border border-white/10 bg-white/5 p-4"
+                  className="overflow-hidden rounded-2xl border border-white/10 bg-white/5"
                 >
-                  {/* ✅ House/Listing name */}
-                  <div className="text-sm font-semibold line-clamp-1">
-                    {x.title}
+                  <div className="h-44 w-full overflow-hidden bg-black/20">
+                    <img
+                      src={toImageSrc(
+                        x.image ||
+                          x.image_url ||
+                          x.cover_image ||
+                          x.photo ||
+                          x.thumbnail
+                      )}
+                      alt={x.title || "Property"}
+                      className="h-full w-full object-cover"
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src = "/no-image.png";
+                      }}
+                    />
                   </div>
 
-                  {/* ✅ Full location */}
-                  <div className="mt-1 text-xs text-slate-300 line-clamp-2">
-                    {x.location}
-                  </div>
+                  <div className="p-4">
+                    <div className="text-sm font-semibold line-clamp-1">
+                      {x.title}
+                    </div>
 
-                  <div className="mt-2 text-xs text-slate-300">
-                    Rs {x.price_per_month} • {x.property_type} • {x.distance_km} km away
-                  </div>
+                    <div className="mt-1 text-xs text-slate-300 line-clamp-2">
+                      {x.location}
+                    </div>
 
-                  <div className="mt-3 flex gap-2 flex-wrap">
-                    <button
-                      onClick={() => nav(`/public/listings/${x.id}`)}
-                      className="rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-xs hover:bg-white/15 transition"
-                    >
-                      View
-                    </button>
+                    <div className="mt-2 text-xs text-slate-300">
+                      Rs {x.price_per_month} • {x.property_type} • {x.distance_km} km away
+                    </div>
 
-                    <button
-                      onClick={() => nav(`/tenant/book/${x.id}`)}
-                      className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs hover:bg-white/10 transition"
-                    >
-                      Request Visit
-                    </button>
+                    <div className="mt-3 flex gap-2 flex-wrap">
+                      <button
+                        onClick={() => nav(`/public/listings/${x.id}`)}
+                        className="rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-xs hover:bg-white/15 transition"
+                      >
+                        View
+                      </button>
 
-                    {/* ✅ Open directly in Google Maps */}
-                    <a
-                      href={mapsUrl(x)}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="rounded-2xl border border-white/10 bg-emerald-500/15 px-3 py-2 text-xs hover:bg-emerald-500/25 transition"
-                      title="Open location in Google Maps"
-                    >
-                      📍 Open Map
-                    </a>
+                      <button
+                        onClick={() => nav(`/tenant/book/${x.id}`)}
+                        className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs hover:bg-white/10 transition"
+                      >
+                        Request Visit
+                      </button>
+
+                      <a
+                        href={mapsUrl(x)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-2xl border border-white/10 bg-emerald-500/15 px-3 py-2 text-xs hover:bg-emerald-500/25 transition"
+                        title="Open location in Google Maps"
+                      >
+                        📍 Open Map
+                      </a>
+                    </div>
                   </div>
                 </div>
               ))}

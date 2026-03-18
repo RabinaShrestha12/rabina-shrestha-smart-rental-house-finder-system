@@ -271,6 +271,20 @@ export default function TenantDashboard() {
           </button>
 
           <button
+            onClick={() => nav("/tenant/booking-payments")}
+            className="rounded-2xl border border-blue-400/20 bg-blue-500/10 px-3 py-2 text-sm text-blue-100 transition hover:bg-blue-500/15"
+          >
+            💳 My Payments
+          </button>
+
+          <button
+            onClick={() => nav("/tenant/expenses")}
+            className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-100 transition hover:bg-emerald-500/15"
+          >
+            💰 Expenses
+          </button>
+
+          <button
             onClick={() =>
               setToast({ type: "info", msg: `Favorites saved: ${favorites.length}` })
             }
@@ -342,7 +356,7 @@ export default function TenantDashboard() {
           </button>
         </div>
 
-        <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-7">
           <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-purple-500/10 to-indigo-500/10 p-5">
             <div className="text-lg font-bold text-white">✨ AI Search</div>
             <div className="mt-2 text-sm leading-6 text-slate-300">
@@ -405,6 +419,32 @@ export default function TenantDashboard() {
               className="mt-4 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white transition hover:bg-white/10"
             >
               Open Budget Split →
+            </button>
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-blue-500/10 to-indigo-500/10 p-5">
+            <div className="text-lg font-bold text-white">💳 My Rent Payments</div>
+            <div className="mt-2 text-sm leading-6 text-slate-300">
+              See how much rent you paid, which month, to which owner, and payment status.
+            </div>
+            <button
+              onClick={() => nav("/tenant/booking-payments")}
+              className="mt-4 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white transition hover:bg-white/10"
+            >
+              Open Payment History →
+            </button>
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-green-500/10 to-teal-500/10 p-5">
+            <div className="text-lg font-bold text-white">💰 Expense Tracker</div>
+            <div className="mt-2 text-sm leading-6 text-slate-300">
+              Store daily expenses and check monthly spending on food, travel, clothes, and more.
+            </div>
+            <button
+              onClick={() => nav("/tenant/expenses")}
+              className="mt-4 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white transition hover:bg-white/10"
+            >
+              Open Expense Tracker →
             </button>
           </div>
         </div>

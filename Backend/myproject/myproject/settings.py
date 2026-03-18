@@ -14,11 +14,11 @@ from pathlib import Path
 from datetime import timedelta
 import os
 import smtplib
-
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-
+load_dotenv(BASE_DIR / ".env")
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
@@ -174,3 +174,11 @@ ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
+
+
+ESEWA_PRODUCT_CODE = os.getenv("ESEWA_PRODUCT_CODE", "EPAYTEST")
+ESEWA_SECRET_KEY = os.getenv("ESEWA_SECRET_KEY", "")
+ESEWA_PAYMENT_URL = os.getenv("ESEWA_PAYMENT_URL", "https://rc-epay.esewa.com.np/api/epay/main/v2/form")
+ESEWA_STATUS_URL = os.getenv("ESEWA_STATUS_URL", "https://rc.esewa.com.np/api/epay/transaction/status/")
+ESEWA_SUCCESS_URL = os.getenv("ESEWA_SUCCESS_URL", "")
+ESEWA_FAILURE_URL = os.getenv("ESEWA_FAILURE_URL", "")

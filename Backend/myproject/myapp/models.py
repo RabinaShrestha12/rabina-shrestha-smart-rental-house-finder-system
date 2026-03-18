@@ -609,3 +609,82 @@ class FurnitureItem(models.Model):
 
     def __str__(self):
         return self.name
+
+
+from decimal import Decimal, ROUND_HALF_UP
+
+class BookingPayment(models.Model):
+    STATUS_CHOICES = [
+        ("PENDING", "Pending"),
+        ("COMPLETE", "Complete"),
+        ("FAILED", "Failed"),
+        ("CANCELED", "Canceled"),
+        ("NOT_FOUND", "Not Found"),
+        ("AMBIGUOUS", "Ambiguous"),
+        ("FULL_REFUND", "Full Refund"),
+        ("PARTIAL_REFUND", "Partial Refund"),
+    ]
+
+    OWNER_PAYOUT_CHOICES = [
+        ("pending", "Pending"),
+        ("paid", "Paid"),
+    ]
+
+    tenant = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="booking_payments_as_tenant"
+    )
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="booking_payments_as_owner"
+    )
+    listing = models.ForeignKey(
+        "myapp.Listing",
+        on_delete=models.CASCADE,
+        related_name="booking_payments"
+    )
+
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+
+    admin_share_percent = models.DecimalField(max_digits=5, decimal_places=2, default=20.00)
+    owner_share_percent = models.DecimalField(max_digits=5, decimal_places=2, default=80.00)
+
+    admin_share_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    owner_share_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
+    is_first_property_payment = models.BooleanField(default=False)
+
+    transaction_uuid = models.CharField(max_length=100, unique=True)
+    product_code = models.CharField(max_length=50, default="EPAYTEST")
+    ref_id = models.CharField(max_length=120, blank=True, null=True)
+
+    payment_status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="PENDING")
+    owner_payout_status = models.CharField(max_length=20, choices=OWNER_PAYOUT_CHOICES, default="pending")
+
+    owner_payout_date = models.DateTimeField(null=True, blank=True)
+    owner_payout_note = models.TextField(blank=True)
+
+    payment_month = models.CharField(max_length=50, blank=True)
+    raw_response = models.JSONField(default=dict, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    verified_at = models.DateTimeField(null=True, blank=True)
+
+    def save(self, *args, **kwargs):
+        total = Decimal(str(self.amount or 0))
+        admin_percent = Decimal(str(self.admin_share_percent or 0))
+        owner_percent = Decimal(str(self.owner_share_percent or 0))
+
+        self.admin_share_amount = (total * admin_percent / Decimal("100")).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        )
+        self.owner_share_amount = (total * owner_percent / Decimal("100")).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        )
+
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.transaction_uuid} - {self.payment_status}"

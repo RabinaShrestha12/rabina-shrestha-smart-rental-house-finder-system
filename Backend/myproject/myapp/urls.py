@@ -63,6 +63,17 @@ from myapp.view.furniture_views import (
     furniture_update,
     furniture_delete,
 )
+
+
+from .view.esewa_payment_views import (
+    initiate_esewa_booking_payment,
+    esewa_success,
+    esewa_failure,
+    my_booking_payments,
+    admin_booking_payments,
+    mark_owner_booking_paid,
+    owner_booking_payments,
+)
 urlpatterns = [
     path("register_user/", register_user),
     path("verify-otp/", verify_otp),
@@ -156,4 +167,14 @@ urlpatterns = [
     path("admin/furniture/<int:pk>/delete/", furniture_delete),
 
 
+    path("payments/esewa/initiate/", initiate_esewa_booking_payment, name="initiate_esewa_booking_payment"),
+    path("payments/esewa/success/", esewa_success, name="esewa_success"),
+    path("payments/esewa/failure/", esewa_failure, name="esewa_failure"),
+
+    path("tenant/booking-payments/my/", my_booking_payments, name="my_booking_payments"),
+    path("admin/booking-payments/", admin_booking_payments, name="admin_booking_payments"),
+    path("admin/booking-payments/<int:payment_id>/owner-paid/", mark_owner_booking_paid, name="mark_owner_booking_paid"),
+    path("owner/booking-payments/", owner_booking_payments, name="owner_booking_payments"),
 ]
+
+   

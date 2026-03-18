@@ -251,7 +251,7 @@ export default function AdminDashboard() {
                 Admin Dashboard
               </h2>
               <div style={{ opacity: 0.82, marginTop: 8, fontSize: 15 }}>
-                Welcome {email || "Admin"}. Manage users, listings, communication, and furniture.
+                Welcome {email || "Admin"}. Manage users, listings, communication, furniture, and payments.
               </div>
             </div>
 
@@ -279,6 +279,13 @@ export default function AdminDashboard() {
                 onClick={() => nav("/admin/furnitures")}
               >
                 Furnitures
+              </button>
+
+              <button
+                style={btnGreen}
+                onClick={() => nav("/admin/booking-payments")}
+              >
+                Tenant Payments
               </button>
             </div>
           </div>
@@ -461,6 +468,16 @@ const btnCyan = {
   border: "1px solid rgba(34,211,238,0.30)",
   background: "rgba(6,182,212,0.14)",
   color: "#d8fbff",
+  cursor: "pointer",
+  fontWeight: 700,
+};
+
+const btnGreen = {
+  padding: "11px 16px",
+  borderRadius: 14,
+  border: "1px solid rgba(34,197,94,0.30)",
+  background: "rgba(34,197,94,0.14)",
+  color: "#dcfce7",
   cursor: "pointer",
   fontWeight: 700,
 };

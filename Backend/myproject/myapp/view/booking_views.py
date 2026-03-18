@@ -344,12 +344,27 @@ def owner_set_booking_status(request, booking_id):
     )
 
     if tenant_user:
-        _create_notification(
-            user=tenant_user,
-            title="Booking request updated",
-            message=f"Your booking request for {listing_label} was {booking.status}.",
-            link=f"/tenant/inbox?open={booking.id}",
-        )
+        if booking.status == accepted_val:
+            _create_notification(
+                user=tenant_user,
+                title="Booking accepted",
+                message=f"Your booking request for {listing_label} has been accepted. Please complete payment to confirm your booking.",
+                link=f"/tenant/book/{listing.id}",
+            )
+        elif booking.status == rejected_val:
+            _create_notification(
+                user=tenant_user,
+                title="Booking rejected",
+                message=f"Your booking request for {listing_label} was rejected.",
+                link=f"/tenant/inbox?open={booking.id}",
+            )
+        else:
+            _create_notification(
+                user=tenant_user,
+                title="Booking request updated",
+                message=f"Your booking request for {listing_label} was {booking.status}.",
+                link=f"/tenant/inbox?open={booking.id}",
+            )
 
     return Response(
         {
@@ -357,6 +372,8 @@ def owner_set_booking_status(request, booking_id):
             "status": booking.status,
             "listing_id": listing.id,
             "listing_is_available": listing.is_available,
+            "payment_allowed": booking.status == accepted_val,
+            "payment_link": f"/tenant/book/{listing.id}" if booking.status == accepted_val else "",
         },
         status=status.HTTP_200_OK,
     )
