@@ -6,6 +6,7 @@ import HomePublic from "./pages/home/HomePublic";
 import PublicListings from "./pages/home/PublicListings";
 import PublicListingDetails from "./pages/home/PublicListingDetails";
 import Listing360Page from "./pages/home/Listing360Page";
+import AboutPage from "./pages/home/AboutPage";
 
 // MAP SEARCH
 import MapSearch from "./pages/home/MapSearch";
@@ -78,21 +79,26 @@ import ProtectedRoute from "./auth/ProtectedRoute";
 export default function App() {
   return (
     <Routes>
+      {/* PUBLIC */}
       <Route path="/" element={<HomePublic />} />
+      <Route path="/features" element={<PublicListings />} />
       <Route path="/listings" element={<PublicListings />} />
       <Route path="/listings/:id" element={<PublicListingDetails />} />
       <Route path="/public/listings/:id" element={<PublicListingDetails />} />
       <Route path="/listing/:id/360" element={<Listing360Page />} />
       <Route path="/map" element={<MapSearch />} />
+      <Route path="/about" element={<AboutPage />} />
       <Route path="/tools/budget-split" element={<BudgetSplitCalculator />} />
       <Route path="/dashboard" element={<GoDashboard />} />
 
+      {/* AUTH */}
       <Route path="/auth" element={<UserAuth />} />
       <Route path="/otp" element={<Otp />} />
       <Route path="/super-admin-login-9382" element={<AdminLogin />} />
       <Route path="/setup-admin-9x2k" element={<AdminSetup />} />
       <Route path="/register-provider" element={<RegisterProvider />} />
 
+      {/* OWNER */}
       <Route
         path="/owner"
         element={
@@ -101,7 +107,6 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-
       <Route
         path="/owner/my-properties"
         element={
@@ -110,7 +115,6 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-
       <Route
         path="/owner/listing/:id"
         element={
@@ -119,7 +123,6 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-
       <Route
         path="/owner/listing/:id/edit"
         element={
@@ -128,7 +131,6 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-
       <Route
         path="/owner/listings/create"
         element={
@@ -137,7 +139,6 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-
       <Route
         path="/owner/messages"
         element={
@@ -146,7 +147,6 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-
       <Route
         path="/owner/maintenance"
         element={
@@ -155,7 +155,6 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-
       <Route
         path="/owner/booking-payments"
         element={
@@ -164,7 +163,6 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-
       <Route
         path="/owner/provider-chat/:jobId"
         element={
@@ -174,6 +172,7 @@ export default function App() {
         }
       />
 
+      {/* TENANT */}
       <Route
         path="/tenant"
         element={
@@ -182,7 +181,6 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-
       <Route
         path="/tenant/dashboard"
         element={
@@ -191,7 +189,6 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-
       <Route
         path="/tenant/inbox"
         element={
@@ -200,7 +197,6 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-
       <Route
         path="/tenant/bookings"
         element={
@@ -209,7 +205,6 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-
       <Route
         path="/tenant/book/:listing_id"
         element={
@@ -218,7 +213,6 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-
       <Route
         path="/tenant/maintenance"
         element={
@@ -227,7 +221,6 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-
       <Route
         path="/tenant/ai"
         element={
@@ -236,7 +229,6 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-
       <Route
         path="/tenant/roommates"
         element={
@@ -245,7 +237,6 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-
       <Route
         path="/tenant/roommates/requests"
         element={
@@ -254,7 +245,6 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-
       <Route
         path="/tenant/roommates/chats"
         element={
@@ -263,7 +253,6 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-
       <Route
         path="/tenant/roommates/chats/:roomId"
         element={
@@ -272,7 +261,6 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-
       <Route
         path="/tenant/virtual-furniture"
         element={
@@ -281,7 +269,6 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-
       <Route
         path="/tenant/payment/:bookingId"
         element={
@@ -290,7 +277,6 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-
       <Route
         path="/tenant/esewa-pay"
         element={
@@ -299,7 +285,6 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-
       <Route
         path="/tenant/payment-success"
         element={
@@ -308,7 +293,6 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-
       <Route
         path="/tenant/payment-failed"
         element={
@@ -317,7 +301,6 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-
       <Route
         path="/tenant/my-booking-payments"
         element={
@@ -326,7 +309,6 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-
       <Route
         path="/tenant/booking-payments"
         element={
@@ -335,7 +317,6 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-
       <Route
         path="/tenant/expenses"
         element={
@@ -345,6 +326,7 @@ export default function App() {
         }
       />
 
+      {/* PROVIDER */}
       <Route
         path="/provider"
         element={
@@ -353,7 +335,6 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-
       <Route
         path="/provider/messages"
         element={
@@ -362,7 +343,6 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-
       <Route
         path="/provider/chat/:jobId"
         element={
@@ -372,6 +352,7 @@ export default function App() {
         }
       />
 
+      {/* ADMIN */}
       <Route
         path="/admin"
         element={
@@ -380,7 +361,6 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-
       <Route
         path="/admin/email-broadcast"
         element={
@@ -389,7 +369,6 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-
       <Route
         path="/admin/furnitures"
         element={
@@ -398,7 +377,6 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-
       <Route
         path="/admin/booking-payments"
         element={
@@ -408,6 +386,7 @@ export default function App() {
         }
       />
 
+      {/* COMMON */}
       <Route
         path="/reminders"
         element={

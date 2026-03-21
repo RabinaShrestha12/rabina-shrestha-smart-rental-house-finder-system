@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 
 const BACKEND = "http://127.0.0.1:8000";
@@ -33,12 +33,15 @@ function money(v) {
 export default function PublicListings() {
   const navigate = useNavigate();
 
+  const [darkMode, setDarkMode] = useState(false);
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const [qTitle, setQTitle] = useState("");
   const [qLocation, setQLocation] = useState("");
   const [qType, setQType] = useState("all");
+
+  const isDark = darkMode;
 
   useEffect(() => {
     (async () => {
@@ -75,7 +78,6 @@ export default function PublicListings() {
   const go360 = (listingId) => navigate(`/listing/${listingId}/360`);
   const goDetails = (listingId) => navigate(`/listings/${listingId}`);
 
-  // ✅ Booking with auth check + redirect save
   const goBook = (listingId, booked) => {
     if (booked) return;
 
@@ -98,207 +100,305 @@ export default function PublicListings() {
     navigate(`/tenant/book/${listingId}`);
   };
 
-  if (loading) return <div style={{ padding: 16 }}>Loading...</div>;
+  const pageBg = isDark
+    ? "min-h-screen bg-[radial-gradient(circle_at_top_left,_#08224a_0%,_#071738_28%,_#04112b_58%,_#020816_100%)] text-white"
+    : "min-h-screen bg-[#f4f7fc] text-slate-900";
+
+  const navBg = isDark
+    ? "border-b border-white/10 bg-[#03081c]/90"
+    : "border-b border-blue-100 bg-white/95";
+
+  const heading = isDark ? "text-white" : "text-[#1a2f6b]";
+  const sub = isDark ? "text-slate-300" : "text-slate-600";
+  const softText = isDark ? "text-slate-400" : "text-slate-500";
+
+  const cardClass = isDark
+    ? "border border-white/10 bg-white/5"
+    : "border border-blue-100 bg-white";
+
+  const inputClass = isDark
+    ? "border-white/10 bg-slate-900/70 text-white placeholder:text-slate-400"
+    : "border-blue-100 bg-slate-50 text-slate-900 placeholder:text-slate-400";
+
+  const linkBase =
+    "rounded-full px-5 py-2 text-sm font-semibold transition duration-200";
+
+  if (loading) {
+    return (
+      <div className={pageBg}>
+        <div className="mx-auto max-w-7xl px-6 py-10">Loading...</div>
+      </div>
+    );
+  }
 
   return (
-    <div style={{ maxWidth: 1100, margin: "0 auto", padding: 16 }}>
-      <h2 style={{ marginTop: 0 }}>Smart Rental House Finder System</h2>
-
-      {/* SEARCH BAR */}
-      <div
-        style={{
-          display: "flex",
-          gap: 10,
-          flexWrap: "wrap",
-          padding: 12,
-          border: "1px solid #ddd",
-          borderRadius: 12,
-          marginBottom: 16,
-        }}
-      >
-        <input
-          value={qTitle}
-          onChange={(e) => setQTitle(e.target.value)}
-          placeholder="Search title"
-          style={{
-            padding: 10,
-            borderRadius: 10,
-            border: "1px solid #ccc",
-            minWidth: 200,
-          }}
-        />
-
-        <input
-          value={qLocation}
-          onChange={(e) => setQLocation(e.target.value)}
-          placeholder="Location"
-          style={{
-            padding: 10,
-            borderRadius: 10,
-            border: "1px solid #ccc",
-            minWidth: 200,
-          }}
-        />
-
-        <select
-          value={qType}
-          onChange={(e) => setQType(e.target.value)}
-          style={{
-            padding: 10,
-            borderRadius: 10,
-            border: "1px solid #ccc",
-            minWidth: 140,
-          }}
-        >
-          <option value="all">All</option>
-          <option value="room">Room</option>
-          <option value="house">House</option>
-          <option value="apartment">Apartment</option>
-        </select>
-
-        <button
-          onClick={() => {}}
-          style={{ padding: "10px 14px", borderRadius: 10 }}
-          title="Filtering happens automatically as you type"
-        >
-          Search
-        </button>
-
-        <button onClick={reset} style={{ padding: "10px 14px", borderRadius: 10 }}>
-          Reset
-        </button>
-      </div>
-
-      <h3 style={{ marginTop: 0 }}>
-        Available Listings{" "}
-        <span style={{ fontSize: 12, opacity: 0.7 }}>({filtered.length} found)</span>
-      </h3>
-
-      {filtered.length === 0 && <div>No listings found.</div>}
-
-      {/* LISTINGS */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        {filtered.map((l) => {
-          const cover = toImageSrc(l.image_url || l.image || l.pano_front_url);
-          const booked = l.is_available === false || l.status === "booked";
-
-          const monthPriceRaw =
-            l.price_per_month ?? (l.price_per_week ? weekToMonth(l.price_per_week) : null);
-
-          const monthPriceText = monthPriceRaw == null ? "-" : money(monthPriceRaw);
-
-          return (
-            <div
-              key={l.id}
-              style={{
-                display: "flex",
-                gap: 16,
-                padding: 14,
-                border: "1px solid #ddd",
-                borderRadius: 12,
-                alignItems: "center",
-                background: "#fff",
-              }}
-            >
-              {/* IMAGE + VIEW 360 overlay */}
-              <div style={{ position: "relative" }}>
-                <img
-                  src={cover}
-                  alt=""
-                  style={{
-                    width: 180,
-                    height: 130,
-                    objectFit: "cover",
-                    borderRadius: 12,
-                    display: "block",
-                    border: "1px solid #ccc",
-                  }}
-                  onError={(e) => (e.currentTarget.src = "/no-image.png")}
-                />
-
-                <button
-                  onClick={() => go360(l.id)}
-                  style={{
-                    position: "absolute",
-                    right: 10,
-                    bottom: 10,
-                    padding: "6px 10px",
-                    borderRadius: 999,
-                    border: "0",
-                    background: "rgba(0,0,0,0.65)",
-                    color: "white",
-                    cursor: "pointer",
-                    fontWeight: 700,
-                  }}
-                >
-                  View 360°
-                </button>
-              </div>
-
-              {/* DETAILS */}
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 900, fontSize: 16 }}>{l.title || "About Property"}</div>
-
-                <div style={{ marginTop: 6 }}>
-                  <b>Type:</b> {l.property_type || "-"}
-                </div>
-                <div>
-                  <b>Location:</b> {l.location || "-"}
-                </div>
-
-                <div>
-                  <b>Price:</b> ${monthPriceText}/month
-                </div>
-
-                {l.description && <div style={{ marginTop: 6, opacity: 0.85 }}>{l.description}</div>}
-
-                {booked && (
-                  <div
-                    style={{
-                      marginTop: 10,
-                      display: "inline-block",
-                      padding: "4px 10px",
-                      borderRadius: 999,
-                      background: "#fff3cd",
-                      fontWeight: 800,
-                    }}
-                  >
-                    Booked
-                  </div>
-                )}
-              </div>
-
-              {/* BUTTONS */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                <button
-                  onClick={() => goDetails(l.id)}
-                  style={{
-                    padding: "10px 14px",
-                    borderRadius: 10,
-                    cursor: "pointer",
-                    fontWeight: 800,
-                  }}
-                >
-                  Details
-                </button>
-
-                <button
-                  onClick={() => goBook(l.id, booked)}
-                  disabled={booked}
-                  style={{
-                    padding: "10px 14px",
-                    borderRadius: 10,
-                    cursor: booked ? "not-allowed" : "pointer",
-                    fontWeight: 800,
-                  }}
-                >
-                  {booked ? "Booked" : "Booking"}
-                </button>
-              </div>
+    <div className={pageBg}>
+      {/* Navbar */}
+      <header className={`sticky top-0 z-50 backdrop-blur-md ${navBg}`}>
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+          <div className="flex items-center gap-3">
+            <div className="rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-500 px-4 py-2 text-sm font-bold text-white shadow-lg">
+              SRHFS
             </div>
-          );
-        })}
-      </div>
+
+            <div>
+              <h1 className={`text-xl font-extrabold ${heading}`}>
+                Smart Rental House Finder
+              </h1>
+              <p className={`text-xs ${sub}`}>Modern Rental Platform</p>
+            </div>
+          </div>
+
+          <nav className="hidden items-center gap-3 md:flex">
+            <Link
+              to="/"
+              className={`${linkBase} ${
+                isDark
+                  ? "bg-white/5 text-white hover:bg-blue-600"
+                  : "bg-blue-50 text-blue-950 hover:bg-blue-700 hover:text-white"
+              }`}
+            >
+              Home
+            </Link>
+
+            <Link
+              to="/features"
+              className={`${linkBase} ${
+                isDark
+                  ? "bg-blue-600 text-white shadow-lg"
+                  : "bg-blue-100 text-blue-950 shadow"
+              }`}
+            >
+              Features
+            </Link>
+
+            <Link
+              to="/about"
+              className={`${linkBase} ${
+                isDark
+                  ? "bg-white/5 text-white hover:bg-blue-600"
+                  : "bg-blue-50 text-blue-950 hover:bg-blue-700 hover:text-white"
+              }`}
+            >
+              About
+            </Link>
+
+            <Link
+              to="/auth"
+              className="rounded-full bg-gradient-to-r from-blue-600 to-indigo-500 px-5 py-2 text-sm font-semibold text-white shadow-md transition hover:scale-105"
+            >
+              Login
+            </Link>
+
+            <button
+              onClick={() => setDarkMode(!darkMode)}
+              className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                isDark
+                  ? "bg-white text-slate-900 hover:bg-slate-200"
+                  : "bg-slate-900 text-white hover:bg-blue-950"
+              }`}
+            >
+              {isDark ? "Light Mode" : "Dark Mode"}
+            </button>
+          </nav>
+        </div>
+      </header>
+
+      {/* Search Box */}
+      <section className="mx-auto max-w-7xl px-6 py-12">
+        <div className={`rounded-[28px] p-6 shadow-2xl ${cardClass}`}>
+          <div className="mb-6">
+            <h2 className={`text-3xl font-extrabold ${heading}`}>
+              Browse Available Properties
+            </h2>
+            <p className={`mt-2 ${sub}`}>
+              Search owner-added rooms, apartments, and houses
+            </p>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            <input
+              value={qTitle}
+              onChange={(e) => setQTitle(e.target.value)}
+              placeholder="Search title"
+              className={`rounded-2xl border px-4 py-3 outline-none ${inputClass}`}
+            />
+
+            <input
+              value={qLocation}
+              onChange={(e) => setQLocation(e.target.value)}
+              placeholder="Location"
+              className={`rounded-2xl border px-4 py-3 outline-none ${inputClass}`}
+            />
+
+            <select
+              value={qType}
+              onChange={(e) => setQType(e.target.value)}
+              className={`rounded-2xl border px-4 py-3 outline-none ${inputClass}`}
+            >
+              <option value="all">All</option>
+              <option value="room">Room</option>
+              <option value="house">House</option>
+              <option value="apartment">Apartment</option>
+            </select>
+
+            <button
+              onClick={() => {}}
+              title="Filtering happens automatically as you type"
+              className="rounded-2xl border border-blue-200 bg-white px-6 py-3 font-semibold text-[#1a2f6b]"
+            >
+              Search
+            </button>
+
+            <button
+              onClick={reset}
+              className="rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-500 px-6 py-3 font-semibold text-white"
+            >
+              Reset
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* Listings */}
+      <section className="mx-auto max-w-7xl px-6 pb-20">
+        <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h3 className={`text-3xl font-extrabold ${heading}`}>
+              Available Listings
+            </h3>
+            <p className={`mt-2 ${sub}`}>Showing real properties from the system</p>
+          </div>
+
+          <div
+            className={`rounded-full px-4 py-2 text-sm font-semibold ${
+              isDark
+                ? "border border-white/10 bg-white/5 text-white"
+                : "border border-blue-100 bg-white text-slate-700"
+            }`}
+          >
+            {filtered.length} found
+          </div>
+        </div>
+
+        {filtered.length === 0 ? (
+          <div className={`rounded-3xl p-10 text-center ${cardClass}`}>
+            <p className={sub}>No listings found.</p>
+          </div>
+        ) : (
+          <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+            {filtered.map((l) => {
+              const cover = toImageSrc(l.image_url || l.image || l.pano_front_url);
+              const booked = l.is_available === false || l.status === "booked";
+
+              const monthPriceRaw =
+                l.price_per_month ??
+                (l.price_per_week ? weekToMonth(l.price_per_week) : null);
+
+              const monthPriceText =
+                monthPriceRaw == null ? "-" : money(monthPriceRaw);
+
+              return (
+                <div
+                  key={l.id}
+                  className={`overflow-hidden rounded-[28px] shadow-xl transition hover:-translate-y-1 ${cardClass}`}
+                >
+                  <div className="relative">
+                    <img
+                      src={cover}
+                      alt={l.title || "Property"}
+                      className="h-56 w-full object-cover"
+                      onError={(e) => (e.currentTarget.src = "/no-image.png")}
+                    />
+
+                    <button
+                      onClick={() => go360(l.id)}
+                      className="absolute bottom-4 right-4 rounded-full bg-black/70 px-4 py-2 text-sm font-bold text-white backdrop-blur hover:bg-black/80"
+                    >
+                      View 360°
+                    </button>
+                  </div>
+
+                  <div className="p-6">
+                    <div className="flex items-start justify-between gap-3">
+                      <h3 className={`text-xl font-bold ${heading}`}>
+                        {l.title || "About Property"}
+                      </h3>
+
+                      <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-800">
+                        {l.property_type || "Property"}
+                      </span>
+                    </div>
+
+                    <p className={`mt-2 text-sm ${softText}`}>
+                      {l.location || "-"}
+                    </p>
+
+                    <div className={`mt-4 text-sm leading-7 ${sub}`}>
+                      <div>
+                        <span className="font-semibold">Type:</span>{" "}
+                        {l.property_type || "-"}
+                      </div>
+                      <div>
+                        <span className="font-semibold">Location:</span>{" "}
+                        {l.location || "-"}
+                      </div>
+                      <div>
+                        <span className="font-semibold">Price:</span> $
+                        {monthPriceText}/month
+                      </div>
+                    </div>
+
+                    {l.description ? (
+                      <p className={`mt-4 line-clamp-3 text-sm leading-7 ${sub}`}>
+                        {l.description}
+                      </p>
+                    ) : null}
+
+                    {booked ? (
+                      <div className="mt-4 inline-block rounded-full bg-yellow-100 px-3 py-1 text-xs font-bold text-yellow-800">
+                        Booked
+                      </div>
+                    ) : null}
+
+                    <div className="mt-6 grid grid-cols-3 gap-3">
+                      <button
+                        onClick={() => goDetails(l.id)}
+                        className="rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-500 px-3 py-3 text-sm font-semibold text-white shadow-md transition hover:scale-[1.02]"
+                      >
+                        Details
+                      </button>
+
+                      <button
+                        onClick={() => go360(l.id)}
+                        className={`rounded-2xl px-3 py-3 text-sm font-semibold transition ${
+                          isDark
+                            ? "border border-white/10 bg-white/5 text-white hover:bg-white/10"
+                            : "border border-blue-100 bg-slate-100 text-slate-800 hover:bg-slate-200"
+                        }`}
+                      >
+                        360°
+                      </button>
+
+                      <button
+                        onClick={() => goBook(l.id, booked)}
+                        disabled={booked}
+                        className={`rounded-2xl px-3 py-3 text-sm font-semibold text-white transition ${
+                          booked
+                            ? "cursor-not-allowed bg-slate-400"
+                            : "bg-emerald-600 hover:bg-emerald-500"
+                        }`}
+                      >
+                        {booked ? "Booked" : "Booking"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
