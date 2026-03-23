@@ -3,7 +3,7 @@ from django.urls import path
 from myapp.view.auth_views import (
     register_user, verify_otp, login_user, register_admin, login_admin,
     list_all_users, list_owners, list_tenants, list_providers, user_detail_crud,
-    admin_send_email,
+    admin_send_email,request_password_reset_otp, reset_password,
 )
 
 from myapp.view.public.public_views import (
@@ -87,6 +87,9 @@ urlpatterns = [
     path("admin/providers/", list_providers),
     path("admin/users/<int:user_id>/", user_detail_crud),
     path("admin/send-email/", admin_send_email),
+
+    path("request-password-reset-otp/", request_password_reset_otp),
+    path("reset-password/", reset_password),
 
     path("public/listings/", PublicListingListView.as_view()),
     path("public/listings/nearby/", PublicListingNearbyView.as_view()),

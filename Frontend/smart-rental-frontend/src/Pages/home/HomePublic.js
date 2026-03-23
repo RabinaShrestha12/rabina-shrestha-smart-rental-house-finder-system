@@ -5,7 +5,9 @@ import { useAuth } from "../../auth/AuthContext";
 export default function HomePublic() {
   const nav = useNavigate();
   const { user } = useAuth();
-  const [darkMode, setDarkMode] = useState(true);
+
+  // Light mode by default
+  const [darkMode, setDarkMode] = useState(false);
 
   const isDark = darkMode;
 
@@ -26,6 +28,7 @@ export default function HomePublic() {
 
   const heading = isDark ? "text-white" : "text-blue-950";
   const sub = isDark ? "text-slate-300" : "text-slate-600";
+
   const softCard = isDark
     ? "border border-white/10 bg-white/5"
     : "border border-blue-100 bg-white";

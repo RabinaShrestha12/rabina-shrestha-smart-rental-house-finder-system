@@ -74,7 +74,7 @@ function extractRole(resData) {
 }
 
 export default function UserAuth() {
-  const [tab, setTab] = useState("login"); // login | register | otp
+  const [tab, setTab] = useState("login"); // login | register | otp | forgotRequest | forgotReset
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
 
@@ -98,10 +98,22 @@ export default function UserAuth() {
   const [otpEmail, setOtpEmail] = useState("");
   const [otpCode, setOtpCode] = useState("");
 
+  // ✅ FORGOT PASSWORD FORM
+  const [forgotForm, setForgotForm] = useState({
+    email: "",
+    code: "",
+    new_password: "",
+    confirm_password: "",
+  });
+
   const onChangeLogin = (e) =>
     setLForm((p) => ({ ...p, [e.target.name]: e.target.value }));
+
   const onChangeRegister = (e) =>
     setRForm((p) => ({ ...p, [e.target.name]: e.target.value }));
+
+  const onChangeForgot = (e) =>
+    setForgotForm((p) => ({ ...p, [e.target.name]: e.target.value }));
 
   const saveSession = (resData, email, forcedRole = "") => {
     const { access, refresh } = extractTokens(resData);
@@ -183,8 +195,6 @@ export default function UserAuth() {
       const email = String(lForm.email || "").trim().toLowerCase();
       const password = lForm.password;
 
-      // ✅ Single login endpoint (user/admin handled by backend role)
-      // If your backend still requires separate admin endpoint, see note below.
       const res = await api.post("login_user/", { email, password });
 
       const saved = saveSession(res.data, email);
@@ -205,7 +215,6 @@ export default function UserAuth() {
 
       window.location.href = roleToPath(saved.role);
     } catch (err) {
-      // ✅ if admin uses different endpoint and login_user fails, try admin endpoint automatically
       const email = String(lForm.email || "").trim().toLowerCase();
       const password = lForm.password;
 
@@ -223,6 +232,82 @@ export default function UserAuth() {
       } catch (err2) {
         setMsg(axiosMsg(err2, axiosMsg(err, "Login failed")));
       }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ✅ SEND RESET OTP
+  const handleForgotRequestOtp = async (e) => {
+    e.preventDefault();
+    if (loading) return;
+    setLoading(true);
+    setMsg("");
+
+    try {
+      const email = String(forgotForm.email || "").trim().toLowerCase();
+
+      await api.post("request-password-reset-otp/", { email });
+
+      setForgotForm((p) => ({
+        ...p,
+        email,
+        code: "",
+        new_password: "",
+        confirm_password: "",
+      }));
+
+      setTab("forgotReset");
+      setMsg(`Reset OTP sent to ${email}. Check Inbox/Spam.`);
+    } catch (err) {
+      setMsg(axiosMsg(err, "Failed to send reset OTP"));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ✅ RESET PASSWORD
+  const handleForgotResetPassword = async (e) => {
+    e.preventDefault();
+    if (loading) return;
+    setLoading(true);
+    setMsg("");
+
+    try {
+      const email = String(forgotForm.email || "").trim().toLowerCase();
+      const code = String(forgotForm.code || "").trim();
+      const new_password = forgotForm.new_password;
+      const confirm_password = forgotForm.confirm_password;
+
+      if (!email || !code || !new_password || !confirm_password) {
+        setMsg("Please fill all fields.");
+        setLoading(false);
+        return;
+      }
+
+      if (new_password !== confirm_password) {
+        setMsg("New password and confirm password do not match.");
+        setLoading(false);
+        return;
+      }
+
+      await api.post("reset-password/", {
+        email,
+        code,
+        new_password,
+      });
+
+      setMsg("Password reset successful. Now login with your new password.");
+      setTab("login");
+      setLForm((p) => ({ ...p, email, password: "" }));
+      setForgotForm({
+        email: "",
+        code: "",
+        new_password: "",
+        confirm_password: "",
+      });
+    } catch (err) {
+      setMsg(axiosMsg(err, "Password reset failed"));
     } finally {
       setLoading(false);
     }
@@ -326,6 +411,26 @@ export default function UserAuth() {
         cursor: loading ? "not-allowed" : "pointer",
         opacity: loading ? 0.85 : 1,
       },
+      forgotBtn: {
+        marginTop: 12,
+        background: "transparent",
+        border: "none",
+        color: "#d8b4fe",
+        cursor: "pointer",
+        fontWeight: 700,
+        fontSize: 13,
+        padding: 0,
+      },
+      backBtn: {
+        marginTop: 12,
+        padding: "10px 14px",
+        borderRadius: 12,
+        border: "1px solid rgba(255,255,255,0.16)",
+        background: "transparent",
+        color: "white",
+        cursor: "pointer",
+        fontWeight: 700,
+      },
       msg: { marginTop: 12, color: "#ffb4b4", fontWeight: 900, fontSize: 13 },
       ok: { marginTop: 12, color: "#b7ffcf", fontWeight: 900, fontSize: 13 },
     }),
@@ -343,28 +448,30 @@ export default function UserAuth() {
           </div>
         </div>
 
-        <div style={styles.tabs}>
-          <button
-            type="button"
-            onClick={() => {
-              setTab("login");
-              setMsg("");
-            }}
-            style={{ ...styles.tabBtn, ...(tab === "login" ? styles.tabActive : {}) }}
-          >
-            Login
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setTab("register");
-              setMsg("");
-            }}
-            style={{ ...styles.tabBtn, ...(tab === "register" ? styles.tabActive : {}) }}
-          >
-            Register
-          </button>
-        </div>
+        {(tab === "login" || tab === "register") && (
+          <div style={styles.tabs}>
+            <button
+              type="button"
+              onClick={() => {
+                setTab("login");
+                setMsg("");
+              }}
+              style={{ ...styles.tabBtn, ...(tab === "login" ? styles.tabActive : {}) }}
+            >
+              Login
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setTab("register");
+                setMsg("");
+              }}
+              style={{ ...styles.tabBtn, ...(tab === "register" ? styles.tabActive : {}) }}
+            >
+              Register
+            </button>
+          </div>
+        )}
 
         {/* REGISTER */}
         {tab === "register" && (
@@ -456,10 +563,21 @@ export default function UserAuth() {
             <button type="submit" disabled={loading} style={styles.btn}>
               {loading ? "Verifying..." : "Verify OTP"}
             </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setTab("login");
+                setMsg("");
+              }}
+              style={styles.backBtn}
+            >
+              Back to Login
+            </button>
           </form>
         )}
 
-        {/* LOGIN (NO dropdown now) */}
+        {/* LOGIN */}
         {tab === "login" && (
           <form onSubmit={handleLogin} style={styles.form}>
             <div style={styles.h3}>Login</div>
@@ -487,9 +605,115 @@ export default function UserAuth() {
               {loading ? "Please wait..." : "Login"}
             </button>
 
+            <button
+              type="button"
+              onClick={() => {
+                setForgotForm((p) => ({
+                  ...p,
+                  email: String(lForm.email || "").trim().toLowerCase(),
+                }));
+                setTab("forgotRequest");
+                setMsg("");
+              }}
+              style={styles.forgotBtn}
+            >
+              Forgot Password?
+            </button>
+
             <div style={{ marginTop: 10, fontSize: 12, opacity: 0.75 }}>
               * Role will be detected automatically from backend.
             </div>
+          </form>
+        )}
+
+        {/* FORGOT REQUEST */}
+        {tab === "forgotRequest" && (
+          <form onSubmit={handleForgotRequestOtp} style={styles.form}>
+            <div style={styles.h3}>Forgot Password</div>
+
+            <div style={styles.label}>Email</div>
+            <input
+              name="email"
+              value={forgotForm.email}
+              onChange={onChangeForgot}
+              style={styles.input}
+              required
+            />
+
+            <button type="submit" disabled={loading} style={styles.btn}>
+              {loading ? "Sending OTP..." : "Send Reset OTP"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setTab("login");
+                setMsg("");
+              }}
+              style={styles.backBtn}
+            >
+              Back to Login
+            </button>
+          </form>
+        )}
+
+        {/* FORGOT RESET */}
+        {tab === "forgotReset" && (
+          <form onSubmit={handleForgotResetPassword} style={styles.form}>
+            <div style={styles.h3}>Reset Password</div>
+
+            <div style={styles.label}>Email</div>
+            <input
+              name="email"
+              value={forgotForm.email}
+              onChange={onChangeForgot}
+              style={styles.input}
+              required
+            />
+
+            <div style={styles.label}>OTP Code</div>
+            <input
+              name="code"
+              value={forgotForm.code}
+              onChange={onChangeForgot}
+              style={styles.input}
+              required
+            />
+
+            <div style={styles.label}>New Password</div>
+            <input
+              name="new_password"
+              type="password"
+              value={forgotForm.new_password}
+              onChange={onChangeForgot}
+              style={styles.input}
+              required
+            />
+
+            <div style={styles.label}>Confirm New Password</div>
+            <input
+              name="confirm_password"
+              type="password"
+              value={forgotForm.confirm_password}
+              onChange={onChangeForgot}
+              style={styles.input}
+              required
+            />
+
+            <button type="submit" disabled={loading} style={styles.btn}>
+              {loading ? "Resetting..." : "Reset Password"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setTab("forgotRequest");
+                setMsg("");
+              }}
+              style={styles.backBtn}
+            >
+              Back
+            </button>
           </form>
         )}
 

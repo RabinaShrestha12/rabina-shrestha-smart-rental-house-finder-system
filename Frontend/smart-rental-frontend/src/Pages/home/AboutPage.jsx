@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import PublicNavbar from "../../components/PublicNavbar";
 
 export default function AboutPage() {
-  const [darkMode, setDarkMode] = useState(true);
+  const [darkMode, setDarkMode] = useState(false);
   const isDark = darkMode;
 
   const pageBg = isDark

@@ -85,6 +85,19 @@ def send_otp_email(to_email, code):
     )
 
 
+def send_reset_otp_email(to_email, code):
+    from_email = getattr(settings, "DEFAULT_FROM_EMAIL", None) or getattr(settings, "EMAIL_HOST_USER", None)
+    if not from_email:
+        raise Exception("DEFAULT_FROM_EMAIL or EMAIL_HOST_USER not configured")
+
+    send_mail(
+        subject="Smart Rental House Finder - Password Reset OTP",
+        message=f"Your password reset OTP code is: {code}\n\nUse this code to reset your password.",
+        from_email=from_email,
+        recipient_list=[to_email],
+        fail_silently=False,
+    )
+
 def ensure_role_profile(user):
     """
     ✅ Create Tenant/Owner/Provider profile row linked to the user (if missing).
@@ -629,3 +642,116 @@ def admin_send_email(request):
         )
     except Exception as e:
         return Response({"error": f"Email sending failed: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+# =========================
+# FORGOT PASSWORD - REQUEST RESET OTP
+# =========================
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def request_password_reset_otp(request):
+    email = (request.data.get("email") or "").strip().lower()
+
+    if not email:
+        return Response({"error": "email is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+    user = get_user_by_email(email)
+    if not user:
+        return Response({"error": "User with this email does not exist"}, status=status.HTTP_404_NOT_FOUND)
+
+    try:
+        pending = _create_or_reuse_pending(
+            email=user.email,
+            username=user.username,
+            role=normalize_role(getattr(user, "role", "")),
+            password_hash=user.password,
+            address=getattr(user, "address", "") or "",
+            phone=getattr(user, "phone", "") or "",
+        )
+
+        code = generate_otp_code()
+        PendingSignupOTP.objects.create(
+            pending=pending,
+            purpose="reset",
+            code_hash=make_password(code),
+            expires_at=timezone.now() + timedelta(minutes=10),
+            is_used=False,
+        )
+
+        send_reset_otp_email(user.email, code)
+
+        return Response(
+            {"message": "Password reset OTP sent to email", "email": user.email},
+            status=status.HTTP_200_OK,
+        )
+    except Exception as e:
+        return Response({"error": f"OTP send failed: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# =========================
+# RESET PASSWORD WITH OTP
+# =========================
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def reset_password(request):
+    email = (request.data.get("email") or "").strip().lower()
+    code = (request.data.get("code") or "").strip()
+    new_password = request.data.get("new_password")
+
+    if not email or not code or not new_password:
+        return Response(
+            {"error": "email, code and new_password are required"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    user = get_user_by_email(email)
+    if not user:
+        return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+
+    pending = (
+        PendingSignup.objects.filter(email__iexact=email, is_used=False)
+        .order_by("-created_at")
+        .first()
+    )
+    if not pending:
+        return Response({"error": "No reset request found. Please request OTP again."}, status=status.HTTP_400_BAD_REQUEST)
+
+    otp = (
+        PendingSignupOTP.objects.filter(
+            pending=pending,
+            purpose="reset",
+            is_used=False
+        )
+        .order_by("-created_at")
+        .first()
+    )
+    if not otp:
+        return Response({"error": "Reset OTP not found. Please request OTP again."}, status=status.HTTP_400_BAD_REQUEST)
+
+    if otp.expires_at and timezone.now() > otp.expires_at:
+        otp.is_used = True
+        otp.save(update_fields=["is_used"])
+        return Response({"error": "OTP expired. Please request a new OTP."}, status=status.HTTP_400_BAD_REQUEST)
+
+    if otp.attempts >= 5:
+        otp.is_used = True
+        otp.save(update_fields=["is_used"])
+        return Response({"error": "Too many attempts. Please request a new OTP."}, status=status.HTTP_400_BAD_REQUEST)
+
+    ok = check_password(code, otp.code_hash)
+
+    otp.attempts += 1
+    otp.save(update_fields=["attempts"])
+
+    if not ok:
+        return Response({"error": "Invalid OTP"}, status=status.HTTP_400_BAD_REQUEST)
+
+    user.password = make_password(new_password)
+    user.save(update_fields=["password"])
+
+    otp.is_used = True
+    otp.save(update_fields=["is_used"])
+
+    return Response(
+        {"message": "Password reset successful. You can now login with your new password."},
+        status=status.HTTP_200_OK
+    )
