@@ -1,8 +1,9 @@
 # myapp/view/maintenance_chat_views.py
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, parser_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 
 from ..models import MaintenanceRequest, ProviderMessage, Notification
 from .permissions import IsOwnerRole, IsProviderRole
@@ -63,8 +64,20 @@ def _chat_is_open(job: MaintenanceRequest) -> bool:
     return True
 
 
-def msg_to_dict(m: ProviderMessage):
+def _build_image_url(request, msg):
+    if getattr(msg, "image", None):
+        try:
+            if request:
+                return request.build_absolute_uri(msg.image.url)
+            return msg.image.url
+        except Exception:
+            return None
+    return None
+
+
+def msg_to_dict(m: ProviderMessage, request=None):
     sender_role = _message_sender_role(m)
+    image_url = _build_image_url(request, m)
 
     return {
         "id": m.id,
@@ -72,8 +85,13 @@ def msg_to_dict(m: ProviderMessage):
         "owner_id": m.owner_id,
         "provider_id": m.provider_id,
         "sender_id": m.sender_id,
+
         "text": m.text,
         "message": m.text,  # frontend-friendly alias
+
+        "image": getattr(m.image, "url", None) if getattr(m, "image", None) else None,
+        "image_url": image_url,
+
         "created_at": m.created_at,
         "is_read": m.is_read,
 
@@ -108,16 +126,19 @@ def owner_get_maintenance_messages(request, req_id):
     # mark provider -> owner messages as read
     qs.filter(provider=job.assigned_provider, sender=job.assigned_provider, is_read=False).update(is_read=True)
 
-    return Response([msg_to_dict(m) for m in qs], status=status.HTTP_200_OK)
+    return Response([msg_to_dict(m, request) for m in qs], status=status.HTTP_200_OK)
 
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated, IsOwnerRole])
+@parser_classes([MultiPartParser, FormParser, JSONParser])
 def owner_send_maintenance_message(request, req_id):
     text = (request.data.get("message") or request.data.get("text") or "").strip()
-    if not text:
+    image = request.FILES.get("image")
+
+    if not text and not image:
         return Response(
-            {"detail": "Message is required."},
+            {"detail": "Message text or image is required."},
             status=status.HTTP_400_BAD_REQUEST
         )
 
@@ -143,6 +164,7 @@ def owner_send_maintenance_message(request, req_id):
         provider=provider_user,
         sender=request.user,
         text=text,
+        image=image,
         is_read=False,
     )
 
@@ -156,7 +178,7 @@ def owner_send_maintenance_message(request, req_id):
         link=f"/provider/chat/{job.id}",
     )
 
-    return Response(msg_to_dict(msg), status=status.HTTP_201_CREATED)
+    return Response(msg_to_dict(msg, request), status=status.HTTP_201_CREATED)
 
 
 # -----------------------------
@@ -197,6 +219,7 @@ def provider_inbox(request):
             "updated_at": j.updated_at,
 
             "last_message": last_msg.text if last_msg else "",
+            "last_message_image_url": _build_image_url(request, last_msg) if last_msg else None,
             "last_message_at": last_msg.created_at if last_msg else None,
             "last_message_sender_role": _message_sender_role(last_msg) if last_msg else "",
             "unread_count": unread_count,
@@ -228,16 +251,19 @@ def provider_get_job_messages(request, req_id):
     # mark owner -> provider messages as read
     qs.filter(owner=job.owner, sender=job.owner, is_read=False).update(is_read=True)
 
-    return Response([msg_to_dict(m) for m in qs], status=status.HTTP_200_OK)
+    return Response([msg_to_dict(m, request) for m in qs], status=status.HTTP_200_OK)
 
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated, IsProviderRole])
+@parser_classes([MultiPartParser, FormParser, JSONParser])
 def provider_send_job_message(request, req_id):
     text = (request.data.get("message") or request.data.get("text") or "").strip()
-    if not text:
+    image = request.FILES.get("image")
+
+    if not text and not image:
         return Response(
-            {"detail": "Message is required."},
+            {"detail": "Message text or image is required."},
             status=status.HTTP_400_BAD_REQUEST
         )
 
@@ -261,6 +287,7 @@ def provider_send_job_message(request, req_id):
         provider=request.user,
         sender=request.user,
         text=text,
+        image=image,
         is_read=False,
     )
 
@@ -274,4 +301,4 @@ def provider_send_job_message(request, req_id):
         link=f"/owner/maintenance/{job.id}",
     )
 
-    return Response(msg_to_dict(msg), status=status.HTTP_201_CREATED)
+    return Response(msg_to_dict(msg, request), status=status.HTTP_201_CREATED)

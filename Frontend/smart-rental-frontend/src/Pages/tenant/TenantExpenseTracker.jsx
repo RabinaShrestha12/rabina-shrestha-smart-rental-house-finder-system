@@ -1,18 +1,17 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-
-const STORAGE_KEY = "tenant_expense_records";
+import axios from "../../api/axios";
 
 export default function TenantExpenseTracker() {
   const nav = useNavigate();
 
-  const [records, setRecords] = useState(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? JSON.parse(raw) : [];
-    } catch {
-      return [];
-    }
+  const [records, setRecords] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [summary, setSummary] = useState({
+    total_monthly_expense: "0.00",
+    total_records: 0,
+    category_summary: [],
   });
 
   const [form, setForm] = useState({
@@ -28,16 +27,85 @@ export default function TenantExpenseTracker() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   });
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
-  }, [records]);
+  const [error, setError] = useState("");
+
+  const getMonthYear = () => {
+    const [year, month] = selectedMonth.split("-");
+    return { month: Number(month), year: Number(year) };
+  };
 
   const onChange = (e) => {
     const { name, value } = e.target;
     setForm((s) => ({ ...s, [name]: value }));
   };
 
-  const addExpense = (e) => {
+  const fetchExpenses = async () => {
+    try {
+      setLoading(true);
+      setError("");
+
+      const { month, year } = getMonthYear();
+
+      const res = await axios.get(`/tenant/expenses/`, {
+        params: { month, year },
+      });
+
+      setRecords(res.data?.results || []);
+      setSummary(
+        res.data?.summary || {
+          total_monthly_expense: "0.00",
+          total_records: 0,
+          category_summary: [],
+        }
+      );
+    } catch (err) {
+      console.error("Failed to fetch expenses:", err);
+      setError("Failed to load expenses.");
+      setRecords([]);
+      setSummary({
+        total_monthly_expense: "0.00",
+        total_records: 0,
+        category_summary: [],
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const generateMonthNotification = async () => {
+    try {
+      const today = new Date();
+      const { month, year } = getMonthYear();
+
+      const currentMonth = today.getMonth() + 1;
+      const currentYear = today.getFullYear();
+      const isCurrentMonth = month === currentMonth && year === currentYear;
+
+      if (!isCurrentMonth) return;
+
+      const lastDay = new Date(currentYear, currentMonth, 0).getDate();
+      const todayDate = today.getDate();
+
+      if (todayDate >= lastDay) {
+        await axios.post(`/tenant/expenses/generate-month-notification/`, {
+          month,
+          year,
+        });
+      }
+    } catch (err) {
+      console.error("Notification generation skipped/failed:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchExpenses();
+  }, [selectedMonth]);
+
+  useEffect(() => {
+    generateMonthNotification();
+  }, [selectedMonth]);
+
+  const addExpense = async (e) => {
     e.preventDefault();
 
     if (!form.title.trim()) {
@@ -51,47 +119,62 @@ export default function TenantExpenseTracker() {
       return;
     }
 
-    const newItem = {
-      id: Date.now(),
-      title: form.title.trim(),
-      category: form.category,
-      amount: amountNum,
-      date: form.date,
-      note: form.note.trim(),
-      created_at: new Date().toISOString(),
-    };
+    try {
+      setSaving(true);
+      setError("");
 
-    setRecords((prev) => [newItem, ...prev]);
+      await axios.post(`/tenant/expenses/`, {
+        title: form.title.trim(),
+        category: form.category,
+        amount: amountNum,
+        date: form.date,
+        note: form.note.trim(),
+      });
 
-    setForm({
-      title: "",
-      category: "Food",
-      amount: "",
-      date: new Date().toISOString().slice(0, 10),
-      note: "",
-    });
+      setForm({
+        title: "",
+        category: "Food",
+        amount: "",
+        date: new Date().toISOString().slice(0, 10),
+        note: "",
+      });
+
+      await fetchExpenses();
+      alert("Expense saved successfully.");
+    } catch (err) {
+      console.error("Failed to save expense:", err);
+      console.log("Backend error response:", err?.response?.data);
+      setError("Failed to save expense.");
+      alert("Could not save expense. Check backend/API.");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const deleteExpense = (id) => {
-    setRecords((prev) => prev.filter((x) => x.id !== id));
+  const deleteExpense = async (id) => {
+    const yes = window.confirm("Are you sure you want to delete this expense?");
+    if (!yes) return;
+
+    try {
+      await axios.delete(`/tenant/expenses/${id}/`);
+      await fetchExpenses();
+    } catch (err) {
+      console.error("Failed to delete expense:", err);
+      alert("Could not delete expense.");
+    }
   };
 
   const monthRecords = useMemo(() => {
-    return records.filter((r) => String(r.date || "").startsWith(selectedMonth));
-  }, [records, selectedMonth]);
+    return records || [];
+  }, [records]);
 
   const totalMonthlyExpense = useMemo(() => {
-    return monthRecords.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-  }, [monthRecords]);
+    return Number(summary?.total_monthly_expense || 0);
+  }, [summary]);
 
   const categoryTotals = useMemo(() => {
-    const map = {};
-    monthRecords.forEach((item) => {
-      const key = item.category || "Other";
-      map[key] = (map[key] || 0) + Number(item.amount || 0);
-    });
-    return Object.entries(map).sort((a, b) => b[1] - a[1]);
-  }, [monthRecords]);
+    return summary?.category_summary || [];
+  }, [summary]);
 
   return (
     <div className="min-h-screen bg-slate-950 text-white px-4 py-8">
@@ -111,6 +194,12 @@ export default function TenantExpenseTracker() {
             Back to Dashboard
           </button>
         </div>
+
+        {error ? (
+          <div className="mb-4 rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+            {error}
+          </div>
+        ) : null}
 
         <div className="grid gap-6 lg:grid-cols-[1fr_1.2fr]">
           <div className="rounded-3xl border border-white/10 bg-black/30 p-5">
@@ -173,9 +262,10 @@ export default function TenantExpenseTracker() {
 
               <button
                 type="submit"
-                className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-500"
+                disabled={saving}
+                className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-70"
               >
-                Save Expense
+                {saving ? "Saving..." : "Save Expense"}
               </button>
             </form>
           </div>
@@ -203,7 +293,7 @@ export default function TenantExpenseTracker() {
               <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/10 p-4">
                 <div className="text-sm text-cyan-200">Total Records</div>
                 <div className="mt-2 text-3xl font-black text-white">
-                  {monthRecords.length}
+                  {summary?.total_records || 0}
                 </div>
               </div>
             </div>
@@ -215,14 +305,14 @@ export default function TenantExpenseTracker() {
                 <div className="mt-3 text-sm text-slate-400">No expenses for this month.</div>
               ) : (
                 <div className="mt-3 grid gap-2">
-                  {categoryTotals.map(([category, total]) => (
+                  {categoryTotals.map((item, idx) => (
                     <div
-                      key={category}
+                      key={`${item.category}-${idx}`}
                       className="flex items-center justify-between rounded-xl border border-white/10 bg-black/20 px-4 py-3"
                     >
-                      <span className="text-sm text-slate-200">{category}</span>
+                      <span className="text-sm text-slate-200">{item.category}</span>
                       <span className="text-sm font-bold text-white">
-                        Rs {total.toLocaleString()}
+                        Rs {Number(item.total || 0).toLocaleString()}
                       </span>
                     </div>
                   ))}
@@ -233,7 +323,11 @@ export default function TenantExpenseTracker() {
             <div className="mt-6">
               <div className="text-base font-bold">Expense Records</div>
 
-              {monthRecords.length === 0 ? (
+              {loading ? (
+                <div className="mt-3 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-400">
+                  Loading expenses...
+                </div>
+              ) : monthRecords.length === 0 ? (
                 <div className="mt-3 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-400">
                   No expense records found for this month.
                 </div>

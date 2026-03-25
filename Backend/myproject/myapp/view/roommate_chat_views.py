@@ -34,7 +34,6 @@ def _sync_threads_for_user(user):
     for req in accepted:
         a, b = _ordered_pair(req.from_user_id, req.to_user_id)
 
-        # ✅ FIX: remove defaults={"title": ...} because model has no title field
         thread, created = RoommateChatThread.objects.get_or_create(
             user1_id=a,
             user2_id=b,
@@ -62,7 +61,6 @@ def roommate_sync_threads(request):
 def roommate_my_threads(request):
     user = request.user
 
-    # ✅ auto-sync before returning (so chats always appear)
     _sync_threads_for_user(user)
 
     qs = RoommateChatThread.objects.filter(Q(user1=user) | Q(user2=user)).order_by("-id")
@@ -84,7 +82,7 @@ def roommate_thread_messages(request, thread_id: int):
         return Response({"detail": "Not allowed"}, status=status.HTTP_403_FORBIDDEN)
 
     msgs = RoommateChatMessage.objects.filter(thread=thread).order_by("created_at")
-    ser = RoommateChatMessageSerializer(msgs, many=True)
+    ser = RoommateChatMessageSerializer(msgs, many=True, context={"request": request})
     return Response({"thread_id": thread.id, "results": ser.data}, status=status.HTTP_200_OK)
 
 
@@ -92,10 +90,19 @@ def roommate_thread_messages(request, thread_id: int):
 @permission_classes([IsAuthenticated, IsTenantRole])
 def roommate_send_message(request, thread_id: int):
     user = request.user
-    text = (request.data.get("text") or "").strip()
+    text = str(
+        request.data.get("text")
+        or request.data.get("message")
+        or request.data.get("body")
+        or ""
+    ).strip()
+    image = request.FILES.get("image")
 
-    if not text:
-        return Response({"detail": "text is required"}, status=status.HTTP_400_BAD_REQUEST)
+    if not text and not image:
+        return Response(
+            {"detail": "text or image is required"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
     try:
         thread = RoommateChatThread.objects.get(id=thread_id)
@@ -105,5 +112,30 @@ def roommate_send_message(request, thread_id: int):
     if not _allowed(thread, user):
         return Response({"detail": "Not allowed"}, status=status.HTTP_403_FORBIDDEN)
 
-    msg = RoommateChatMessage.objects.create(thread=thread, sender=user, text=text)
-    return Response(RoommateChatMessageSerializer(msg).data, status=status.HTTP_201_CREATED)
+    try:
+        msg = RoommateChatMessage.objects.create(
+            thread=thread,
+            sender=user,
+            text=text,
+            image=image,
+        )
+    except TypeError:
+        try:
+            msg = RoommateChatMessage.objects.create(
+                thread=thread,
+                sender=user,
+                message=text,
+                image=image,
+            )
+        except TypeError:
+            msg = RoommateChatMessage.objects.create(
+                thread=thread,
+                sender=user,
+                content=text,
+                image=image,
+            )
+
+    return Response(
+        RoommateChatMessageSerializer(msg, context={"request": request}).data,
+        status=status.HTTP_201_CREATED
+    )

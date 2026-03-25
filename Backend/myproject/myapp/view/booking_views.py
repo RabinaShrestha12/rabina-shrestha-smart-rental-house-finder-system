@@ -183,6 +183,7 @@ def booking_messages(request, booking_id):
 # POST /api/booking-requests/<booking_id>/messages/send/
 # body:
 # { "text": "Hello" } OR { "message": "Hello" } OR { "body": "Hello" }
+# also supports image upload in multipart/form-data
 # =========================
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
@@ -194,9 +195,11 @@ def booking_send_message(request, booking_id):
         or ""
     ).strip()
 
-    if not text:
+    image = request.FILES.get("image")
+
+    if not text and not image:
         return Response(
-            {"detail": "text is required."},
+            {"detail": "text or image is required."},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
@@ -222,6 +225,7 @@ def booking_send_message(request, booking_id):
             request=booking,
             sender=request.user,
             text=text,
+            image=image,
         )
     except TypeError:
         try:
@@ -229,12 +233,14 @@ def booking_send_message(request, booking_id):
                 booking=booking,
                 sender=request.user,
                 text=text,
+                image=image,
             )
         except TypeError:
             msg = BookingMessage.objects.create(
                 booking=booking,
                 sender=request.user,
                 message=text,
+                image=image,
             )
 
     # create notification for the other side
@@ -383,6 +389,7 @@ def owner_set_booking_status(request, booking_id):
 # Legacy endpoint
 # POST /api/booking-messages/create/
 # body: { "booking_id": 1, "text": "Hello" }
+# also supports image upload in multipart/form-data
 # =========================
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
@@ -395,9 +402,17 @@ def create_message_legacy(request):
         or ""
     ).strip()
 
-    if not booking_id or not text:
+    image = request.FILES.get("image")
+
+    if not booking_id:
         return Response(
-            {"detail": "booking_id and text are required."},
+            {"detail": "booking_id is required."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if not text and not image:
+        return Response(
+            {"detail": "text or image is required."},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
@@ -422,6 +437,7 @@ def create_message_legacy(request):
             request=booking,
             sender=request.user,
             text=text,
+            image=image,
         )
     except TypeError:
         try:
@@ -429,12 +445,14 @@ def create_message_legacy(request):
                 booking=booking,
                 sender=request.user,
                 text=text,
+                image=image,
             )
         except TypeError:
             msg = BookingMessage.objects.create(
                 booking=booking,
                 sender=request.user,
                 message=text,
+                image=image,
             )
 
     # create notification for other side

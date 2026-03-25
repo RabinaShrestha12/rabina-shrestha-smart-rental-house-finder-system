@@ -37,7 +37,12 @@ function initials(name = "") {
 function formatDayLabel(dt) {
   const d = new Date(dt);
   if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+  return d.toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 function formatTime(dt) {
@@ -57,6 +62,45 @@ function sameDay(a, b) {
   );
 }
 
+function getBackendBaseUrl() {
+  return (
+    import.meta.env.VITE_API_BASE_URL ||
+    import.meta.env.VITE_BACKEND_URL ||
+    "http://127.0.0.1:8000"
+  );
+}
+
+function buildFullMediaUrl(raw) {
+  if (!raw) return "";
+
+  const value = String(raw).trim();
+  if (!value) return "";
+
+  if (value.startsWith("http://") || value.startsWith("https://")) return value;
+  if (value.startsWith("/")) return `${getBackendBaseUrl()}${value}`;
+  if (value.startsWith("media/")) return `${getBackendBaseUrl()}/${value}`;
+
+  return `${getBackendBaseUrl()}/media/${value}`;
+}
+
+function getMsgText(m) {
+  return m?.text || m?.message || m?.body || m?.content || "";
+}
+
+function getMsgImage(m) {
+  const raw =
+    m?.image_url ||
+    m?.image ||
+    m?.photo ||
+    m?.picture ||
+    m?.attachment ||
+    m?.file ||
+    m?.media ||
+    m?.media_url ||
+    "";
+  return buildFullMediaUrl(raw);
+}
+
 export default function RoommateChat() {
   const nav = useNavigate();
   const { roomId } = useParams();
@@ -70,6 +114,10 @@ export default function RoommateChat() {
 
   const [otherName, setOtherName] = useState("");
   const bottomRef = useRef(null);
+
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState("");
+  const fileInputRef = useRef(null);
 
   const MESSAGES_URL = useMemo(
     () => `tenant/roommates/chats/${roomId}/messages/`,
@@ -165,10 +213,41 @@ export default function RoommateChat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId]);
 
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
+
+  const handleImageChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setErr("Please choose a valid image file.");
+      return;
+    }
+
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+
+    setSelectedImage(file);
+    setPreviewUrl(URL.createObjectURL(file));
+  };
+
+  const clearSelectedImage = () => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setSelectedImage(null);
+    setPreviewUrl("");
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
   const onSend = async (e) => {
     e.preventDefault();
     const msg = text.trim();
-    if (!msg || sending) return;
+
+    if ((!msg && !selectedImage) || sending) return;
 
     setSending(true);
     setErr("");
@@ -177,6 +256,8 @@ export default function RoommateChat() {
     const optimistic = {
       id: tempId,
       text: msg,
+      image: selectedImage ? previewUrl : "",
+      image_url: selectedImage ? previewUrl : "",
       sender_id: myId,
       sender_username: user?.username || "You",
       created_at: new Date().toISOString(),
@@ -185,10 +266,22 @@ export default function RoommateChat() {
 
     setMessages((prev) => [...prev, optimistic]);
     setText("");
+    clearSelectedImage();
     setTimeout(() => scrollToBottom(true), 20);
 
     try {
-      const res = await axios.post(SEND_URL, { text: msg });
+      const formData = new FormData();
+      formData.append("text", msg);
+      formData.append("message", msg);
+
+      if (selectedImage) {
+        formData.append("image", selectedImage);
+      }
+
+      const res = await axios.post(SEND_URL, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
       setMessages((prev) => prev.map((m) => (m.id === tempId ? res.data : m)));
       scrollToBottom(true);
     } catch (e2) {
@@ -206,7 +299,6 @@ export default function RoommateChat() {
     }
   };
 
-  // ✅ group messages by day (for nice date separators)
   const rendered = useMemo(() => {
     const out = [];
     let lastDate = null;
@@ -227,10 +319,8 @@ export default function RoommateChat() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-950 to-slate-900">
       <div className="max-w-5xl mx-auto p-4 sm:p-6">
-        {/* Top Bar */}
         <div className="flex items-center justify-between gap-3 mb-4">
           <div className="flex items-center gap-3">
-            {/* Avatar */}
             <div className="h-11 w-11 rounded-2xl bg-white/10 border border-white/10 grid place-items-center text-white font-semibold">
               {initials(otherName || "Tenant")}
             </div>
@@ -276,9 +366,7 @@ export default function RoommateChat() {
           </div>
         )}
 
-        {/* Chat Card */}
         <div className="rounded-3xl bg-white/5 border border-white/10 shadow-xl overflow-hidden">
-          {/* Messages area */}
           <div className="h-[68vh] overflow-y-auto px-4 sm:px-6 py-5 space-y-3">
             {loading ? (
               <div className="text-slate-200">Loading...</div>
@@ -307,13 +395,14 @@ export default function RoommateChat() {
                 const time = item?.created_at ? formatTime(item.created_at) : "";
                 const name = senderName(item);
                 const avatar = senderInitials(item);
+                const msgText = getMsgText(item);
+                const msgImage = getMsgImage(item);
 
                 return (
                   <div
                     key={item.id}
                     className={`w-full flex ${mine ? "justify-end" : "justify-start"}`}
                   >
-                    {/* Left avatar */}
                     {!mine && (
                       <div className="mr-2 mt-5 hidden sm:flex">
                         <div className="h-9 w-9 rounded-2xl bg-white/10 border border-white/10 grid place-items-center text-white text-xs font-semibold">
@@ -323,12 +412,10 @@ export default function RoommateChat() {
                     )}
 
                     <div className={`max-w-[82%] sm:max-w-[70%] ${mine ? "text-right" : "text-left"}`}>
-                      {/* Name */}
                       <div className={`text-[11px] text-slate-300 mb-1 px-1 ${mine ? "opacity-80" : ""}`}>
                         {name}
                       </div>
 
-                      {/* Bubble */}
                       <div
                         className={`inline-block rounded-3xl px-4 py-2.5 text-sm whitespace-pre-wrap break-words shadow-sm ${
                           mine
@@ -336,17 +423,29 @@ export default function RoommateChat() {
                             : "bg-white text-slate-900 rounded-bl-xl"
                         }`}
                       >
-                        {item.text}
+                        {msgImage ? (
+                          <div className="mb-2">
+                            <img
+                              src={msgImage}
+                              alt="chat upload"
+                              className="max-w-[220px] sm:max-w-[280px] rounded-2xl border border-black/10"
+                              onError={(e) => {
+                                console.log("Roommate image failed:", msgImage, item);
+                                e.currentTarget.style.display = "none";
+                              }}
+                            />
+                          </div>
+                        ) : null}
+
+                        {msgText ? <div>{msgText}</div> : null}
                       </div>
 
-                      {/* Time */}
                       <div className="text-[10px] text-slate-400 mt-1 px-1">
                         {time}
                         {item._optimistic ? " • sending..." : ""}
                       </div>
                     </div>
 
-                    {/* Right avatar */}
                     {mine && (
                       <div className="ml-2 mt-5 hidden sm:flex">
                         <div className="h-9 w-9 rounded-2xl bg-blue-600/20 border border-blue-500/30 grid place-items-center text-blue-100 text-xs font-semibold">
@@ -362,7 +461,6 @@ export default function RoommateChat() {
             <div ref={bottomRef} />
           </div>
 
-          {/* Input bar */}
           <form onSubmit={onSend} className="border-t border-white/10 bg-white/5 px-4 sm:px-6 py-4">
             <div className="flex items-end gap-3">
               <div className="flex-1">
@@ -373,7 +471,6 @@ export default function RoommateChat() {
                   placeholder="Write a message..."
                   rows={1}
                   onKeyDown={(e) => {
-                    // Enter to send, Shift+Enter for newline
                     if (e.key === "Enter" && !e.shiftKey) {
                       e.preventDefault();
                       onSend(e);
@@ -381,6 +478,55 @@ export default function RoommateChat() {
                   }}
                   className="w-full resize-none rounded-2xl border border-white/10 bg-white text-slate-900 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
                 />
+
+                <div className="flex items-center gap-3 mt-2 flex-wrap">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    className="hidden"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-3 py-2 rounded-xl bg-white/10 text-white border border-white/10 hover:bg-white/15 transition"
+                  >
+                    Choose Image
+                  </button>
+
+                  {selectedImage ? (
+                    <span className="text-[11px] text-slate-200 break-all">
+                      {selectedImage.name}
+                    </span>
+                  ) : (
+                    <span className="text-[11px] text-slate-400">
+                      No image selected
+                    </span>
+                  )}
+                </div>
+
+                {previewUrl ? (
+                  <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-3 w-fit">
+                    <div className="text-[11px] text-slate-300 mb-2">Image preview</div>
+                    <img
+                      src={previewUrl}
+                      alt="preview"
+                      className="max-w-[150px] rounded-2xl border border-white/10"
+                    />
+                    <div className="mt-2">
+                      <button
+                        type="button"
+                        onClick={clearSelectedImage}
+                        className="text-xs px-3 py-1 rounded-lg bg-red-500/10 border border-red-400/20 text-red-200 hover:bg-red-500/15"
+                      >
+                        Remove Image
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+
                 <div className="text-[11px] text-slate-400 mt-2">
                   Press <span className="font-semibold">Enter</span> to send •{" "}
                   <span className="font-semibold">Shift+Enter</span> for new line
@@ -389,9 +535,9 @@ export default function RoommateChat() {
 
               <button
                 type="submit"
-                disabled={sending || !text.trim()}
+                disabled={sending || (!text.trim() && !selectedImage)}
                 className={`px-5 py-3 rounded-2xl text-white font-semibold transition ${
-                  sending || !text.trim()
+                  sending || (!text.trim() && !selectedImage)
                     ? "bg-blue-300 cursor-not-allowed"
                     : "bg-blue-600 hover:bg-blue-700"
                 }`}
@@ -402,7 +548,6 @@ export default function RoommateChat() {
           </form>
         </div>
 
-        {/* Footer hint */}
         <div className="text-center text-xs text-slate-400 mt-4">
           Smart Rental • React + Django + JWT
         </div>

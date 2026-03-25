@@ -1,14 +1,43 @@
-// src/pages/dashboard/OwnerMessages.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import { useAuth } from "../../auth/AuthContext";
 import Shell from "../../components/Shell";
 import Toast from "../../components/Toast";
 
+function getBackendBaseUrl() {
+  return (
+    import.meta.env.VITE_API_BASE_URL ||
+    import.meta.env.VITE_BACKEND_URL ||
+    "http://127.0.0.1:8000"
+  );
+}
+
+function buildFullMediaUrl(raw) {
+  if (!raw) return "";
+
+  const value = String(raw).trim();
+  if (!value) return "";
+
+  if (value.startsWith("http://") || value.startsWith("https://")) {
+    return value;
+  }
+
+  if (value.startsWith("/")) {
+    return `${getBackendBaseUrl()}${value}`;
+  }
+
+  if (value.startsWith("media/")) {
+    return `${getBackendBaseUrl()}/${value}`;
+  }
+
+  return `${getBackendBaseUrl()}/media/${value}`;
+}
+
 export default function OwnerMessages() {
   const { role } = useAuth();
   const nav = useNavigate();
+  const fileInputRef = useRef(null);
 
   const [toast, setToast] = useState({ type: "info", msg: "" });
 
@@ -22,11 +51,11 @@ export default function OwnerMessages() {
   const [reply, setReply] = useState("");
   const [sending, setSending] = useState(false);
 
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState("");
+
   const [updatingStatus, setUpdatingStatus] = useState(false);
 
-  // ---------------------------
-  // Guard
-  // ---------------------------
   useEffect(() => {
     const token = localStorage.getItem("access");
     if (!token) {
@@ -39,14 +68,16 @@ export default function OwnerMessages() {
     }
   }, [role, nav]);
 
-  // ---------------------------
-  // Helpers
-  // ---------------------------
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
+
   const arrify = (data) =>
     Array.isArray(data) ? data : Array.isArray(data?.results) ? data.results : [];
 
   const getBookingId = (b) => b?.id ?? b?.booking_id ?? b?.pk;
-
   const getStatus = (b) => b?.status ?? b?.state ?? "pending";
 
   const getTenantEmail = (b) =>
@@ -68,6 +99,22 @@ export default function OwnerMessages() {
 
   const getCreatedAt = (b) => b?.created_at || b?.created || b?.date || "";
 
+  const getMsgText = (m) => m?.text || m?.message || m?.body || "";
+  const getMsgImage = (m) => {
+    const raw =
+      m?.image_url ||
+      m?.image ||
+      m?.picture ||
+      m?.photo ||
+      m?.file ||
+      m?.attachment ||
+      "";
+    return buildFullMediaUrl(raw);
+  };
+
+  const getMsgSender = (m) =>
+    m?.sender_email || m?.sender?.email || m?.sender_name || m?.sender || "User";
+
   const formatDate = (s) => {
     if (!s) return "";
     try {
@@ -86,9 +133,6 @@ export default function OwnerMessages() {
     e?.message ||
     fallback;
 
-  // ---------------------------
-  // Load inbox
-  // ---------------------------
   const loadInbox = async (keepActiveId = null) => {
     setLoading(true);
     try {
@@ -112,9 +156,6 @@ export default function OwnerMessages() {
     }
   };
 
-  // ---------------------------
-  // Load chat messages for selected booking
-  // ---------------------------
   const loadChat = async (bookingId) => {
     if (!bookingId) return;
     setChatLoading(true);
@@ -140,24 +181,60 @@ export default function OwnerMessages() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
 
-  // ---------------------------
-  // Reply message
-  // ---------------------------
+  const handleImageChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setToast({ type: "error", msg: "Please choose a valid image file." });
+      return;
+    }
+
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+
+    setSelectedImage(file);
+    setPreviewUrl(URL.createObjectURL(file));
+  };
+
+  const clearSelectedImage = () => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setSelectedImage(null);
+    setPreviewUrl("");
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
   const sendReply = async () => {
     const bookingId = getBookingId(active);
     if (!bookingId) {
       setToast({ type: "error", msg: "Booking ID missing." });
       return;
     }
-    if (!reply.trim()) {
-      setToast({ type: "error", msg: "Write something first." });
+
+    if (!reply.trim() && !selectedImage) {
+      setToast({ type: "error", msg: "Write a message or choose an image first." });
       return;
     }
 
     setSending(true);
     try {
-      await api.post(`booking-requests/${bookingId}/messages/send/`, { text: reply.trim() });
+      const formData = new FormData();
+      formData.append("text", reply.trim());
+      formData.append("message", reply.trim());
+      if (selectedImage) {
+        formData.append("image", selectedImage);
+      }
+
+      await api.post(`booking-requests/${bookingId}/messages/send/`, formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
       setReply("");
+      clearSelectedImage();
+
       await loadChat(bookingId);
       await loadInbox(bookingId);
       setToast({ type: "success", msg: "Reply sent ✅" });
@@ -168,12 +245,6 @@ export default function OwnerMessages() {
     }
   };
 
-  // ---------------------------
-  // ✅ Accept / Reject (FIXED)
-  // Backend endpoint you HAVE:
-  // POST /api/owner/booking-requests/<id>/status/
-  // body: { status: "accepted" | "rejected" }
-  // ---------------------------
   const setStatus = async (newStatus) => {
     const bookingId = getBookingId(active);
     if (!bookingId) return;
@@ -199,9 +270,6 @@ export default function OwnerMessages() {
     }
   };
 
-  // ---------------------------
-  // UI
-  // ---------------------------
   const activeId = getBookingId(active);
 
   const sortedRequests = useMemo(() => {
@@ -231,10 +299,13 @@ export default function OwnerMessages() {
         </div>
       }
     >
-      <Toast type={toast.type} message={toast.msg} onClose={() => setToast({ type: "info", msg: "" })} />
+      <Toast
+        type={toast.type}
+        message={toast.msg}
+        onClose={() => setToast({ type: "info", msg: "" })}
+      />
 
       <div className="grid gap-4 lg:grid-cols-[380px_1fr]">
-        {/* LEFT: Requests list */}
         <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
           <div className="mb-3 flex items-center justify-between">
             <div className="text-sm font-semibold text-white">Requests</div>
@@ -293,7 +364,6 @@ export default function OwnerMessages() {
           )}
         </div>
 
-        {/* RIGHT: Chat */}
         <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
           {!active ? (
             <div className="text-sm text-slate-300">Select a request to view messages.</div>
@@ -336,9 +406,9 @@ export default function OwnerMessages() {
                 ) : (
                   <div className="grid gap-2">
                     {messages.map((m, idx) => {
-                      const text = m?.text || m?.message || m?.body || "";
-                      const sender =
-                        m?.sender_email || m?.sender?.email || m?.sender_name || m?.sender || "User";
+                      const text = getMsgText(m);
+                      const imageUrl = getMsgImage(m);
+                      const sender = getMsgSender(m);
                       const created = formatDate(m?.created_at || m?.created || "");
 
                       return (
@@ -347,7 +417,24 @@ export default function OwnerMessages() {
                             <div className="text-xs font-semibold text-slate-200">{sender}</div>
                             <div className="text-[11px] text-slate-400">{created}</div>
                           </div>
-                          <div className="mt-1 text-sm text-slate-100 whitespace-pre-wrap">{text || "—"}</div>
+
+                          {text ? (
+                            <div className="mt-1 text-sm text-slate-100 whitespace-pre-wrap">{text}</div>
+                          ) : null}
+
+                          {imageUrl ? (
+                            <div className="mt-3">
+                              <img
+                                src={imageUrl}
+                                alt="chat"
+                                className="max-w-[240px] rounded-2xl border border-white/10"
+                                onError={(e) => {
+                                  console.log("OwnerMessages image failed:", imageUrl, m);
+                                  e.currentTarget.style.display = "none";
+                                }}
+                              />
+                            </div>
+                          ) : null}
                         </div>
                       );
                     })}
@@ -355,9 +442,9 @@ export default function OwnerMessages() {
                 )}
               </div>
 
-              {/* Reply box */}
               <div className="mt-3 rounded-2xl border border-white/10 bg-white/5 p-3">
                 <div className="text-sm font-semibold text-white">Reply</div>
+
                 <textarea
                   value={reply}
                   onChange={(e) => setReply(e.target.value)}
@@ -365,6 +452,51 @@ export default function OwnerMessages() {
                   className="mt-2 w-full rounded-2xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-slate-100 outline-none focus:border-white/20"
                   placeholder="Write your reply..."
                 />
+
+                <div className="mt-3 flex items-center gap-3 flex-wrap">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    className="hidden"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="rounded-2xl border border-white/10 bg-white/10 px-4 py-2 text-sm text-white hover:bg-white/15 transition"
+                  >
+                    Choose Image
+                  </button>
+
+                  {selectedImage ? (
+                    <span className="text-xs text-slate-200 break-all">{selectedImage.name}</span>
+                  ) : (
+                    <span className="text-xs text-slate-400">No image selected</span>
+                  )}
+                </div>
+
+                {previewUrl && (
+                  <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-3">
+                    <div className="text-xs text-slate-300 mb-2">Image preview</div>
+                    <img
+                      src={previewUrl}
+                      alt="preview"
+                      className="max-w-[180px] rounded-2xl border border-white/10"
+                    />
+                    <div className="mt-2">
+                      <button
+                        onClick={clearSelectedImage}
+                        type="button"
+                        className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-1 text-xs text-red-200 hover:bg-red-500/15"
+                      >
+                        Remove Image
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 <div className="mt-2 flex gap-2">
                   <button
                     onClick={sendReply}

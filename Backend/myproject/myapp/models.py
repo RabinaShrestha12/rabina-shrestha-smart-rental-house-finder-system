@@ -254,6 +254,7 @@ class BookingMessage(models.Model):
     )
 
     text = models.TextField()
+    image = models.ImageField(upload_to="chat_images/booking/", null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     is_read = models.BooleanField(default=False)
 
@@ -388,6 +389,7 @@ class ProviderMessage(models.Model):
     )
 
     text = models.TextField()
+    image = models.ImageField(upload_to="chat_images/provider/", null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     is_read = models.BooleanField(default=False)
 
@@ -579,6 +581,8 @@ class RoommateChatMessage(models.Model):
         related_name="roommate_chat_messages_sent",
     )
     text = models.TextField()
+    image = models.ImageField(upload_to="chat_images/roommate/", null=True, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -688,3 +692,76 @@ class BookingPayment(models.Model):
 
     def __str__(self):
         return f"{self.transaction_uuid} - {self.payment_status}"
+
+
+class TenantExpense(models.Model):
+    CATEGORY_CHOICES = [
+        ("Food", "Food"),
+        ("Clothes", "Clothes"),
+        ("Travel", "Travel"),
+        ("Rent", "Rent"),
+        ("Education", "Education"),
+        ("Bills", "Bills"),
+        ("Health", "Health"),
+        ("Shopping", "Shopping"),
+        ("Entertainment", "Entertainment"),
+        ("Other", "Other"),
+    ]
+
+    tenant = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="tenant_expenses"
+    )
+    title = models.CharField(max_length=255)
+    category = models.CharField(max_length=50, choices=CATEGORY_CHOICES, default="Other")
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    date = models.DateField()
+    note = models.TextField(blank=True, null=True)
+
+    month = models.PositiveSmallIntegerField(editable=False)
+    year = models.PositiveIntegerField(editable=False)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-date", "-created_at"]
+
+    def save(self, *args, **kwargs):
+        if self.date:
+            self.month = self.date.month
+            self.year = self.date.year
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.tenant.email} - {self.title} - {self.amount}"
+
+
+class Notification(models.Model):
+    NOTIFICATION_TYPES = [
+        ("booking", "Booking"),
+        ("provider", "Provider"),
+        ("review", "Review"),
+        ("expense", "Expense"),
+        ("general", "General"),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="notifications"
+    )
+    title = models.CharField(max_length=255)
+    message = models.TextField()
+    notification_type = models.CharField(max_length=30, choices=NOTIFICATION_TYPES, default="general")
+    is_read = models.BooleanField(default=False)
+    link = models.CharField(max_length=500, blank=True, null=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.user.email} - {self.title}"

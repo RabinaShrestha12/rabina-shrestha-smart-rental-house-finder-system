@@ -1,5 +1,5 @@
 // src/pages/owner/OwnerMaintenance.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import { useAuth } from "../../auth/AuthContext";
@@ -16,6 +16,35 @@ function safeArr(d) {
 function axiosMsg(err, fallback) {
   const data = err?.response?.data;
   return data?.detail || data?.message || data?.error || err?.message || fallback;
+}
+
+function getBackendBaseUrl() {
+  return (
+    import.meta.env.VITE_API_BASE_URL ||
+    import.meta.env.VITE_BACKEND_URL ||
+    "http://127.0.0.1:8000"
+  );
+}
+
+function buildFullMediaUrl(raw) {
+  if (!raw) return "";
+
+  const value = String(raw).trim();
+  if (!value) return "";
+
+  if (value.startsWith("http://") || value.startsWith("https://")) {
+    return value;
+  }
+
+  if (value.startsWith("/")) {
+    return `${getBackendBaseUrl()}${value}`;
+  }
+
+  if (value.startsWith("media/")) {
+    return `${getBackendBaseUrl()}/${value}`;
+  }
+
+  return `${getBackendBaseUrl()}/media/${value}`;
 }
 
 // ✅ backend returns ServiceProviderProfile.id as "id"
@@ -39,9 +68,28 @@ function getProviderArea(p) {
   return p?.service_area ?? "";
 }
 
+function getMsgText(m) {
+  return m?.text || m?.message || m?.body || m?.content || "";
+}
+
+function getMsgImage(m) {
+  const raw =
+    m?.image_url ||
+    m?.image ||
+    m?.picture ||
+    m?.photo ||
+    m?.file ||
+    m?.attachment ||
+    m?.media ||
+    m?.media_url ||
+    "";
+  return buildFullMediaUrl(raw);
+}
+
 export default function OwnerMaintenance() {
   const { role } = useAuth();
   const nav = useNavigate();
+  const fileInputRef = useRef(null);
 
   const [toast, setToast] = useState({ type: "info", msg: "" });
 
@@ -78,6 +126,10 @@ export default function OwnerMaintenance() {
   const [chatText, setChatText] = useState("");
   const [sendingChat, setSendingChat] = useState(false);
 
+  // image chat
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState("");
+
   // ✅ requirement: owner can chat ONLY after provider assigned
   const canChat = !!activeReq?.assigned_provider_id;
 
@@ -92,7 +144,15 @@ export default function OwnerMaintenance() {
   useEffect(() => {
     setSelectedProvider(null);
     setChatText("");
+    clearSelectedImage();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeReq?.id]);
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
 
   // ----------------------------
   // Load providers
@@ -102,12 +162,6 @@ export default function OwnerMaintenance() {
     setProvidersLoading(true);
     setProvidersError("");
     try {
-      // optional: you can load filtered on backend too:
-      // const qs = new URLSearchParams();
-      // if (filterCategory) qs.set("category", filterCategory);
-      // if (filterArea) qs.set("service_area", filterArea);
-      // const res = await api.get(`owner/providers/?${qs.toString()}`);
-
       const res = await api.get("owner/providers/");
       setProviders(safeArr(res.data));
     } catch (e) {
@@ -173,6 +227,28 @@ export default function OwnerMaintenance() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeReq?.id]);
 
+  const handleImageChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setToast({ type: "error", msg: "Please choose a valid image file." });
+      return;
+    }
+
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+
+    setSelectedImage(file);
+    setPreviewUrl(URL.createObjectURL(file));
+  };
+
+  const clearSelectedImage = () => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setSelectedImage(null);
+    setPreviewUrl("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
   // ----------------------------
   // Create request
   // POST /api/owner/maintenance/create/
@@ -205,12 +281,7 @@ export default function OwnerMaintenance() {
   };
 
   // ----------------------------
-  // Assign provider (required before chat)
-  // Use your backend endpoint:
-  // POST /api/owner/maintenance/<id>/assign-provider/
-  // body: { provider_profile_id }
-  //
-  // If your backend uses PATCH /assign/ then change endpoint below.
+  // Assign provider
   // ----------------------------
   const assignProvider = async () => {
     if (!activeReq?.id) {
@@ -235,7 +306,6 @@ export default function OwnerMaintenance() {
     }
 
     try {
-      // ✅ Preferred (matches code you shared earlier):
       await api.post(`owner/maintenance/${activeReq.id}/assign-provider/`, {
         provider_profile_id,
       });
@@ -244,8 +314,6 @@ export default function OwnerMaintenance() {
       await loadRequests(activeReq.id);
       await loadChat(activeReq.id);
     } catch (e) {
-      // fallback if your backend is still using PATCH /assign/
-      // try that once automatically
       try {
         await api.patch(`owner/maintenance/${activeReq.id}/assign/`, {
           provider_profile_id,
@@ -262,25 +330,42 @@ export default function OwnerMaintenance() {
   // ----------------------------
   // Send chat message to provider
   // POST /api/owner/maintenance/<id>/messages/send/
-  // body: { text }
+  // multipart/form-data with text + image
   // ----------------------------
   const sendChat = async () => {
-    if (!activeReq?.id) return setToast({ type: "error", msg: "Select a request first." });
+    if (!activeReq?.id) {
+      setToast({ type: "error", msg: "Select a request first." });
+      return;
+    }
 
-    // ✅ enforce requirement in frontend
     if (!activeReq?.assigned_provider_id) {
       setToast({ type: "error", msg: "Please assign a provider first to start chat." });
       return;
     }
 
-    if (!chatText.trim()) return setToast({ type: "error", msg: "Write a message first." });
+    if (!chatText.trim() && !selectedImage) {
+      setToast({ type: "error", msg: "Write a message or choose an image first." });
+      return;
+    }
 
     setSendingChat(true);
     try {
-      await api.post(`owner/maintenance/${activeReq.id}/messages/send/`, {
-        text: chatText.trim(),
+      const formData = new FormData();
+      formData.append("text", chatText.trim());
+      formData.append("message", chatText.trim());
+
+      if (selectedImage) {
+        formData.append("image", selectedImage);
+      }
+
+      await api.post(`owner/maintenance/${activeReq.id}/messages/send/`, formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
       });
+
       setChatText("");
+      clearSelectedImage();
       await loadChat(activeReq.id);
       await loadRequests(activeReq.id);
       setToast({ type: "success", msg: "Message sent ✅" });
@@ -344,7 +429,6 @@ export default function OwnerMaintenance() {
         </div>
 
         <div className="mt-6 grid gap-5 lg:grid-cols-2">
-          {/* LEFT */}
           <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
             <div className="text-lg font-semibold text-white">Create a request</div>
 
@@ -429,7 +513,6 @@ export default function OwnerMaintenance() {
               </button>
             </form>
 
-            {/* Requests list */}
             <div className="mt-6">
               <div className="text-sm font-semibold text-white">My requests</div>
 
@@ -469,12 +552,10 @@ export default function OwnerMaintenance() {
             </div>
           </div>
 
-          {/* RIGHT */}
           <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
             <div className="text-lg font-semibold text-white">Service Providers</div>
             <div className="mt-1 text-xs text-slate-400">Select a provider and assign to active request.</div>
 
-            {/* Filters */}
             <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
               <div className="text-xs text-slate-300 mb-2">Filter</div>
               <div className="grid gap-3 md:grid-cols-2">
@@ -548,7 +629,6 @@ export default function OwnerMaintenance() {
               </>
             )}
 
-            {/* CHAT */}
             <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-4">
               <div className="text-sm font-semibold text-white">
                 Chat {activeReq?.id ? `(Request #${activeReq.id})` : ""}
@@ -564,19 +644,41 @@ export default function OwnerMaintenance() {
                   <div className="text-sm text-slate-300">No messages yet.</div>
                 ) : (
                   <div className="grid gap-2">
-                    {messages.map((m) => (
-                      <div key={m?.id} className="rounded-xl border border-white/10 bg-white/5 p-3">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="text-xs font-semibold text-slate-200">
-                            {m?.sender_username || m?.sender_email || "User"}
+                    {messages.map((m, idx) => {
+                      const msgImage = getMsgImage(m);
+                      const msgText = getMsgText(m);
+
+                      return (
+                        <div key={m?.id ?? idx} className="rounded-xl border border-white/10 bg-white/5 p-3">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="text-xs font-semibold text-slate-200">
+                              {m?.sender_username || m?.sender_email || "User"}
+                            </div>
+                            <div className="text-[11px] text-slate-400">
+                              {m?.created_at ? new Date(m.created_at).toLocaleString() : ""}
+                            </div>
                           </div>
-                          <div className="text-[11px] text-slate-400">
-                            {m?.created_at ? new Date(m.created_at).toLocaleString() : ""}
-                          </div>
+
+                          {msgImage ? (
+                            <div className="mt-3">
+                              <img
+                                src={msgImage}
+                                alt="chat upload"
+                                className="max-w-[240px] rounded-2xl border border-white/10"
+                                onError={(e) => {
+                                  console.log("OwnerMaintenance image failed:", msgImage, m);
+                                  e.currentTarget.style.display = "none";
+                                }}
+                              />
+                            </div>
+                          ) : null}
+
+                          {msgText ? (
+                            <div className="mt-2 text-sm text-slate-100 whitespace-pre-wrap">{msgText}</div>
+                          ) : null}
                         </div>
-                        <div className="mt-1 text-sm text-slate-100 whitespace-pre-wrap">{m?.text || "—"}</div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -590,6 +692,53 @@ export default function OwnerMaintenance() {
                   className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-slate-100 outline-none focus:border-white/20 disabled:opacity-60"
                   placeholder={canChat ? "Write your message to provider..." : "Assign a provider to enable chat..."}
                 />
+
+                <div className="mt-3 flex items-center gap-3 flex-wrap">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    className="hidden"
+                    disabled={!canChat}
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={!canChat}
+                    className="rounded-2xl border border-white/10 bg-white/10 px-4 py-2 text-sm text-white hover:bg-white/15 transition disabled:opacity-60"
+                  >
+                    Choose Image
+                  </button>
+
+                  {selectedImage ? (
+                    <span className="text-xs text-slate-200 break-all">{selectedImage.name}</span>
+                  ) : (
+                    <span className="text-xs text-slate-400">No image selected</span>
+                  )}
+                </div>
+
+                {previewUrl ? (
+                  <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-3">
+                    <div className="text-xs text-slate-300 mb-2">Image preview</div>
+                    <img
+                      src={previewUrl}
+                      alt="preview"
+                      className="max-w-[180px] rounded-2xl border border-white/10"
+                    />
+                    <div className="mt-2">
+                      <button
+                        type="button"
+                        onClick={clearSelectedImage}
+                        className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-1 text-xs text-red-200 hover:bg-red-500/15"
+                      >
+                        Remove Image
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+
                 <div className="mt-2 flex gap-2">
                   <button
                     type="button"

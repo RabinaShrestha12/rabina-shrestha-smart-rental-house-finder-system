@@ -24,6 +24,7 @@ from .models import (
     RoommateChatMessage,
     RoommateChatThread,
     FurnitureItem,
+    TenantExpense,
 )
 
 User = get_user_model()
@@ -373,9 +374,11 @@ class BookingRequestCreateSerializer(serializers.Serializer):
         return booking
 
 
+
 class BookingMessageSerializer(serializers.ModelSerializer):
-    sender_username = serializers.CharField(source="sender.username", read_only=True)
-    sender_role = serializers.CharField(source="sender.role", read_only=True)
+    sender_name = serializers.SerializerMethodField()
+    sender_role = serializers.SerializerMethodField()
+    image_url = serializers.SerializerMethodField()
 
     class Meta:
         model = BookingMessage
@@ -383,15 +386,120 @@ class BookingMessageSerializer(serializers.ModelSerializer):
             "id",
             "request",
             "sender",
-            "sender_username",
+            "sender_name",
             "sender_role",
             "text",
+            "image",
+            "image_url",
             "created_at",
-            "is_read",
         ]
-        read_only_fields = ["id", "request", "sender", "created_at", "is_read"]
+        read_only_fields = [
+            "id",
+            "sender",
+            "sender_name",
+            "sender_role",
+            "image_url",
+            "created_at",
+        ]
+
+    def get_sender_name(self, obj):
+        return obj.sender.username if obj.sender else ""
+
+    def get_sender_role(self, obj):
+        return getattr(obj.sender, "role", "") if obj.sender else ""
+
+    def get_image_url(self, obj):
+        request = self.context.get("request")
+        if obj.image:
+            if request:
+                return request.build_absolute_uri(obj.image.url)
+            return obj.image.url
+        return None
 
 
+class ProviderMessageSerializer(serializers.ModelSerializer):
+    sender_name = serializers.SerializerMethodField()
+    sender_role = serializers.SerializerMethodField()
+    image_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ProviderMessage
+        fields = [
+            "id",
+            "maintenance_request",
+            "sender",
+            "sender_name",
+            "sender_role",
+            "text",
+            "image",
+            "image_url",
+            "created_at",
+        ]
+        read_only_fields = [
+            "id",
+            "sender",
+            "sender_name",
+            "sender_role",
+            "image_url",
+            "created_at",
+        ]
+
+    def get_sender_name(self, obj):
+        return obj.sender.username if obj.sender else ""
+
+    def get_sender_role(self, obj):
+        return getattr(obj.sender, "role", "") if obj.sender else ""
+
+    def get_image_url(self, obj):
+        request = self.context.get("request")
+        if obj.image:
+            if request:
+                return request.build_absolute_uri(obj.image.url)
+            return obj.image.url
+        return None
+
+
+class RoommateChatMessageSerializer(serializers.ModelSerializer):
+    sender_name = serializers.SerializerMethodField()
+    sender_role = serializers.SerializerMethodField()
+    image_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = RoommateChatMessage
+        fields = [
+            "id",
+            "thread",
+            "sender",
+            "sender_name",
+            "sender_role",
+            "text",
+            "image",
+            "image_url",
+            "created_at",
+        ]
+        read_only_fields = [
+            "id",
+            "sender",
+            "sender_name",
+            "sender_role",
+            "image_url",
+            "created_at",
+        ]
+
+    def get_sender_name(self, obj):
+        return obj.sender.username if obj.sender else ""
+
+    def get_sender_role(self, obj):
+        return getattr(obj.sender, "role", "") if obj.sender else ""
+
+    def get_image_url(self, obj):
+        request = self.context.get("request")
+        if obj.image:
+            if request:
+                return request.build_absolute_uri(obj.image.url)
+            return obj.image.url
+        return None
+    
 class BookingRequestListSerializer(serializers.ModelSerializer):
     listing = ListingSerializer(read_only=True)
 
@@ -492,42 +600,6 @@ class MaintenanceRequestSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "created_at", "updated_at", "owner", "owner_username", "owner_email"]
 
 
-# =========================
-# ✅ Provider Inbox / Chat
-# =========================
-class ProviderMessageSerializer(serializers.ModelSerializer):
-    owner_username = serializers.CharField(source="owner.username", read_only=True)
-    owner_email = serializers.EmailField(source="owner.email", read_only=True)
-
-    provider_username = serializers.CharField(source="provider.username", read_only=True)
-    provider_email = serializers.EmailField(source="provider.email", read_only=True)
-
-    sender_username = serializers.CharField(source="sender.username", read_only=True)
-    sender_role = serializers.CharField(source="sender.role", read_only=True)
-
-    maintenance_id = serializers.IntegerField(source="maintenance.id", read_only=True, default=None)
-
-    class Meta:
-        model = ProviderMessage
-        fields = [
-            "id",
-            "maintenance",
-            "maintenance_id",
-            "owner",
-            "owner_username",
-            "owner_email",
-            "provider",
-            "provider_username",
-            "provider_email",
-            "sender",
-            "sender_username",
-            "sender_role",
-            "text",
-            "created_at",
-            "is_read",
-        ]
-        read_only_fields = ["id", "created_at", "owner", "provider", "sender", "is_read"]
-
 
 # =========================
 # Notification / Reminder / Facilities
@@ -608,14 +680,6 @@ class RoommateChatThreadSerializer(serializers.ModelSerializer):
         }
 
 
-class RoommateChatMessageSerializer(serializers.ModelSerializer):
-    sender_id = serializers.IntegerField(source="sender.id", read_only=True)
-    sender_username = serializers.CharField(source="sender.username", read_only=True)
-
-    class Meta:
-        model = RoommateChatMessage
-        fields = ["id", "thread", "sender_id", "sender_username", "text", "created_at"]
-        read_only_fields = ["id", "thread", "sender_id", "sender_username", "created_at"]
 
 
 class RoommateRequestSerializer(serializers.ModelSerializer):
@@ -740,3 +804,39 @@ class BookingPaymentSerializer(serializers.ModelSerializer):
 
     def get_listing_title(self, obj):
         return getattr(obj.listing, "title", f"Listing #{obj.listing_id}")
+    
+
+
+class TenantExpenseSerializer(serializers.ModelSerializer):
+    month_label = serializers.SerializerMethodField()
+
+    class Meta:
+        model = TenantExpense
+        fields = [
+            "id",
+            "title",
+            "category",
+            "amount",
+            "date",
+            "note",
+            "month",
+            "year",
+            "month_label",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "month", "year", "month_label", "created_at", "updated_at"]
+
+    def get_month_label(self, obj):
+        import calendar
+        return f"{calendar.month_abbr[obj.month]} {obj.year}"
+
+    def validate_amount(self, value):
+        if value <= 0:
+            raise serializers.ValidationError("Amount must be greater than 0.")
+        return value
+
+    def validate_title(self, value):
+        if not value.strip():
+            raise serializers.ValidationError("Title is required.")
+        return value.strip()

@@ -33,7 +33,7 @@ import TenantMaintenance from "./pages/tenant/TenantMaintenance";
 import TenantAISearch from "./pages/tenant/TenantAISearch";
 import RoommateFinder from "./pages/tenant/RoommateFinder";
 import RoommateRequests from "./pages/tenant/RoommateRequests";
-import TenantChats from "./pages/tenant/Chats";
+import RoommateChatList from "./pages/tenant/RoommateChatList";
 import RoommateChat from "./pages/tenant/RoommateChat";
 import VirtualFurniturePage from "./pages/tenant/VirtualFurniturePage";
 import TenantEsewaPay from "./pages/tenant/TenantEsewaPay";
@@ -249,7 +249,7 @@ export default function App() {
         path="/tenant/roommates/chats"
         element={
           <ProtectedRoute allowRoles={["tenant"]}>
-            <TenantChats />
+            <RoommateChatList />
           </ProtectedRoute>
         }
       />

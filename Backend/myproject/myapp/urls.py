@@ -74,6 +74,14 @@ from .view.esewa_payment_views import (
     mark_owner_booking_paid,
     owner_booking_payments,
 )
+
+from myapp.view.expense_views import (
+    TenantExpenseListCreateView,
+    TenantExpenseDetailView,
+    TenantExpenseMonthSummaryView,
+    GenerateEndOfMonthExpenseNotificationView,
+)
+
 urlpatterns = [
     path("register_user/", register_user),
     path("verify-otp/", verify_otp),
@@ -170,14 +178,20 @@ urlpatterns = [
     path("admin/furniture/<int:pk>/delete/", furniture_delete),
 
 
-    path("payments/esewa/initiate/", initiate_esewa_booking_payment, name="initiate_esewa_booking_payment"),
-    path("payments/esewa/success/", esewa_success, name="esewa_success"),
-    path("payments/esewa/failure/", esewa_failure, name="esewa_failure"),
+    path("payments/esewa/initiate/", initiate_esewa_booking_payment),
+    path("payments/esewa/success/", esewa_success),
+    path("payments/esewa/failure/", esewa_failure),
 
-    path("tenant/booking-payments/my/", my_booking_payments, name="my_booking_payments"),
-    path("admin/booking-payments/", admin_booking_payments, name="admin_booking_payments"),
-    path("admin/booking-payments/<int:payment_id>/owner-paid/", mark_owner_booking_paid, name="mark_owner_booking_paid"),
-    path("owner/booking-payments/", owner_booking_payments, name="owner_booking_payments"),
+    path("tenant/booking-payments/my/", my_booking_payments),
+    path("admin/booking-payments/", admin_booking_payments),
+    path("admin/booking-payments/<int:payment_id>/owner-paid/", mark_owner_booking_paid),
+    path("owner/booking-payments/", owner_booking_payments),
+
+    # Expense tracker
+    path("tenant/expenses/", TenantExpenseListCreateView.as_view()),
+    path("tenant/expenses/<int:pk>/", TenantExpenseDetailView.as_view()),
+    path("tenant/expenses/month-summary/", TenantExpenseMonthSummaryView.as_view()),
+    path("tenant/expenses/generate-month-notification/", GenerateEndOfMonthExpenseNotificationView.as_view()),
 ]
 
    

@@ -26,6 +26,57 @@ function getMyIdFromToken() {
   return payload?.user_id ?? payload?.userId ?? payload?.sub ?? null;
 }
 
+function getLastMessage(thread) {
+  return (
+    thread?.last_message ||
+    thread?.latest_message ||
+    thread?.recent_message ||
+    null
+  );
+}
+
+function getLastMessageText(thread) {
+  const lm = getLastMessage(thread);
+  return (
+    lm?.text ||
+    lm?.message ||
+    lm?.body ||
+    lm?.content ||
+    ""
+  );
+}
+
+function getLastMessageImage(thread) {
+  const lm = getLastMessage(thread);
+  return (
+    lm?.image_url ||
+    lm?.image ||
+    lm?.photo ||
+    lm?.picture ||
+    lm?.attachment ||
+    lm?.file ||
+    ""
+  );
+}
+
+function getLastMessageSenderId(thread) {
+  const lm = getLastMessage(thread);
+  const raw =
+    lm?.sender_id ??
+    lm?.sender?.id ??
+    lm?.sender ??
+    null;
+
+  if (raw == null) return null;
+  const num = Number(raw);
+  return Number.isNaN(num) ? null : num;
+}
+
+function getPreviewTime(thread) {
+  const lm = getLastMessage(thread);
+  return lm?.created_at || lm?.created || thread?.created_at || "";
+}
+
 export default function Chats() {
   const nav = useNavigate();
   const { user } = useAuth();
@@ -75,37 +126,67 @@ export default function Chats() {
 
     return threads.filter((t) => {
       const name = (t.other_username || "").toLowerCase();
-      return name.includes(text);
+      const preview = getLastMessageText(t).toLowerCase();
+      return name.includes(text) || preview.includes(text);
     });
   }, [q, threads]);
 
   const openThread = (id) => nav(`/tenant/roommates/chats/${id}`);
 
   const previewText = (t) => {
-    const lm = t?.last_message;
+    const lm = getLastMessage(t);
     if (!lm) return "No messages yet";
 
-    const senderId = lm?.sender_id != null ? Number(lm.sender_id) : null;
+    const senderId = getLastMessageSenderId(t);
+    const isMine = myId && senderId && senderId === myId;
+    const text = getLastMessageText(t);
+    const hasImage = Boolean(getLastMessageImage(t));
 
-    // ✅ if last message is from other tenant
-    if (myId && senderId && senderId !== myId) {
-      return "Message received";
+    if (hasImage && text) {
+      return isMine ? `You: 📷 ${text}` : `📷 ${text}`;
     }
 
-    // if last message is mine (optional nicer text)
-    return `You: ${lm?.text || ""}`.trim();
+    if (hasImage && !text) {
+      return isMine ? "You sent an image" : "📷 Image received";
+    }
+
+    if (text) {
+      return isMine ? `You: ${text}` : text;
+    }
+
+    return "No messages yet";
   };
 
   const previewTime = (t) => {
-    const dt = t?.last_message?.created_at || t?.created_at;
+    const dt = getPreviewTime(t);
     return dt ? new Date(dt).toLocaleString() : "";
+  };
+
+  const unreadBadge = (t) => {
+    const count =
+      t?.unread_count ??
+      t?.unread ??
+      0;
+
+    if (!count) return null;
+
+    return (
+      <span className="ml-2 inline-flex min-w-[22px] items-center justify-center rounded-full bg-blue-600 px-2 py-[2px] text-[11px] font-semibold text-white">
+        {count}
+      </span>
+    );
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-4xl mx-auto p-4">
-        <div className="flex items-center justify-between gap-2 mb-4">
-          <h1 className="text-2xl font-bold text-gray-800">Roommate Chats</h1>
+        <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-800">Roommate Chats</h1>
+            <p className="text-sm text-gray-600 mt-1">
+              Open a chat and send text or image messages.
+            </p>
+          </div>
 
           <div className="flex gap-2">
             <button
@@ -149,7 +230,7 @@ export default function Chats() {
                 <div
                   key={t.id}
                   onClick={() => openThread(t.id)}
-                  className="py-3 hover:bg-gray-50 rounded-lg px-2 cursor-pointer"
+                  className="py-3 hover:bg-gray-50 rounded-lg px-2 cursor-pointer transition"
                   role="button"
                   tabIndex={0}
                   onKeyDown={(e) => {
@@ -157,18 +238,21 @@ export default function Chats() {
                   }}
                   title="Open chat"
                 >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-semibold text-gray-900">
-                        {t.other_username || `Thread #${t.id}`}
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="font-semibold text-gray-900 flex items-center">
+                        <span className="truncate">
+                          {t.other_username || `Thread #${t.id}`}
+                        </span>
+                        {unreadBadge(t)}
                       </div>
 
-                      <div className="text-sm text-gray-600 truncate max-w-[280px]">
+                      <div className="text-sm text-gray-600 truncate max-w-[280px] mt-1">
                         {previewText(t)}
                       </div>
                     </div>
 
-                    <div className="text-xs text-gray-500">
+                    <div className="text-xs text-gray-500 shrink-0">
                       {previewTime(t)}
                     </div>
                   </div>

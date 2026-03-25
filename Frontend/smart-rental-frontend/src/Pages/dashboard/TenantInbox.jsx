@@ -1,14 +1,44 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import api from "../../api/axios";
 import { useAuth } from "../../auth/AuthContext";
 import Shell from "../../components/Shell";
 import Toast from "../../components/Toast";
 
+function getBackendBaseUrl() {
+  return (
+    import.meta.env.VITE_API_BASE_URL ||
+    import.meta.env.VITE_BACKEND_URL ||
+    "http://127.0.0.1:8000"
+  );
+}
+
+function buildFullMediaUrl(raw) {
+  if (!raw) return "";
+
+  const value = String(raw).trim();
+  if (!value) return "";
+
+  if (value.startsWith("http://") || value.startsWith("https://")) {
+    return value;
+  }
+
+  if (value.startsWith("/")) {
+    return `${getBackendBaseUrl()}${value}`;
+  }
+
+  if (value.startsWith("media/")) {
+    return `${getBackendBaseUrl()}/${value}`;
+  }
+
+  return `${getBackendBaseUrl()}/media/${value}`;
+}
+
 export default function TenantInbox() {
   const { role, isAuthed } = useAuth();
   const nav = useNavigate();
   const [searchParams] = useSearchParams();
+  const fileInputRef = useRef(null);
 
   const [toast, setToast] = useState({ type: "info", msg: "" });
 
@@ -25,6 +55,9 @@ export default function TenantInbox() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState("");
+
   useEffect(() => {
     const token = localStorage.getItem("access");
     if (!token || !isAuthed) {
@@ -36,6 +69,12 @@ export default function TenantInbox() {
       return;
     }
   }, [role, isAuthed, nav]);
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
 
   const arrify = (data) =>
     Array.isArray(data) ? data : Array.isArray(data?.results) ? data.results : [];
@@ -88,6 +127,22 @@ export default function TenantInbox() {
     b?.listing?.rent ??
     b?.listing?.price ??
     "";
+
+  const getMsgText = (m) => m?.text || m?.message || m?.body || "";
+
+  const getMsgImage = (m) => {
+    const raw =
+      m?.image_url ||
+      m?.image ||
+      m?.picture ||
+      m?.photo ||
+      m?.file ||
+      m?.attachment ||
+      m?.media ||
+      m?.media_url ||
+      "";
+    return buildFullMediaUrl(raw);
+  };
 
   const formatDate = (s) => {
     if (!s) return "";
@@ -184,6 +239,30 @@ export default function TenantInbox() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
 
+  const handleImageChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setToast({ type: "error", msg: "Please choose a valid image file." });
+      return;
+    }
+
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+
+    setSelectedImage(file);
+    setPreviewUrl(URL.createObjectURL(file));
+  };
+
+  const clearSelectedImage = () => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setSelectedImage(null);
+    setPreviewUrl("");
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
   const sendReply = async () => {
     const bookingId = getBookingId(active);
 
@@ -192,18 +271,29 @@ export default function TenantInbox() {
       return;
     }
 
-    if (!reply.trim()) {
-      setToast({ type: "error", msg: "Write something first." });
+    if (!reply.trim() && !selectedImage) {
+      setToast({ type: "error", msg: "Write a message or choose an image first." });
       return;
     }
 
     setSending(true);
     try {
-      await api.post(`booking-requests/${bookingId}/messages/send/`, {
-        text: reply.trim(),
+      const formData = new FormData();
+      formData.append("text", reply.trim());
+      formData.append("message", reply.trim());
+
+      if (selectedImage) {
+        formData.append("image", selectedImage);
+      }
+
+      await api.post(`booking-requests/${bookingId}/messages/send/`, formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
       });
 
       setReply("");
+      clearSelectedImage();
       await loadChat(bookingId);
       await loadInbox();
       setToast({ type: "success", msg: "Message sent ✅" });
@@ -490,7 +580,8 @@ export default function TenantInbox() {
                 ) : (
                   <div className="grid gap-2">
                     {messages.map((m, idx) => {
-                      const text = m?.text || m?.message || m?.body || "";
+                      const text = getMsgText(m);
+                      const imageUrl = getMsgImage(m);
                       const sender =
                         m?.sender_email ||
                         m?.sender?.email ||
@@ -526,9 +617,25 @@ export default function TenantInbox() {
                               </div>
                             </div>
 
-                            <div className="mt-1 text-sm text-slate-100 whitespace-pre-wrap">
-                              {text || "—"}
-                            </div>
+                            {imageUrl ? (
+                              <div className="mt-3">
+                                <img
+                                  src={imageUrl}
+                                  alt="chat upload"
+                                  className="max-w-[240px] rounded-2xl border border-white/10"
+                                  onError={(e) => {
+                                    console.log("TenantInbox image failed:", imageUrl, m);
+                                    e.currentTarget.style.display = "none";
+                                  }}
+                                />
+                              </div>
+                            ) : null}
+
+                            {text ? (
+                              <div className="mt-2 text-sm text-slate-100 whitespace-pre-wrap">
+                                {text}
+                              </div>
+                            ) : null}
                           </div>
                         </div>
                       );
@@ -547,6 +654,50 @@ export default function TenantInbox() {
                   className="mt-2 w-full rounded-2xl border border-white/10 bg-black/30 px-3 py-2 text-sm text-slate-100 outline-none focus:border-white/20"
                   placeholder="Write your message..."
                 />
+
+                <div className="mt-3 flex items-center gap-3 flex-wrap">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    className="hidden"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="rounded-2xl border border-white/10 bg-white/10 px-4 py-2 text-sm text-white hover:bg-white/15 transition"
+                  >
+                    Choose Image
+                  </button>
+
+                  {selectedImage ? (
+                    <span className="text-xs text-slate-200 break-all">{selectedImage.name}</span>
+                  ) : (
+                    <span className="text-xs text-slate-400">No image selected</span>
+                  )}
+                </div>
+
+                {previewUrl && (
+                  <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-3">
+                    <div className="text-xs text-slate-300 mb-2">Image preview</div>
+                    <img
+                      src={previewUrl}
+                      alt="preview"
+                      className="max-w-[180px] rounded-2xl border border-white/10"
+                    />
+                    <div className="mt-2">
+                      <button
+                        onClick={clearSelectedImage}
+                        type="button"
+                        className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-1 text-xs text-red-200 hover:bg-red-500/15"
+                      >
+                        Remove Image
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 <div className="mt-2 flex gap-2 flex-wrap">
                   <button

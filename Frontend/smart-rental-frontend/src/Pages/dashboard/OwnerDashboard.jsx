@@ -57,6 +57,87 @@ export default function OwnerDashboard() {
     [displayEmail]
   );
 
+  const [theme, setTheme] = useState(
+    () => localStorage.getItem("owner_dashboard_theme") || "light"
+  );
+
+  useEffect(() => {
+    localStorage.setItem("owner_dashboard_theme", theme);
+  }, [theme]);
+
+  const isDark = theme === "dark";
+
+  const ui = {
+    page: isDark
+      ? "min-h-screen bg-[radial-gradient(circle_at_top_left,_#0f172a_0%,_#111827_35%,_#020617_100%)] text-white"
+      : "min-h-screen bg-gradient-to-br from-white via-slate-50 to-sky-100 text-slate-900",
+
+    hero: isDark
+      ? "rounded-[30px] border border-white/10 bg-white/5 shadow-2xl backdrop-blur-xl"
+      : "rounded-[30px] border border-slate-200 bg-white/95 shadow-xl",
+
+    card: isDark
+      ? "rounded-[24px] border border-white/10 bg-white/5 shadow-lg"
+      : "rounded-[24px] border border-slate-200 bg-white shadow-md",
+
+    softCard: isDark
+      ? "rounded-2xl border border-white/10 bg-black/20"
+      : "rounded-2xl border border-slate-200 bg-slate-50",
+
+    input: isDark
+      ? "w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-white outline-none placeholder:text-slate-400 focus:border-blue-400/40"
+      : "w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-slate-900 outline-none placeholder:text-slate-400 focus:border-blue-500",
+
+    textarea: isDark
+      ? "w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-white outline-none placeholder:text-slate-400 focus:border-blue-400/40"
+      : "w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-slate-900 outline-none placeholder:text-slate-400 focus:border-blue-500",
+
+    button: isDark
+      ? "rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-slate-100 transition hover:bg-white/10"
+      : "rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100",
+
+    primaryButton: isDark
+      ? "rounded-2xl border border-blue-400/30 bg-blue-500/15 px-4 py-3 text-sm font-semibold text-blue-100 transition hover:bg-blue-500/20"
+      : "rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-100",
+
+    successButton: isDark
+      ? "rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15"
+      : "rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100",
+
+    warningButton: isDark
+      ? "rounded-2xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-100 transition hover:bg-amber-500/15"
+      : "rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-700 transition hover:bg-amber-100",
+
+    dangerButton: isDark
+      ? "rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-100 transition hover:bg-red-500/15"
+      : "rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-100",
+
+    title: isDark ? "text-white" : "text-slate-900",
+    subtext: isDark ? "text-slate-300" : "text-slate-600",
+    muted: isDark ? "text-slate-400" : "text-slate-500",
+    sectionTitle: isDark ? "text-white" : "text-slate-900",
+
+    badgeBlue: isDark
+      ? "border-blue-500/20 bg-blue-500/10 text-blue-100"
+      : "border-blue-200 bg-blue-50 text-blue-700",
+
+    badgeAmber: isDark
+      ? "border-amber-500/20 bg-amber-500/10 text-amber-100"
+      : "border-amber-200 bg-amber-50 text-amber-700",
+
+    badgePurple: isDark
+      ? "border-purple-500/20 bg-purple-500/10 text-purple-100"
+      : "border-purple-200 bg-purple-50 text-purple-700",
+
+    badgeGreen: isDark
+      ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-100"
+      : "border-emerald-200 bg-emerald-50 text-emerald-700",
+
+    badgeRed: isDark
+      ? "border-red-500/20 bg-red-500/10 text-red-100"
+      : "border-red-200 bg-red-50 text-red-700",
+  };
+
   const [toast, setToast] = useState({ type: "info", msg: "" });
 
   const [profile, setProfile] = useState(null);
@@ -98,7 +179,6 @@ export default function OwnerDashboard() {
   });
 
   const [picked, setPicked] = useState(null);
-
   const [coverImage, setCoverImage] = useState(null);
   const [pano, setPano] = useState({
     front: null,
@@ -320,16 +400,10 @@ export default function OwnerDashboard() {
 
   const getNotifKindClasses = (n) => {
     const kind = getNotifKind(n);
-    if (kind === "booking") {
-      return "border-blue-500/20 bg-blue-500/10 text-blue-200";
-    }
-    if (kind === "provider") {
-      return "border-emerald-500/20 bg-emerald-500/10 text-emerald-200";
-    }
-    if (kind === "review") {
-      return "border-amber-500/20 bg-amber-500/10 text-amber-200";
-    }
-    return "border-purple-500/20 bg-purple-500/10 text-purple-200";
+    if (kind === "booking") return ui.badgeBlue;
+    if (kind === "provider") return ui.badgeGreen;
+    if (kind === "review") return ui.badgeAmber;
+    return ui.badgePurple;
   };
 
   const getNotifSender = (n) => {
@@ -581,7 +655,7 @@ export default function OwnerDashboard() {
           const newIds = newReviews
             .map((r, idx) => {
               const realIdx = list.findIndex(
-                (x) => String(getReviewId(x, 0)) === String(getReviewId(r, idx))
+                (x, i) => String(getReviewId(x, i)) === String(getReviewId(r, idx))
               );
               return String(getReviewId(r, realIdx >= 0 ? realIdx : idx));
             })
@@ -736,7 +810,7 @@ export default function OwnerDashboard() {
         );
         return;
       } catch {
-        // try next
+        // try next endpoint
       }
     }
   };
@@ -756,7 +830,6 @@ export default function OwnerDashboard() {
           .find((link) => link && link.includes("/owner/provider-chat/")) || "";
 
       const latestLink = getOwnerSafeNotifLink(group.latest);
-
       nav(chatLink || latestLink || "/owner/maintenance");
       return;
     }
@@ -777,9 +850,7 @@ export default function OwnerDashboard() {
     }
 
     const latestLink = getOwnerSafeNotifLink(group.latest);
-    if (latestLink) {
-      nav(latestLink);
-    }
+    if (latestLink) nav(latestLink);
   };
 
   const onChange = (e) =>
@@ -823,6 +894,7 @@ export default function OwnerDashboard() {
       const nice = [p.road, p.suburb, p.city, p.state, p.country]
         .filter(Boolean)
         .join(", ");
+
       setForm((prev) => ({ ...prev, location: nice || prev.location }));
     } catch {
       setPlace({
@@ -1041,7 +1113,8 @@ out center;
   useEffect(() => {
     if (!form.latitude || !form.longitude) return;
     fetchNearbyPlaces(form.latitude, form.longitude, radius);
-  }, [radius]); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [radius]);
 
   useEffect(() => {
     if (booting) return;
@@ -1123,21 +1196,10 @@ out center;
     loadReviews(false);
     loadPayments(false);
 
-    const inboxInterval = setInterval(() => {
-      loadInbox(true);
-    }, 5000);
-
-    const notifInterval = setInterval(() => {
-      loadNotifications(true);
-    }, 5000);
-
-    const reviewInterval = setInterval(() => {
-      loadReviews(true);
-    }, 5000);
-
-    const paymentInterval = setInterval(() => {
-      loadPayments(true);
-    }, 5000);
+    const inboxInterval = setInterval(() => loadInbox(true), 5000);
+    const notifInterval = setInterval(() => loadNotifications(true), 5000);
+    const reviewInterval = setInterval(() => loadReviews(true), 5000);
+    const paymentInterval = setInterval(() => loadPayments(true), 5000);
 
     return () => {
       clearInterval(inboxInterval);
@@ -1147,6 +1209,7 @@ out center;
       if (notifToastTimerRef.current) clearTimeout(notifToastTimerRef.current);
       if (reviewToastTimerRef.current) clearTimeout(reviewToastTimerRef.current);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [booting, role, nav]);
 
   useEffect(() => {
@@ -1160,6 +1223,7 @@ out center;
 
   useEffect(() => {
     if (showNotifications) loadNotifications(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showNotifications]);
 
   useEffect(() => {
@@ -1260,9 +1324,13 @@ out center;
     }).length;
   }, [reviews, seenReviewIds]);
 
+  const unreadNotifCount = useMemo(() => {
+    return (notifications || []).filter((n) => isNotifUnread(n)).length;
+  }, [notifications]);
+
   const completedPaymentCount = useMemo(() => {
     return (payments || []).filter(
-      (p) => String(p?.payment_status || "").toUpperCase() === "COMPLETE"
+      (p) => String(p?.payment_status || p?.status || "").toUpperCase() === "COMPLETE"
     ).length;
   }, [payments]);
 
@@ -1291,104 +1359,103 @@ out center;
     });
   }, [reviews, reviewQuery]);
 
-  const filteredNotifs = useMemo(() => {
-    const q = String(notifQuery || "").trim().toLowerCase();
+  const groupedNotifications = useMemo(() => {
     const list = [...(notifications || [])];
-
     list.sort((a, b) =>
-      String(getNotifCreatedAt(b) || "").localeCompare(
-        String(getNotifCreatedAt(a) || "")
-      )
+      String(getNotifCreatedAt(b) || "").localeCompare(String(getNotifCreatedAt(a) || ""))
     );
 
-    if (!q) return list;
+    const groups = new Map();
 
-    return list.filter((n) => {
-      const t = `${getNotifTitle(n)} ${getNotifBody(n)} ${getNotifKindLabel(n)}`.toLowerCase();
-      return t.includes(q);
-    });
-  }, [notifications, notifQuery]);
-
-  const groupedNotifications = useMemo(() => {
-    const map = new Map();
-
-    filteredNotifs.forEach((n) => {
+    list.forEach((n) => {
       const kind = getNotifKind(n);
       const sender = getNotifSender(n);
-      const key = `${kind}::${sender.toLowerCase()}`;
-      const createdAt = getNotifCreatedAt(n);
-      const unread = isNotifUnread(n);
+      const key = `${kind}__${sender}`;
 
-      if (!map.has(key)) {
-        map.set(key, {
+      if (!groups.has(key)) {
+        groups.set(key, {
           key,
           kind,
           sender,
-          count: 1,
-          unreadCount: unread ? 1 : 0,
           latest: n,
-          latestDate: createdAt || "",
-          items: [n],
+          items: [],
+          count: 0,
+          unreadCount: 0,
+          searchText: "",
         });
-      } else {
-        const existing = map.get(key);
-        existing.count += 1;
-        if (unread) existing.unreadCount += 1;
-        existing.items.push(n);
-
-        const oldDate = String(existing.latestDate || "");
-        const newDate = String(createdAt || "");
-        if (newDate.localeCompare(oldDate) > 0) {
-          existing.latest = n;
-          existing.latestDate = newDate;
-        }
       }
+
+      const g = groups.get(key);
+      g.items.push(n);
+      g.count += 1;
+      if (isNotifUnread(n)) g.unreadCount += 1;
+
+      const currentLatest = String(getNotifCreatedAt(g.latest) || "");
+      const itemDate = String(getNotifCreatedAt(n) || "");
+      if (itemDate.localeCompare(currentLatest) > 0) {
+        g.latest = n;
+      }
+
+      g.searchText += ` ${getNotifTitle(n)} ${getNotifBody(n)} ${sender} ${kind}`;
     });
 
-    return Array.from(map.values()).sort((a, b) =>
-      String(b.latestDate || "").localeCompare(String(a.latestDate || ""))
+    return Array.from(groups.values()).sort((a, b) =>
+      String(getNotifCreatedAt(b.latest) || "").localeCompare(
+        String(getNotifCreatedAt(a.latest) || "")
+      )
     );
-  }, [filteredNotifs]);
+  }, [notifications]);
 
-  const bookingNotifications = useMemo(
-    () => groupedNotifications.filter((g) => g.kind === "booking"),
-    [groupedNotifications]
+  const filteredNotifGroups = useMemo(() => {
+    const q = String(notifQuery || "").trim().toLowerCase();
+    if (!q) return groupedNotifications;
+    return groupedNotifications.filter((g) =>
+      String(g.searchText || "").toLowerCase().includes(q)
+    );
+  }, [groupedNotifications, notifQuery]);
+
+  const bookingNotifGroups = useMemo(
+    () => filteredNotifGroups.filter((g) => g.kind === "booking"),
+    [filteredNotifGroups]
   );
 
-  const providerNotifications = useMemo(
-    () => groupedNotifications.filter((g) => g.kind === "provider"),
-    [groupedNotifications]
+  const providerNotifGroups = useMemo(
+    () => filteredNotifGroups.filter((g) => g.kind === "provider"),
+    [filteredNotifGroups]
   );
 
-  const reviewNotifications = useMemo(
-    () => groupedNotifications.filter((g) => g.kind === "review"),
-    [groupedNotifications]
+  const reviewNotifGroups = useMemo(
+    () => filteredNotifGroups.filter((g) => g.kind === "review"),
+    [filteredNotifGroups]
   );
 
-  const otherNotifications = useMemo(
-    () => groupedNotifications.filter((g) => g.kind === "other"),
-    [groupedNotifications]
+  const otherNotifGroups = useMemo(
+    () => filteredNotifGroups.filter((g) => g.kind === "other"),
+    [filteredNotifGroups]
   );
 
-  const unreadNotifCount = useMemo(
-    () => (notifications || []).filter((n) => isNotifUnread(n)).length,
-    [notifications]
+  const sectionHeading = (title, right = null) => (
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <h2 className={`text-lg font-bold ${ui.sectionTitle}`}>{title}</h2>
+      {right}
+    </div>
   );
 
-  const NearbySection = ({ title, items }) => (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-      <div className="text-sm font-semibold text-slate-200">{title}</div>
+  const NearbyList = ({ title, items }) => (
+    <div className={`${ui.softCard} p-4`}>
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <div className={`text-sm font-semibold ${ui.sectionTitle}`}>{title}</div>
+        <div className={`text-xs ${ui.muted}`}>{items.length}</div>
+      </div>
+
       {items.length === 0 ? (
-        <div className="mt-2 text-sm text-slate-300">No results found.</div>
+        <div className={`text-sm ${ui.muted}`}>No places found.</div>
       ) : (
-        <div className="mt-3 grid gap-2">
+        <div className="grid gap-3">
           {items.map((it) => (
-            <div
-              key={it.id}
-              className="rounded-xl border border-white/10 bg-black/20 p-3"
-            >
-              <div className="text-sm font-semibold text-white">{it.name}</div>
-              <div className="mt-1 text-xs text-slate-300">
+            <div key={it.id} className={`${ui.softCard} p-3`}>
+              <div className={`text-sm font-semibold ${ui.sectionTitle}`}>{it.name}</div>
+              <div className={`mt-1 text-xs ${ui.subtext}`}>
                 {it.kind ? `Type: ${it.kind} • ` : ""}
                 Distance: {kmOrM(it.distance_m)}
               </div>
@@ -1400,14 +1467,14 @@ out center;
   );
 
   const NotificationSection = ({ title, items, emptyText }) => (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+    <div className={`${ui.softCard} p-4`}>
       <div className="mb-3 flex items-center justify-between gap-2">
-        <div className="text-sm font-semibold text-white">{title}</div>
-        <div className="text-xs text-slate-400">{items.length}</div>
+        <div className={`text-sm font-semibold ${ui.sectionTitle}`}>{title}</div>
+        <div className={`text-xs ${ui.muted}`}>{items.length}</div>
       </div>
 
       {items.length === 0 ? (
-        <div className="text-sm text-slate-400">{emptyText}</div>
+        <div className={`text-sm ${ui.muted}`}>{emptyText}</div>
       ) : (
         <div className="grid gap-3">
           {items.map((group) => {
@@ -1417,17 +1484,21 @@ out center;
               <button
                 key={group.key}
                 onClick={() => openNotificationGroup(group)}
-                className={`rounded-2xl border border-white/10 p-4 text-left transition ${
+                className={`rounded-2xl border p-4 text-left transition ${
                   unread
-                    ? "bg-purple-500/10 hover:bg-purple-500/15"
-                    : "bg-black/20 hover:bg-white/10"
+                    ? isDark
+                      ? "border-purple-500/20 bg-purple-500/10 hover:bg-purple-500/15"
+                      : "border-purple-200 bg-purple-50 hover:bg-purple-100"
+                    : isDark
+                    ? "border-white/10 bg-black/20 hover:bg-white/10"
+                    : "border-slate-200 bg-white hover:bg-slate-50"
                 }`}
                 title="Open notification"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <div className="line-clamp-1 text-sm font-semibold text-white">
+                      <div className={`line-clamp-1 text-sm font-semibold ${ui.sectionTitle}`}>
                         {getGroupedTitle(group)}
                       </div>
 
@@ -1440,23 +1511,29 @@ out center;
                       </span>
 
                       {unread ? (
-                        <span className="rounded-full bg-purple-500/70 px-2 py-[2px] text-[10px] font-bold text-white">
+                        <span
+                          className={`rounded-full px-2 py-[2px] text-[10px] font-bold ${
+                            isDark
+                              ? "bg-purple-500/70 text-white"
+                              : "bg-purple-600 text-white"
+                          }`}
+                        >
                           {group.unreadCount} NEW
                         </span>
                       ) : null}
                     </div>
 
-                    <div className="mt-2 text-sm font-medium text-slate-200">
+                    <div className={`mt-2 text-sm font-medium ${ui.subtext}`}>
                       {group.sender}
                     </div>
 
-                    <div className="mt-1 whitespace-pre-wrap text-sm text-slate-300">
+                    <div className={`mt-1 whitespace-pre-wrap text-sm ${ui.subtext}`}>
                       {getGroupedBody(group)}
                     </div>
                   </div>
 
                   <div className="shrink-0 text-right">
-                    <div className="text-[11px] text-slate-400">
+                    <div className={`text-[11px] ${ui.muted}`}>
                       {formatDate(getNotifCreatedAt(group.latest))}
                     </div>
                   </div>
@@ -1477,712 +1554,774 @@ out center;
         onClose={() => setToast({ type: "info", msg: "" })}
       />
 
-      <div className="mb-6 rounded-3xl border border-white/10 bg-black/20 p-5">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="text-2xl font-extrabold text-white">
-              Owner Dashboard
-            </div>
-            <div className="mt-1 text-sm text-slate-300">
-              Welcome <span className="text-slate-200">{displayEmail}</span>. Manage
-              your profile and properties.
-            </div>
-          </div>
-
-          <button
-            onClick={handleLogout}
-            className="shrink-0 rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-2 text-sm font-semibold text-red-100 transition hover:bg-red-500/15"
-          >
-            Logout
-          </button>
-        </div>
-
-        <div className="mt-4">
-          <div className="flex gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible">
-            <button
-              onClick={goHome}
-              className="shrink-0 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:bg-white/10"
-            >
-              🏠 Home
-            </button>
-
-            <button
-              onClick={() => nav("/owner/my-properties")}
-              className="shrink-0 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:bg-white/10"
-            >
-              🏘️ My Properties
-            </button>
-
-            <button
-              onClick={() => setShowAddProperty((s) => !s)}
-              className={`shrink-0 rounded-2xl border px-4 py-2 text-sm font-extrabold transition ${
-                showAddProperty
-                  ? "border-blue-400/40 bg-blue-500/15 text-blue-100 hover:bg-blue-500/20"
-                  : "border-white/10 bg-white/5 text-slate-100 hover:bg-white/10"
-              }`}
-            >
-              {showAddProperty ? "✖ Close Add Property" : "➕ Add Property"}
-            </button>
-
-            <button
-              onClick={() => {
-                markBookingsSeen(
-                  (requests || []).map((r) => getBookingId(r)).filter(Boolean)
-                );
-                nav("/owner/messages");
-              }}
-              className="shrink-0 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:bg-white/10"
-              title="View booking requests + chat"
-            >
-              💬 Messages
-              <span className="ml-2 inline-flex min-w-[22px] items-center justify-center rounded-full bg-blue-500/80 px-2 py-[2px] text-[11px] font-extrabold text-white">
-                {loadingMsgs ? "..." : unreadBookingCount}
-              </span>
-            </button>
-
-            <button
-              onClick={() => {
-                const next = !showReviews;
-                setShowReviews(next);
-
-                if (!showReviews) {
-                  markReviewsSeen(
-                    (reviews || [])
-                      .map((r, idx) => getReviewId(r, idx))
-                      .filter(Boolean)
-                  );
-                }
-              }}
-              className={`shrink-0 rounded-2xl border px-4 py-2 text-sm font-semibold transition ${
-                showReviews
-                  ? "border-amber-400/30 bg-amber-500/15 text-amber-100 hover:bg-amber-500/20"
-                  : "border-white/10 bg-white/5 text-slate-100 hover:bg-white/10"
-              }`}
-              title="See tenant reviews for your properties"
-            >
-              ⭐ Reviews
-              <span className="ml-2 inline-flex min-w-[22px] items-center justify-center rounded-full bg-amber-500/80 px-2 py-[2px] text-[11px] font-extrabold text-white">
-                {reviewsLoading ? "..." : unreadReviewCount}
-              </span>
-            </button>
-
-            <button
-              onClick={() => setShowNotifications((s) => !s)}
-              className={`shrink-0 rounded-2xl border px-4 py-2 text-sm font-semibold transition ${
-                showNotifications
-                  ? "border-purple-400/30 bg-purple-500/15 text-purple-100 hover:bg-purple-500/20"
-                  : "border-white/10 bg-white/5 text-slate-100 hover:bg-white/10"
-              }`}
-              title="Notifications"
-            >
-              🔔 Notifications
-              <span className="ml-2 inline-flex min-w-[22px] items-center justify-center rounded-full bg-purple-500/80 px-2 py-[2px] text-[11px] font-extrabold text-white">
-                {notifLoading ? "..." : unreadNotifCount}
-              </span>
-            </button>
-
-            <button
-              onClick={() => setShowPayments((s) => !s)}
-              className={`shrink-0 rounded-2xl border px-4 py-2 text-sm font-semibold transition ${
-                showPayments
-                  ? "border-green-400/30 bg-green-500/15 text-green-100 hover:bg-green-500/20"
-                  : "border-white/10 bg-white/5 text-slate-100 hover:bg-white/10"
-              }`}
-              title="See tenant payment records"
-            >
-              💰 Payment Records
-              <span className="ml-2 inline-flex min-w-[22px] items-center justify-center rounded-full bg-green-500/80 px-2 py-[2px] text-[11px] font-extrabold text-white">
-                {paymentsLoading ? "..." : completedPaymentCount}
-              </span>
-            </button>
-
-            <button
-              onClick={() => nav("/owner/maintenance")}
-              className="shrink-0 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15"
-            >
-              🧰 Maintenance
-            </button>
-          </div>
-
-          <div className="mt-1 text-[11px] text-slate-400 sm:hidden">
-            Tip: swipe left/right for more actions
-          </div>
-        </div>
-      </div>
-
-      {showPayments && (
-        <div className="mb-6 rounded-3xl border border-white/10 bg-black/20 p-6">
-          <div className="flex items-center justify-between gap-3">
-            <div className="text-lg font-semibold text-white">💰 Tenant Payment Records</div>
-            <button
-              onClick={() => setShowPayments(false)}
-              className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-100 transition hover:bg-white/10"
-            >
-              Close
-            </button>
-          </div>
-
-          {paymentsError ? (
-            <div className="mt-4 text-sm text-red-300">{paymentsError}</div>
-          ) : paymentsLoading ? (
-            <div className="mt-4 text-sm text-slate-300">Loading payment records...</div>
-          ) : payments.length === 0 ? (
-            <div className="mt-4 text-sm text-slate-300">No payment records found.</div>
-          ) : (
-            <div className="mt-4 grid gap-3">
-              {payments.map((p, idx) => (
-                <div
-                  key={getPaymentId(p, idx)}
-                  className="rounded-2xl border border-white/10 bg-white/5 p-4"
-                >
-                  <div className="text-sm text-white">
-                    <b>Tenant:</b> {getPaymentTenant(p)}
+      <div className={ui.page}>
+        <div className="mx-auto w-full max-w-[1750px] px-6 py-8 sm:px-8 lg:px-10">
+          <div className={`mb-8 p-8 sm:p-10 lg:p-12 ${ui.hero}`}>
+            <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="rounded-2xl bg-blue-600 px-4 py-2 text-sm font-bold text-white shadow-lg">
+                    Owner Panel
                   </div>
-                  <div className="text-sm text-white">
-                    <b>Property:</b> {getPaymentListing(p)}
-                  </div>
-                  <div className="text-sm text-white">
-                    <b>Amount:</b> Rs. {p.amount}
-                  </div>
-                  <div className="text-sm text-white">
-                    <b>Payment Month:</b> {p.payment_month || "-"}
-                  </div>
-                  <div className="text-sm text-white">
-                    <b>Status:</b> {getPaymentStatus(p)}
-                  </div>
-                  <div className="text-sm text-white">
-                    <b>Date:</b> {formatDate(getPaymentDate(p))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {showNotifications && (
-        <div className="mb-6 rounded-3xl border border-white/10 bg-black/20 p-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="text-lg font-semibold text-white">🔔 Notifications</div>
-
-            <div className="flex items-center gap-2">
-              <input
-                value={notifQuery}
-                onChange={(e) => setNotifQuery(e.target.value)}
-                placeholder="Search notifications"
-                className="w-[260px] max-w-[70vw] rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-white/20"
-              />
-              <button
-                onClick={() => loadNotifications(false)}
-                className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-100 transition hover:bg-white/10"
-              >
-                Refresh
-              </button>
-              <button
-                onClick={() => setShowNotifications(false)}
-                className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-100 transition hover:bg-white/10"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-
-          {notifError ? (
-            <div className="mt-4 rounded-2xl border border-red-500/20 bg-red-500/10 p-4">
-              <div className="text-sm font-semibold text-red-200">
-                Notifications not loading
-              </div>
-              <div className="mt-1 text-sm text-red-100/90">{notifError}</div>
-            </div>
-          ) : notifLoading ? (
-            <div className="mt-4 text-sm text-slate-300">Loading notifications...</div>
-          ) : filteredNotifs.length === 0 ? (
-            <div className="mt-4 text-sm text-slate-300">No notifications found.</div>
-          ) : (
-            <>
-              <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                <NotificationSection
-                  title="📅 Tenant / Booking Notifications"
-                  items={bookingNotifications}
-                  emptyText="No tenant booking notifications."
-                />
-
-                <NotificationSection
-                  title="🧰 Service Provider Notifications"
-                  items={providerNotifications}
-                  emptyText="No service provider notifications."
-                />
-              </div>
-
-              <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                <NotificationSection
-                  title="⭐ Review Notifications"
-                  items={reviewNotifications}
-                  emptyText="No review notifications."
-                />
-
-                <NotificationSection
-                  title="🔔 Other Notifications"
-                  items={otherNotifications}
-                  emptyText="No other notifications."
-                />
-              </div>
-            </>
-          )}
-        </div>
-      )}
-
-      {showReviews && (
-        <div className="mb-6 rounded-3xl border border-white/10 bg-black/20 p-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="text-lg font-semibold text-white">⭐ Tenant Reviews</div>
-
-            <div className="flex items-center gap-2">
-              <input
-                value={reviewQuery}
-                onChange={(e) => setReviewQuery(e.target.value)}
-                placeholder="Search (property / tenant / comment / rating)"
-                className="w-[260px] max-w-[70vw] rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-white/20"
-              />
-              <button
-                onClick={() => loadReviews(false)}
-                className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-100 transition hover:bg-white/10"
-              >
-                Refresh
-              </button>
-              <button
-                onClick={() => setShowReviews(false)}
-                className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-100 transition hover:bg-white/10"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-
-          {reviewsError ? (
-            <div className="mt-4 rounded-2xl border border-red-500/20 bg-red-500/10 p-4">
-              <div className="text-sm font-semibold text-red-200">
-                Reviews not loading
-              </div>
-              <div className="mt-1 text-sm text-red-100/90">{reviewsError}</div>
-            </div>
-          ) : reviewsLoading ? (
-            <div className="mt-4 text-sm text-slate-300">Loading reviews...</div>
-          ) : filteredReviews.length === 0 ? (
-            <div className="mt-4 text-sm text-slate-300">No reviews found.</div>
-          ) : (
-            <div className="mt-4 grid gap-3">
-              {filteredReviews.map((r, idx) => {
-                const rating = getReviewRating(r);
-                const stars = starString(rating);
-                return (
                   <div
-                    key={getReviewId(r, idx)}
-                    className="rounded-2xl border border-white/10 bg-white/5 p-4"
+                    className={`rounded-2xl border px-4 py-2 text-sm font-semibold ${
+                      isDark
+                        ? "border-white/10 bg-white/5 text-slate-200"
+                        : "border-slate-200 bg-slate-100 text-slate-700"
+                    }`}
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="line-clamp-1 text-sm font-semibold text-white">
-                          {getReviewListingTitle(r)}
-                        </div>
-                        <div className="mt-1 line-clamp-1 text-xs text-slate-300">
-                          From: {getReviewTenant(r)}
-                        </div>
-                      </div>
-
-                      <div className="shrink-0 text-right">
-                        {rating != null ? (
-                          <div className="text-sm font-semibold text-amber-200">
-                            {stars}{" "}
-                            <span className="font-normal text-slate-300">
-                              ({Number(rating)}/5)
-                            </span>
-                          </div>
-                        ) : (
-                          <div className="text-xs text-slate-400">No rating</div>
-                        )}
-                        <div className="mt-1 text-[11px] text-slate-400">
-                          {formatDate(getReviewCreatedAt(r))}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="mt-3 whitespace-pre-wrap text-sm text-slate-200/90">
-                      {getReviewComment(r) || "—"}
-                    </div>
-
-                    {r?.owner_reply ? (
-                      <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3">
-                        <div className="text-xs font-semibold text-slate-200">
-                          Owner reply
-                        </div>
-                        <div className="mt-1 whitespace-pre-wrap text-sm text-slate-200/90">
-                          {String(r.owner_reply)}
-                        </div>
-                      </div>
-                    ) : null}
+                    Dashboard Overview
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div className="rounded-3xl border border-white/10 bg-black/20 p-6">
-          <div className="text-lg font-semibold text-white">My Profile</div>
-
-          {!profile ? (
-            <p className="mt-2 text-sm text-slate-300">Loading...</p>
-          ) : (
-            <div className="mt-4 grid gap-2 text-sm text-slate-200">
-              <div>
-                <b>Owner ID:</b> {profile.id ?? "-"}
-              </div>
-              <div>
-                <b>Username:</b> {profile.username ?? "-"}
-              </div>
-              <div>
-                <b>Email:</b> {profile.email ?? displayEmail ?? "-"}
-              </div>
-              <div>
-                <b>Phone:</b> {profile.phone ?? "-"}
-              </div>
-              <div>
-                <b>Address:</b> {profile.address ?? "-"}
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="rounded-3xl border border-white/10 bg-black/20 p-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="text-lg font-semibold text-white">
-              Latest Tenant Requests
-            </div>
-            <button
-              onClick={() => {
-                markBookingsSeen(
-                  (requests || []).map((r) => getBookingId(r)).filter(Boolean)
-                );
-                nav("/owner/messages");
-              }}
-              className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-100 transition hover:bg-white/10"
-            >
-              View All
-            </button>
-          </div>
-
-          {loadingMsgs ? (
-            <p className="mt-2 text-sm text-slate-300">Loading requests...</p>
-          ) : latestRequests.length === 0 ? (
-            <p className="mt-2 text-sm text-slate-300">No requests yet.</p>
-          ) : (
-            <div className="mt-4 grid gap-3">
-              {latestRequests.map((b, idx) => {
-                const st = getStatus(b);
-                const badge =
-                  st === "accepted"
-                    ? "bg-green-500/15 text-green-200 border-green-500/20"
-                    : st === "rejected"
-                    ? "bg-red-500/15 text-red-200 border-red-500/20"
-                    : "bg-blue-500/15 text-blue-200 border-blue-500/20";
-
-                return (
-                  <button
-                    key={getBookingId(b) ?? idx}
-                    onClick={() => {
-                      const id = getBookingId(b);
-                      if (id) markBookingsSeen([id]);
-                      nav(`/owner/messages?open=${id ?? ""}`);
-                    }}
-                    className="rounded-2xl border border-white/10 bg-white/5 p-4 text-left transition hover:bg-white/10"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="line-clamp-1 text-sm font-semibold text-white">
-                        {getListingTitle(b)} • #{getBookingId(b) ?? "—"}
-                      </div>
-                      <span
-                        className={`rounded-full border px-2 py-[2px] text-[11px] ${badge}`}
-                      >
-                        {st}
-                      </span>
-                    </div>
-
-                    <div className="mt-1 line-clamp-1 text-xs text-slate-300">
-                      Tenant: {getTenantName(b)}
-                    </div>
-
-                    <div className="mt-1 line-clamp-1 text-xs text-slate-300">
-                      Email: {getTenantEmail(b)}
-                    </div>
-
-                    {getTenantPhone(b) ? (
-                      <div className="mt-1 line-clamp-1 text-xs text-slate-300">
-                        Phone: {getTenantPhone(b)}
-                      </div>
-                    ) : null}
-
-                    <div className="mt-2 line-clamp-2 text-xs text-slate-200/90">
-                      {getFirstMessage(b) ||
-                        `${getTenantDisplay(b)} has sent a booking request.`}
-                    </div>
-
-                    <div className="mt-2 text-[11px] text-slate-400">
-                      {formatDate(b?.created_at || b?.created || "")}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {showAddProperty && (
-        <div className="mt-6 rounded-3xl border border-white/10 bg-black/20 p-6">
-          <div className="flex flex-col gap-1">
-            <div className="text-lg font-semibold text-white">
-              Post a Property (with 360° photos)
-            </div>
-            <div className="text-sm text-slate-300">
-              Upload 1 cover image + 6 photos (front, back, left, right, up,
-              down). Pick the location on map.
-            </div>
-          </div>
-
-          {!validation.ok && (
-            <div className="mt-4 rounded-2xl border border-red-500/20 bg-red-500/10 p-4">
-              <div className="text-sm font-semibold text-red-200">
-                Please fix these requirements:
-              </div>
-              <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-red-100/90">
-                {validation.errors.map((e, i) => (
-                  <li key={i}>{e}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          <form onSubmit={submitProperty} className="mt-4 grid gap-3">
-            <input
-              className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none focus:border-white/20"
-              name="title"
-              placeholder="Title (e.g., 2 Bedroom House near City)"
-              value={form.title}
-              onChange={onChange}
-              required
-            />
-
-            <textarea
-              className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none focus:border-white/20"
-              name="description"
-              placeholder="Description"
-              value={form.description}
-              onChange={onChange}
-              rows={3}
-            />
-
-            <div className="grid gap-3 md:grid-cols-2">
-              <select
-                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none focus:border-white/20"
-                name="property_type"
-                value={form.property_type}
-                onChange={onChange}
-              >
-                <option value="house">House</option>
-                <option value="room">Room</option>
-                <option value="apartment">Apartment</option>
-              </select>
-
-              <input
-                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none focus:border-white/20"
-                name="location"
-                placeholder="Location (auto filled from map, you can edit)"
-                value={form.location}
-                onChange={onChange}
-                required
-              />
-            </div>
-
-            <div className="grid gap-3 md:grid-cols-2">
-              <input
-                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none focus:border-white/20"
-                name="price_per_month"
-                type="number"
-                placeholder="Price per month"
-                value={form.price_per_month}
-                onChange={onChange}
-                required
-              />
-
-              <input
-                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none focus:border-white/20"
-                name="electricity_bill"
-                placeholder="Electricity bill (optional)"
-                value={form.electricity_bill}
-                onChange={onChange}
-              />
-            </div>
-
-            <div className="grid gap-3 md:grid-cols-2">
-              <input
-                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none focus:border-white/20"
-                name="owner_contact_number"
-                placeholder="Contact number"
-                value={form.owner_contact_number}
-                onChange={onChange}
-                required
-              />
-              <input
-                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none focus:border-white/20"
-                name="owner_contact_email"
-                placeholder="Contact email (optional)"
-                value={form.owner_contact_email}
-                onChange={onChange}
-              />
-            </div>
-
-            <div className="mt-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="text-sm font-semibold text-slate-200">
-                  📍 Pick Property Location *
                 </div>
+
+                <h1 className={`mt-4 text-3xl font-extrabold tracking-tight sm:text-4xl ${ui.title}`}>
+                  Owner Dashboard
+                </h1>
+
+                <p className={`mt-3 max-w-3xl text-sm sm:text-base ${ui.subtext}`}>
+                  Welcome <span className="font-semibold">{displayEmail}</span>. Manage
+                  your profile, properties, tenant requests, reviews, notifications,
+                  payments, and maintenance in one place.
+                </p>
+
+                <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className={`${ui.softCard} p-4`}>
+                    <div className={`text-xs font-semibold uppercase tracking-wide ${ui.muted}`}>
+                      Messages
+                    </div>
+                    <div className={`mt-2 text-2xl font-extrabold ${ui.title}`}>
+                      {loadingMsgs ? "..." : unreadBookingCount}
+                    </div>
+                    <div className={`mt-1 text-sm ${ui.subtext}`}>
+                      Unread tenant requests
+                    </div>
+                  </div>
+
+                  <div className={`${ui.softCard} p-4`}>
+                    <div className={`text-xs font-semibold uppercase tracking-wide ${ui.muted}`}>
+                      Reviews
+                    </div>
+                    <div className={`mt-2 text-2xl font-extrabold ${ui.title}`}>
+                      {reviewsLoading ? "..." : unreadReviewCount}
+                    </div>
+                    <div className={`mt-1 text-sm ${ui.subtext}`}>New tenant reviews</div>
+                  </div>
+
+                  <div className={`${ui.softCard} p-4`}>
+                    <div className={`text-xs font-semibold uppercase tracking-wide ${ui.muted}`}>
+                      Notifications
+                    </div>
+                    <div className={`mt-2 text-2xl font-extrabold ${ui.title}`}>
+                      {notifLoading ? "..." : unreadNotifCount}
+                    </div>
+                    <div className={`mt-1 text-sm ${ui.subtext}`}>Unread updates</div>
+                  </div>
+
+                  <div className={`${ui.softCard} p-4`}>
+                    <div className={`text-xs font-semibold uppercase tracking-wide ${ui.muted}`}>
+                      Payments
+                    </div>
+                    <div className={`mt-2 text-2xl font-extrabold ${ui.title}`}>
+                      {paymentsLoading ? "..." : completedPaymentCount}
+                    </div>
+                    <div className={`mt-1 text-sm ${ui.subtext}`}>Completed records</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
                 <button
-                  type="button"
-                  onClick={clearPicked}
-                  className="rounded-xl border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-200 transition hover:bg-white/10"
+                  onClick={() => setTheme(isDark ? "light" : "dark")}
+                  className={ui.button}
                 >
-                  Clear Pin
+                  {isDark ? "☀️ Light Mode" : "🌙 Dark Mode"}
+                </button>
+
+                <button onClick={handleLogout} className={ui.dangerButton}>
+                  Logout
                 </button>
               </div>
+            </div>
 
-              <div className="mt-1 text-xs text-slate-300">
-                Click on the map to place the pin. Address + nearby facilities
-                will load automatically.
-              </div>
+            <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7">
+              <button onClick={goHome} className={ui.button}>
+                🏠 Home
+              </button>
 
-              <div className="mt-3 overflow-hidden rounded-2xl border border-white/10">
-                <LocationPicker value={picked} onChange={onPick} height={320} />
-              </div>
+              <button
+                onClick={() => nav("/owner/my-properties")}
+                className={ui.button}
+              >
+                🏘️ My Properties
+              </button>
 
-              <div className="mt-3 grid gap-3 md:grid-cols-2">
+              <button
+                onClick={() => setShowAddProperty((s) => !s)}
+                className={showAddProperty ? ui.primaryButton : ui.button}
+              >
+                {showAddProperty ? "✖ Close Add Property" : "➕ Add Property"}
+              </button>
+
+              <button
+                onClick={() => {
+                  markBookingsSeen(
+                    (requests || []).map((r) => getBookingId(r)).filter(Boolean)
+                  );
+                  nav("/owner/messages");
+                }}
+                className={`${ui.button} flex items-center justify-center gap-2`}
+              >
+                <span>💬 Messages</span>
+                <span
+                  className={`inline-flex min-w-[28px] items-center justify-center rounded-full border px-2 py-1 text-[11px] font-extrabold ${ui.badgeBlue}`}
+                >
+                  {loadingMsgs ? "..." : unreadBookingCount}
+                </span>
+              </button>
+
+              <button
+                onClick={() => {
+                  const next = !showReviews;
+                  setShowReviews(next);
+
+                  if (!showReviews) {
+                    markReviewsSeen(
+                      (reviews || [])
+                        .map((r, idx) => getReviewId(r, idx))
+                        .filter(Boolean)
+                    );
+                  }
+                }}
+                className={`flex items-center justify-center gap-2 ${
+                  showReviews ? ui.primaryButton : ui.button
+                }`}
+              >
+                <span>⭐ Reviews</span>
+                <span
+                  className={`inline-flex min-w-[28px] items-center justify-center rounded-full border px-2 py-1 text-[11px] font-extrabold ${ui.badgeAmber}`}
+                >
+                  {reviewsLoading ? "..." : unreadReviewCount}
+                </span>
+              </button>
+
+              <button
+                onClick={() => setShowNotifications((s) => !s)}
+                className={`flex items-center justify-center gap-2 ${
+                  showNotifications ? ui.primaryButton : ui.button
+                }`}
+              >
+                <span>🔔 Notifications</span>
+                <span
+                  className={`inline-flex min-w-[28px] items-center justify-center rounded-full border px-2 py-1 text-[11px] font-extrabold ${ui.badgePurple}`}
+                >
+                  {notifLoading ? "..." : unreadNotifCount}
+                </span>
+              </button>
+
+              <button
+                onClick={() => setShowPayments((s) => !s)}
+                className={`flex items-center justify-center gap-2 ${
+                  showPayments ? ui.primaryButton : ui.successButton
+                }`}
+              >
+                <span>💰 Payments</span>
+                <span
+                  className={`inline-flex min-w-[28px] items-center justify-center rounded-full border px-2 py-1 text-[11px] font-extrabold ${ui.badgeGreen}`}
+                >
+                  {paymentsLoading ? "..." : completedPaymentCount}
+                </span>
+              </button>
+            </div>
+
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7">
+              <button
+                onClick={() => nav("/owner/maintenance")}
+                className={ui.successButton}
+              >
+                🧰 Maintenance
+              </button>
+            </div>
+          </div>
+
+          {showPayments ? (
+            <div className={`${ui.card} mb-6 p-6`}>
+              {sectionHeading("Payment Records")}
+
+              {paymentsLoading ? (
+                <p className={`text-sm ${ui.subtext}`}>Loading payment records...</p>
+              ) : paymentsError ? (
+                <p className="text-sm text-red-500">{paymentsError}</p>
+              ) : payments.length === 0 ? (
+                <p className={`text-sm ${ui.subtext}`}>No payment records found.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full overflow-hidden rounded-2xl border border-slate-200 dark:border-white/10">
+                    <thead
+                      className={
+                        isDark ? "bg-white/5 text-slate-200" : "bg-slate-50 text-slate-700"
+                      }
+                    >
+                      <tr>
+                        <th className="px-4 py-3 text-left text-sm font-semibold">Tenant</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold">Property</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold">Status</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold">Date</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {payments.map((p, idx) => {
+                        const status = getPaymentStatus(p);
+                        const badge =
+                          status === "COMPLETE"
+                            ? ui.badgeGreen
+                            : status === "REJECTED"
+                            ? ui.badgeRed
+                            : ui.badgeAmber;
+
+                        return (
+                          <tr
+                            key={getPaymentId(p, idx)}
+                            className={
+                              isDark
+                                ? "border-t border-white/10"
+                                : "border-t border-slate-200"
+                            }
+                          >
+                            <td className={`px-4 py-3 text-sm ${ui.subtext}`}>
+                              {getPaymentTenant(p)}
+                            </td>
+                            <td className={`px-4 py-3 text-sm ${ui.subtext}`}>
+                              {getPaymentListing(p)}
+                            </td>
+                            <td className="px-4 py-3 text-sm">
+                              <span
+                                className={`rounded-full border px-3 py-1 text-xs font-bold ${badge}`}
+                              >
+                                {status}
+                              </span>
+                            </td>
+                            <td className={`px-4 py-3 text-sm ${ui.subtext}`}>
+                              {formatDate(getPaymentDate(p))}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          ) : null}
+
+          {showNotifications ? (
+            <div className={`${ui.card} mb-6 p-6`}>
+              {sectionHeading(
+                "Notifications",
                 <input
-                  className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white"
-                  value={form.latitude}
-                  readOnly
-                  placeholder="Latitude"
+                  value={notifQuery}
+                  onChange={(e) => setNotifQuery(e.target.value)}
+                  placeholder="Search notifications..."
+                  className={`${ui.input} max-w-sm`}
                 />
-                <input
-                  className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white"
-                  value={form.longitude}
-                  readOnly
-                  placeholder="Longitude"
-                />
-              </div>
+              )}
 
-              <div className="mt-3 grid gap-3 md:grid-cols-3">
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <div className="text-xs text-slate-300">Selected address</div>
-                  <div className="mt-1 text-sm text-white">
-                    {geoLoading ? "Loading address..." : place.display || "—"}
+              {notifLoading ? (
+                <p className={`text-sm ${ui.subtext}`}>Loading notifications...</p>
+              ) : notifError ? (
+                <p className="text-sm text-red-500">{notifError}</p>
+              ) : (
+                <div className="grid gap-4 xl:grid-cols-2">
+                  <NotificationSection
+                    title="Booking Notifications"
+                    items={bookingNotifGroups}
+                    emptyText="No booking notifications."
+                  />
+                  <NotificationSection
+                    title="Provider Notifications"
+                    items={providerNotifGroups}
+                    emptyText="No provider notifications."
+                  />
+                  <NotificationSection
+                    title="Review Notifications"
+                    items={reviewNotifGroups}
+                    emptyText="No review notifications."
+                  />
+                  <NotificationSection
+                    title="Other Notifications"
+                    items={otherNotifGroups}
+                    emptyText="No general notifications."
+                  />
+                </div>
+              )}
+            </div>
+          ) : null}
+
+          {showReviews ? (
+            <div className={`${ui.card} mb-6 p-6`}>
+              {sectionHeading(
+                "Reviews",
+                <input
+                  value={reviewQuery}
+                  onChange={(e) => setReviewQuery(e.target.value)}
+                  placeholder="Search reviews..."
+                  className={`${ui.input} max-w-sm`}
+                />
+              )}
+
+              {reviewsLoading ? (
+                <p className={`text-sm ${ui.subtext}`}>Loading reviews...</p>
+              ) : reviewsError ? (
+                <p className="text-sm text-red-500">{reviewsError}</p>
+              ) : filteredReviews.length === 0 ? (
+                <p className={`text-sm ${ui.subtext}`}>No reviews found.</p>
+              ) : (
+                <div className="grid gap-4 lg:grid-cols-2">
+                  {filteredReviews.map((r, idx) => (
+                    <div key={getReviewId(r, idx)} className={`${ui.softCard} p-4`}>
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <div className={`text-base font-semibold ${ui.sectionTitle}`}>
+                            {getReviewListingTitle(r)}
+                          </div>
+                          <div className={`mt-1 text-sm ${ui.subtext}`}>
+                            From: {getReviewTenant(r)}
+                          </div>
+                        </div>
+
+                        <div className="text-right">
+                          <div className="text-base font-bold text-amber-500">
+                            {starString(getReviewRating(r))}
+                          </div>
+                          <div className={`mt-1 text-xs ${ui.muted}`}>
+                            {formatDate(getReviewCreatedAt(r))}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className={`mt-3 whitespace-pre-wrap text-sm ${ui.subtext}`}>
+                        {getReviewComment(r) || "—"}
+                      </div>
+
+                      {r?.owner_reply ? (
+                        <div className={`${ui.softCard} mt-3 p-3`}>
+                          <div className={`text-xs font-semibold ${ui.sectionTitle}`}>
+                            Owner reply
+                          </div>
+                          <div className={`mt-1 whitespace-pre-wrap text-sm ${ui.subtext}`}>
+                            {String(r.owner_reply)}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : null}
+
+          <div className="grid gap-6 lg:grid-cols-2">
+            <div className={`${ui.card} p-6`}>
+              {sectionHeading("My Profile")}
+
+              {!profile ? (
+                <p className={`text-sm ${ui.subtext}`}>Loading...</p>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className={`${ui.softCard} p-4`}>
+                    <div className={`text-xs font-semibold uppercase ${ui.muted}`}>Owner ID</div>
+                    <div className={`mt-1 text-sm font-medium ${ui.subtext}`}>
+                      {profile.id ?? "-"}
+                    </div>
+                  </div>
+
+                  <div className={`${ui.softCard} p-4`}>
+                    <div className={`text-xs font-semibold uppercase ${ui.muted}`}>Username</div>
+                    <div className={`mt-1 text-sm font-medium ${ui.subtext}`}>
+                      {profile.username ?? "-"}
+                    </div>
+                  </div>
+
+                  <div className={`${ui.softCard} p-4`}>
+                    <div className={`text-xs font-semibold uppercase ${ui.muted}`}>Email</div>
+                    <div className={`mt-1 text-sm font-medium ${ui.subtext}`}>
+                      {profile.email ?? displayEmail ?? "-"}
+                    </div>
+                  </div>
+
+                  <div className={`${ui.softCard} p-4`}>
+                    <div className={`text-xs font-semibold uppercase ${ui.muted}`}>Phone</div>
+                    <div className={`mt-1 text-sm font-medium ${ui.subtext}`}>
+                      {profile.phone ?? "-"}
+                    </div>
+                  </div>
+
+                  <div className={`${ui.softCard} p-4 sm:col-span-2`}>
+                    <div className={`text-xs font-semibold uppercase ${ui.muted}`}>Address</div>
+                    <div className={`mt-1 text-sm font-medium ${ui.subtext}`}>
+                      {profile.address ?? "-"}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className={`${ui.card} p-6`}>
+              {sectionHeading(
+                "Latest Tenant Requests",
+                <button
+                  onClick={() => {
+                    markBookingsSeen(
+                      (requests || []).map((r) => getBookingId(r)).filter(Boolean)
+                    );
+                    nav("/owner/messages");
+                  }}
+                  className={ui.button}
+                >
+                  View All
+                </button>
+              )}
+
+              {loadingMsgs ? (
+                <p className={`text-sm ${ui.subtext}`}>Loading requests...</p>
+              ) : latestRequests.length === 0 ? (
+                <p className={`text-sm ${ui.subtext}`}>No requests yet.</p>
+              ) : (
+                <div className="grid gap-3">
+                  {latestRequests.map((b, idx) => {
+                    const st = getStatus(b);
+                    const badge =
+                      st === "accepted"
+                        ? ui.badgeGreen
+                        : st === "rejected"
+                        ? ui.badgeRed
+                        : ui.badgeAmber;
+
+                    return (
+                      <div key={getBookingId(b) || idx} className={`${ui.softCard} p-4`}>
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <div className={`text-base font-semibold ${ui.sectionTitle}`}>
+                              {getListingTitle(b)}
+                            </div>
+                            <div className={`mt-1 text-sm ${ui.subtext}`}>
+                              {getTenantDisplay(b)}
+                            </div>
+                            {getTenantPhone(b) ? (
+                              <div className={`mt-1 text-sm ${ui.subtext}`}>
+                                {getTenantPhone(b)}
+                              </div>
+                            ) : null}
+                          </div>
+
+                          <span
+                            className={`rounded-full border px-3 py-1 text-xs font-bold ${badge}`}
+                          >
+                            {st.toUpperCase()}
+                          </span>
+                        </div>
+
+                        <div className={`mt-3 text-sm ${ui.subtext}`}>
+                          {getFirstMessage(b) || "No message"}
+                        </div>
+
+                        <div className={`mt-3 text-xs ${ui.muted}`}>
+                          {formatDate(b?.created_at)}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {showAddProperty ? (
+            <div className={`${ui.card} mt-6 p-6`}>
+              {sectionHeading("Add Property")}
+
+              {!validation.ok ? (
+                <div
+                  className={`mb-4 rounded-2xl border p-4 ${
+                    isDark
+                      ? "border-red-500/20 bg-red-500/10"
+                      : "border-red-200 bg-red-50"
+                  }`}
+                >
+                  <div className="text-sm font-semibold text-red-600">Please fix these:</div>
+                  <ul className="mt-2 space-y-1 text-sm text-red-600">
+                    {validation.errors.map((e, i) => (
+                      <li key={i}>• {e}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              <form onSubmit={submitProperty} className="grid gap-6">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <label className={`mb-2 block text-sm font-semibold ${ui.sectionTitle}`}>
+                      Title
+                    </label>
+                    <input
+                      name="title"
+                      value={form.title}
+                      onChange={onChange}
+                      className={ui.input}
+                      placeholder="Property title"
+                    />
+                  </div>
+
+                  <div>
+                    <label className={`mb-2 block text-sm font-semibold ${ui.sectionTitle}`}>
+                      Property Type
+                    </label>
+                    <select
+                      name="property_type"
+                      value={form.property_type}
+                      onChange={onChange}
+                      className={ui.input}
+                    >
+                      <option value="house">House</option>
+                      <option value="apartment">Apartment</option>
+                      <option value="flat">Flat</option>
+                      <option value="room">Room</option>
+                    </select>
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className={`mb-2 block text-sm font-semibold ${ui.sectionTitle}`}>
+                      Description
+                    </label>
+                    <textarea
+                      name="description"
+                      value={form.description}
+                      onChange={onChange}
+                      rows={4}
+                      className={ui.textarea}
+                      placeholder="Describe your property..."
+                    />
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className={`mb-2 block text-sm font-semibold ${ui.sectionTitle}`}>
+                      Location
+                    </label>
+                    <input
+                      name="location"
+                      value={form.location}
+                      onChange={onChange}
+                      className={ui.input}
+                      placeholder="Property location"
+                    />
+                    {geoLoading ? (
+                      <div className={`mt-2 text-xs ${ui.muted}`}>Detecting address...</div>
+                    ) : null}
+                    {place.display ? (
+                      <div className={`mt-2 text-xs ${ui.subtext}`}>
+                        Detected: {place.display}
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div>
+                    <label className={`mb-2 block text-sm font-semibold ${ui.sectionTitle}`}>
+                      Price Per Month
+                    </label>
+                    <input
+                      name="price_per_month"
+                      value={form.price_per_month}
+                      onChange={onChange}
+                      type="number"
+                      className={ui.input}
+                      placeholder="Monthly rent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className={`mb-2 block text-sm font-semibold ${ui.sectionTitle}`}>
+                      Electricity Bill
+                    </label>
+                    <input
+                      name="electricity_bill"
+                      value={form.electricity_bill}
+                      onChange={onChange}
+                      className={ui.input}
+                      placeholder="Electricity bill"
+                    />
+                  </div>
+
+                  <div>
+                    <label className={`mb-2 block text-sm font-semibold ${ui.sectionTitle}`}>
+                      Contact Number
+                    </label>
+                    <input
+                      name="owner_contact_number"
+                      value={form.owner_contact_number}
+                      onChange={onChange}
+                      className={ui.input}
+                      placeholder="Phone number"
+                    />
+                  </div>
+
+                  <div>
+                    <label className={`mb-2 block text-sm font-semibold ${ui.sectionTitle}`}>
+                      Contact Email
+                    </label>
+                    <input
+                      name="owner_contact_email"
+                      value={form.owner_contact_email}
+                      onChange={onChange}
+                      className={ui.input}
+                      placeholder="Email address"
+                    />
+                  </div>
+
+                  <div>
+                    <label className={`mb-2 block text-sm font-semibold ${ui.sectionTitle}`}>
+                      Latitude
+                    </label>
+                    <input
+                      name="latitude"
+                      value={form.latitude}
+                      onChange={onChange}
+                      className={ui.input}
+                      placeholder="Latitude"
+                    />
+                  </div>
+
+                  <div>
+                    <label className={`mb-2 block text-sm font-semibold ${ui.sectionTitle}`}>
+                      Longitude
+                    </label>
+                    <input
+                      name="longitude"
+                      value={form.longitude}
+                      onChange={onChange}
+                      className={ui.input}
+                      placeholder="Longitude"
+                    />
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <div className="text-xs text-slate-300">Nearby scan radius</div>
-                  <div className="mt-2 flex items-center gap-3">
+                <div className={`${ui.softCard} p-4`}>
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <div className={`text-base font-semibold ${ui.sectionTitle}`}>
+                        Pick Property Location
+                      </div>
+                      <div className={`text-sm ${ui.subtext}`}>
+                        Click on the map to set latitude and longitude.
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={clearPicked}
+                        className={ui.button}
+                      >
+                        Clear Picked Location
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-white/10">
+                    <LocationPicker value={picked} onPick={onPick} />
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <label className={`mb-2 block text-sm font-semibold ${ui.sectionTitle}`}>
+                      Cover Image
+                    </label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => setCoverImage(e.target.files?.[0] || null)}
+                      className={ui.input}
+                    />
+                    {coverImage ? (
+                      <div className={`mt-2 text-xs ${ui.subtext}`}>{coverImage.name}</div>
+                    ) : null}
+                  </div>
+
+                  <div>
+                    <label className={`mb-2 block text-sm font-semibold ${ui.sectionTitle}`}>
+                      Nearby Search Radius
+                    </label>
                     <input
                       type="range"
-                      min="300"
-                      max="3000"
+                      min="500"
+                      max="5000"
                       step="100"
                       value={radius}
                       onChange={(e) => setRadius(Number(e.target.value))}
                       className="w-full"
                     />
-                    <span className="min-w-[70px] text-sm text-white">
-                      {kmOrM(radius)}
-                    </span>
-                  </div>
-                  <div className="mt-1 text-xs text-slate-400">
-                    {nearbyLoading ? "Loading nearby places..." : "Auto updates"}
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <div className="text-xs text-slate-300">Quick summary</div>
-                  <div className="mt-2 grid gap-1 text-sm text-white">
-                    <div>Schools: {nearby.schools.length}</div>
-                    <div>Colleges: {nearby.colleges.length}</div>
-                    <div>Hospitals: {nearby.hospitals.length}</div>
-                    <div>Markets: {nearby.markets.length}</div>
-                    <div>Bus Stops: {nearby.bus.length}</div>
-                    <div>ATMs: {nearby.atms.length}</div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                <NearbySection title="🏫 Schools" items={nearby.schools} />
-                <NearbySection title="🎓 Colleges / Universities" items={nearby.colleges} />
-                <NearbySection title="🏥 Hospitals / Clinics" items={nearby.hospitals} />
-                <NearbySection title="🛒 Markets / Supermarkets" items={nearby.markets} />
-                <NearbySection title="🚌 Bus Stops" items={nearby.bus} />
-                <NearbySection title="🏧 ATMs" items={nearby.atms} />
-              </div>
-            </div>
-
-            <div className="mt-2 rounded-2xl border border-white/10 bg-white/5 p-4">
-              <div className="text-sm font-semibold text-slate-200">
-                🖼️ Cover image *
-              </div>
-              <input
-                className="mt-2 block w-full text-slate-200"
-                type="file"
-                accept="image/*"
-                onChange={(e) => setCoverImage(e.target.files?.[0] || null)}
-              />
-            </div>
-
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-              <div className="text-sm font-semibold text-slate-200">
-                🧊 360° Photos (6 sides) *
-              </div>
-              <div className="mt-3 grid gap-3 md:grid-cols-3">
-                {["front", "back", "left", "right", "up", "down"].map((side) => (
-                  <div
-                    key={side}
-                    className="rounded-xl border border-white/10 bg-black/20 p-3"
-                  >
-                    <div className="mb-2 text-xs text-slate-200">
-                      {side.toUpperCase()}
+                    <div className={`mt-2 text-xs ${ui.subtext}`}>
+                      Radius: {kmOrM(radius)}
                     </div>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => onPanoChange(side, e.target.files?.[0] || null)}
-                      className="block w-full text-slate-200"
-                    />
+                    {nearbyLoading ? (
+                      <div className={`mt-1 text-xs ${ui.muted}`}>Loading nearby places...</div>
+                    ) : null}
                   </div>
-                ))}
-              </div>
+                </div>
+
+                <div>
+                  <div className={`mb-3 text-base font-semibold ${ui.sectionTitle}`}>
+                    360° Images
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    {["front", "back", "left", "right", "up", "down"].map((side) => (
+                      <div key={side}>
+                        <label className={`mb-2 block text-sm font-semibold capitalize ${ui.sectionTitle}`}>
+                          {side}
+                        </label>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => onPanoChange(side, e.target.files?.[0] || null)}
+                          className={ui.input}
+                        />
+                        {pano[side] ? (
+                          <div className={`mt-2 text-xs ${ui.subtext}`}>{pano[side].name}</div>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid gap-4 xl:grid-cols-3">
+                  <NearbyList title="Schools" items={nearby.schools} />
+                  <NearbyList title="Colleges / Universities" items={nearby.colleges} />
+                  <NearbyList title="Hospitals / Clinics" items={nearby.hospitals} />
+                  <NearbyList title="Markets" items={nearby.markets} />
+                  <NearbyList title="Bus Stops" items={nearby.bus} />
+                  <NearbyList title="ATMs" items={nearby.atms} />
+                </div>
+
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="submit"
+                    disabled={posting}
+                    className={posting ? ui.warningButton : ui.primaryButton}
+                  >
+                    {posting ? "Posting..." : "Post Property"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowAddProperty(false)}
+                    className={ui.button}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
             </div>
-
-            <button
-              type="submit"
-              disabled={posting}
-              className="mt-2 rounded-2xl bg-blue-600 px-4 py-3 text-white transition hover:bg-blue-500 disabled:opacity-60"
-            >
-              {posting ? "Posting..." : "Post Property"}
-            </button>
-          </form>
+          ) : null}
         </div>
-      )}
-
-      <div className="mt-8 text-center text-xs text-slate-400">
-        Smart Rental • React + Django + JWT
       </div>
     </Shell>
   );

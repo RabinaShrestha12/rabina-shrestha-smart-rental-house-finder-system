@@ -58,6 +58,50 @@ function getMsgCreatedAt(m) {
   return m?.created_at ?? m?.created ?? m?.timestamp ?? m?.sent_at ?? "";
 }
 
+function getBackendBaseUrl() {
+  return (
+    import.meta.env.VITE_API_BASE_URL ||
+    import.meta.env.VITE_BACKEND_URL ||
+    "http://127.0.0.1:8000"
+  );
+}
+
+function buildFullMediaUrl(raw) {
+  if (!raw) return "";
+
+  const value = String(raw).trim();
+  if (!value) return "";
+
+  if (value.startsWith("http://") || value.startsWith("https://")) {
+    return value;
+  }
+
+  if (value.startsWith("/")) {
+    return `${getBackendBaseUrl()}${value}`;
+  }
+
+  if (value.startsWith("media/")) {
+    return `${getBackendBaseUrl()}/${value}`;
+  }
+
+  return `${getBackendBaseUrl()}/media/${value}`;
+}
+
+function getMsgImage(m) {
+  const raw =
+    m?.image_url ||
+    m?.image ||
+    m?.picture ||
+    m?.photo ||
+    m?.file ||
+    m?.attachment ||
+    m?.media ||
+    m?.media_url ||
+    "";
+
+  return buildFullMediaUrl(raw);
+}
+
 function getRawSenderRole(m) {
   return normalizeRole(
     m?.sender_role ??
@@ -228,8 +272,11 @@ export default function ProviderChat() {
   const [sending, setSending] = useState(false);
   const [statusSaving, setStatusSaving] = useState(false);
   const [text, setText] = useState("");
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [imagePreview, setImagePreview] = useState("");
 
   const bottomRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   const ownerName = useMemo(() => getJobOwnerName(job), [job]);
   const providerName = useMemo(() => getJobProviderName(job), [job]);
@@ -333,11 +380,11 @@ export default function ProviderChat() {
     throw lastErr;
   };
 
-  const tryPost = async (urls, body) => {
+  const tryPost = async (urls, body, config = {}) => {
     let lastErr = null;
     for (const url of urls) {
       try {
-        const res = await api.post(url, body);
+        const res = await api.post(url, body, config);
         return res.data;
       } catch (err) {
         lastErr = err;
@@ -477,23 +524,68 @@ export default function ProviderChat() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  useEffect(() => {
+    return () => {
+      if (imagePreview) URL.revokeObjectURL(imagePreview);
+    };
+  }, [imagePreview]);
+
+  const handleImageChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      showToast("error", "Please select a valid image file.");
+      return;
+    }
+
+    if (imagePreview) {
+      URL.revokeObjectURL(imagePreview);
+    }
+
+    setSelectedImage(file);
+    setImagePreview(URL.createObjectURL(file));
+  };
+
+  const clearSelectedImage = () => {
+    if (imagePreview) {
+      URL.revokeObjectURL(imagePreview);
+    }
+    setSelectedImage(null);
+    setImagePreview("");
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
   const sendMessage = async () => {
     const clean = String(text || "").trim();
-    if (!clean) {
-      showToast("error", "Please write a message first.");
+
+    if (!clean && !selectedImage) {
+      showToast("error", "Please write a message or choose an image first.");
       return;
     }
 
     setSending(true);
     try {
-      await tryPost(sendEndpoints, {
-        message: clean,
-        text: clean,
-        body: clean,
-        content: clean,
+      const formData = new FormData();
+      formData.append("message", clean);
+      formData.append("text", clean);
+      formData.append("body", clean);
+      formData.append("content", clean);
+
+      if (selectedImage) {
+        formData.append("image", selectedImage);
+      }
+
+      await tryPost(sendEndpoints, formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
       });
 
       setText("");
+      clearSelectedImage();
       showToast("success", "Message sent.");
       await loadMessages(false);
     } catch (e) {
@@ -707,6 +799,7 @@ export default function ProviderChat() {
                     const mine = normalizeMessageMine(m, currentRole, currentEmail);
                     const senderName = resolveSenderName(m, job, currentRole, currentEmail);
                     const senderRole = resolveSenderRoleLabel(m, currentRole, currentEmail);
+                    const msgImage = getMsgImage(m);
 
                     return (
                       <div
@@ -741,9 +834,25 @@ export default function ProviderChat() {
                               <span style={styles.senderRole}>{senderRole}</span>
                             </div>
 
-                            <div style={styles.bubbleText}>
-                              {getMsgText(m) || "—"}
-                            </div>
+                            {msgImage ? (
+                              <div style={styles.imageWrap}>
+                                <img
+                                  src={msgImage}
+                                  alt="chat upload"
+                                  style={styles.messageImage}
+                                  onError={(e) => {
+                                    console.log("ProviderChat image failed:", msgImage, m);
+                                    e.currentTarget.style.display = "none";
+                                  }}
+                                />
+                              </div>
+                            ) : null}
+
+                            {getMsgText(m) ? (
+                              <div style={styles.bubbleText}>
+                                {getMsgText(m)}
+                              </div>
+                            ) : null}
 
                             <div style={styles.bubbleTime}>
                               {formatDate(getMsgCreatedAt(m))}
@@ -778,11 +887,57 @@ export default function ProviderChat() {
                 style={styles.textarea}
               />
 
+              <div style={styles.uploadRow}>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  style={styles.fileInput}
+                />
+
+                <button
+                  type="button"
+                  style={styles.btnGhost}
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={sending}
+                >
+                  Choose Image
+                </button>
+
+                {selectedImage ? (
+                  <span style={styles.fileName}>{selectedImage.name}</span>
+                ) : (
+                  <span style={styles.fileHint}>No image selected</span>
+                )}
+              </div>
+
+              {imagePreview ? (
+                <div style={styles.previewCard}>
+                  <img
+                    src={imagePreview}
+                    alt="preview"
+                    style={styles.previewImage}
+                  />
+                  <button
+                    type="button"
+                    style={styles.removeImageBtn}
+                    onClick={clearSelectedImage}
+                    disabled={sending}
+                  >
+                    Remove Image
+                  </button>
+                </div>
+              ) : null}
+
               <div style={styles.composerActions}>
                 <button
                   type="button"
                   style={styles.btnGhost}
-                  onClick={() => setText("")}
+                  onClick={() => {
+                    setText("");
+                    clearSelectedImage();
+                  }}
                   disabled={sending}
                 >
                   Clear
@@ -1133,12 +1288,27 @@ const styles = {
     lineHeight: 1.65,
     whiteSpace: "pre-wrap",
     fontSize: 15,
+    marginTop: 8,
   },
 
   bubbleTime: {
     marginTop: 8,
     fontSize: 12,
     opacity: 0.68,
+  },
+
+  imageWrap: {
+    marginTop: 6,
+  },
+
+  messageImage: {
+    maxWidth: 260,
+    width: "100%",
+    maxHeight: 260,
+    objectFit: "cover",
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.14)",
+    display: "block",
   },
 
   composerCard: {
@@ -1177,6 +1347,60 @@ const styles = {
     outline: "none",
     fontSize: 15,
     lineHeight: 1.55,
+  },
+
+  uploadRow: {
+    marginTop: 12,
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    flexWrap: "wrap",
+  },
+
+  fileInput: {
+    display: "none",
+  },
+
+  fileName: {
+    fontSize: 13,
+    opacity: 0.9,
+    wordBreak: "break-all",
+  },
+
+  fileHint: {
+    fontSize: 13,
+    opacity: 0.65,
+  },
+
+  previewCard: {
+    marginTop: 12,
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+    alignItems: "flex-start",
+    padding: 12,
+    borderRadius: 16,
+    border: "1px solid rgba(255,255,255,0.12)",
+    background: "rgba(255,255,255,0.04)",
+  },
+
+  previewImage: {
+    maxWidth: 220,
+    maxHeight: 220,
+    width: "100%",
+    objectFit: "cover",
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.14)",
+  },
+
+  removeImageBtn: {
+    padding: "10px 14px",
+    borderRadius: 12,
+    border: "1px solid rgba(239,68,68,0.35)",
+    background: "rgba(239,68,68,0.18)",
+    color: "white",
+    cursor: "pointer",
+    fontWeight: 700,
   },
 
   composerActions: {
