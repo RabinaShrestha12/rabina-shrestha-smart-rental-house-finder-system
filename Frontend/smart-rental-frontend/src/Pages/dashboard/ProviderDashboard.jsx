@@ -1,8 +1,8 @@
-// src/pages/dashboard/ProviderDashboard.jsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import { useAuth } from "../../auth/AuthContext";
+import { useTheme } from "../../components/ThemeContext";
 import Shell from "../../components/Shell";
 import Toast from "../../components/Toast";
 
@@ -27,8 +27,92 @@ function formatDate(value) {
   }
 }
 
+function statusStyles(status, isDark) {
+  const s = String(status || "").toLowerCase();
+
+  if (s === "open") {
+    return isDark
+      ? {
+          color: "#bfdbfe",
+          background: "#1e3a5f",
+          border: "1px solid rgba(96, 165, 250, 0.28)",
+          label: "Open",
+        }
+      : {
+          color: "#1d4ed8",
+          background: "#dbeafe",
+          border: "1px solid #bfdbfe",
+          label: "Open",
+        };
+  }
+
+  if (s === "in_progress") {
+    return isDark
+      ? {
+          color: "#fed7aa",
+          background: "#5b3415",
+          border: "1px solid rgba(251, 146, 60, 0.28)",
+          label: "In Progress",
+        }
+      : {
+          color: "#7c2d12",
+          background: "#ffedd5",
+          border: "1px solid #fed7aa",
+          label: "In Progress",
+        };
+  }
+
+  if (s === "resolved" || s === "completed") {
+    return isDark
+      ? {
+          color: "#bbf7d0",
+          background: "#153928",
+          border: "1px solid rgba(74, 222, 128, 0.28)",
+          label: "Completed",
+        }
+      : {
+          color: "#166534",
+          background: "#dcfce7",
+          border: "1px solid #bbf7d0",
+          label: "Completed",
+        };
+  }
+
+  if (s === "rejected") {
+    return isDark
+      ? {
+          color: "#fecaca",
+          background: "#4a1f24",
+          border: "1px solid rgba(248, 113, 113, 0.28)",
+          label: "Rejected",
+        }
+      : {
+          color: "#991b1b",
+          background: "#fee2e2",
+          border: "1px solid #fecaca",
+          label: "Rejected",
+        };
+  }
+
+  return isDark
+    ? {
+        color: "#e2e8f0",
+        background: "#223a57",
+        border: "1px solid rgba(148, 163, 184, 0.25)",
+        label: status || "Unknown",
+      }
+    : {
+        color: "#374151",
+        background: "#f3f4f6",
+        border: "1px solid #e5e7eb",
+        label: status || "Unknown",
+      };
+}
+
 export default function ProviderDashboard() {
   const { role, logout, booting } = useAuth();
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   const nav = useNavigate();
 
   const [toast, setToast] = useState({ type: "info", msg: "" });
@@ -143,18 +227,8 @@ export default function ProviderDashboard() {
   const sortedJobs = useMemo(() => {
     const list = [...jobs];
     list.sort((a, b) =>
-      String(
-        b?.last_message_at ||
-          b?.updated_at ||
-          b?.created_at ||
-          ""
-      ).localeCompare(
-        String(
-          a?.last_message_at ||
-            a?.updated_at ||
-            a?.created_at ||
-            ""
-        )
+      String(b?.last_message_at || b?.updated_at || b?.created_at || "").localeCompare(
+        String(a?.last_message_at || a?.updated_at || a?.created_at || "")
       )
     );
     return list;
@@ -162,20 +236,25 @@ export default function ProviderDashboard() {
 
   const totalMessageUnread = useMemo(
     () =>
-      sortedJobs.reduce(
-        (sum, item) => sum + Number(item?.unread_count || 0),
-        0
-      ),
+      sortedJobs.reduce((sum, item) => sum + Number(item?.unread_count || 0), 0),
+    [sortedJobs]
+  );
+
+  const totalOpenJobs = useMemo(
+    () =>
+      sortedJobs.filter((j) => String(j?.status || "").toLowerCase() === "open").length,
+    [sortedJobs]
+  );
+
+  const totalInProgressJobs = useMemo(
+    () =>
+      sortedJobs.filter((j) => String(j?.status || "").toLowerCase() === "in_progress").length,
     [sortedJobs]
   );
 
   const totalNotificationCount = useMemo(() => {
-    const newOpenJobs = sortedJobs.filter(
-      (j) => String(j?.status || "").toLowerCase() === "open"
-    ).length;
-
-    return newOpenJobs + totalMessageUnread;
-  }, [sortedJobs, totalMessageUnread]);
+    return totalOpenJobs + totalMessageUnread;
+  }, [totalOpenJobs, totalMessageUnread]);
 
   const notificationItems = useMemo(() => {
     return sortedJobs.filter((j) => {
@@ -235,65 +314,96 @@ export default function ProviderDashboard() {
     }
   };
 
+  const styles = getStyles(isDark);
+
   return (
     <Shell>
-      <div style={styles.wrap}>
+      <div style={styles.page}>
         <Toast
           type={toast.type}
-          msg={toast.msg}
+          message={toast.msg}
           onClose={() => setToast({ type: "info", msg: "" })}
         />
 
-        <div style={styles.headerRow}>
+        <div style={styles.heroCard}>
           <div>
-            <h2 style={{ margin: 0 }}>Service Provider Dashboard</h2>
-            <div style={{ opacity: 0.8, marginTop: 4 }}>
-              View assigned maintenance jobs and chat with the owner.
-            </div>
+            <div style={styles.eyebrow}>SERVICE PROVIDER PORTAL</div>
+            <h1 style={styles.heroTitle}>Service Provider Dashboard</h1>
+            <p style={styles.heroSub}>
+              View assigned jobs, track requests, and chat with property owners in one place.
+            </p>
           </div>
 
-          <div style={styles.topBtns}>
-            <button type="button" style={styles.btnGhost} onClick={() => nav("/")}>
+          <div style={styles.heroActions}>
+            <button type="button" style={styles.secondaryBtn} onClick={() => nav("/")}>
               Home
             </button>
 
-            <button type="button" style={styles.btnGhost} onClick={openMessages}>
+            <button type="button" style={styles.secondaryBtn} onClick={openMessages}>
               Messages
-              <span style={styles.topBadge}>{totalMessageUnread}</span>
+              <span style={styles.badgeRed}>{totalMessageUnread}</span>
             </button>
 
             <button
               type="button"
-              style={styles.btnGhost}
+              style={styles.secondaryBtn}
               onClick={() => setShowNotificationsPanel((s) => !s)}
             >
               Notifications
-              <span style={styles.topBadge}>{totalNotificationCount}</span>
+              <span style={styles.badgeBlue}>{totalNotificationCount}</span>
             </button>
 
-            <button type="button" style={styles.btnGhost} onClick={() => loadJobs(false)}>
+            <button type="button" style={styles.secondaryBtn} onClick={() => loadJobs(false)}>
               Refresh
             </button>
 
-            <button type="button" style={styles.btnPrimary} onClick={handleLogout}>
+            <button type="button" style={styles.primaryBtn} onClick={handleLogout}>
               Logout
             </button>
           </div>
         </div>
 
+        <div style={styles.statsGrid}>
+          <div style={styles.statCard}>
+            <div style={styles.statLabel}>Total Jobs</div>
+            <div style={styles.statValue}>{sortedJobs.length}</div>
+          </div>
+
+          <div style={styles.statCard}>
+            <div style={styles.statLabel}>Open Requests</div>
+            <div style={{ ...styles.statValue, color: isDark ? "#93c5fd" : "#2563eb" }}>
+              {totalOpenJobs}
+            </div>
+          </div>
+
+          <div style={styles.statCard}>
+            <div style={styles.statLabel}>In Progress</div>
+            <div style={{ ...styles.statValue, color: isDark ? "#fdba74" : "#ea580c" }}>
+              {totalInProgressJobs}
+            </div>
+          </div>
+
+          <div style={styles.statCard}>
+            <div style={styles.statLabel}>Unread Messages</div>
+            <div style={{ ...styles.statValue, color: isDark ? "#fca5a5" : "#dc2626" }}>
+              {totalMessageUnread}
+            </div>
+          </div>
+        </div>
+
         {showNotificationsPanel && (
-          <div style={styles.notificationsPanel}>
-            <div style={styles.notificationsHeader}>
+          <div style={styles.panel}>
+            <div style={styles.panelHeader}>
               <div>
-                <div style={styles.notificationsTitle}>Notifications</div>
-                <div style={styles.notificationsSub}>
-                  See new requests and new owner messages before opening chat.
+                <div style={styles.panelTitle}>Notifications</div>
+                <div style={styles.panelSub}>
+                  See new owner messages and newly assigned maintenance requests.
                 </div>
               </div>
 
               <button
                 type="button"
-                style={styles.btnGhostSmall}
+                style={styles.panelCloseBtn}
                 onClick={() => setShowNotificationsPanel(false)}
               >
                 Close
@@ -301,72 +411,58 @@ export default function ProviderDashboard() {
             </div>
 
             {notificationItems.length === 0 ? (
-              <div style={styles.infoBox}>No notifications right now.</div>
+              <div style={styles.emptyBox}>No notifications right now.</div>
             ) : (
-              <div style={styles.notificationGrid}>
+              <div style={styles.cardsGrid}>
                 {notificationItems.map((j) => {
                   const hasUnread = Number(j?.unread_count || 0) > 0;
                   const isOpen = String(j?.status || "").toLowerCase() === "open";
+                  const statusUi = statusStyles(j?.status, isDark);
 
                   return (
-                    <div key={`notif-${j.id}`} style={styles.notificationCard}>
-                      <div style={styles.cardTop}>
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                            flexWrap: "wrap",
-                          }}
-                        >
-                          <div style={{ fontWeight: 800 }}>
-                            {j.title || `Job #${j.id}`}
-                          </div>
+                    <div key={`notif-${j.id}`} style={styles.jobCard}>
+                      <div style={styles.jobTop}>
+                        <div style={styles.jobTitleWrap}>
+                          <div style={styles.jobTitle}>{j.title || `Job #${j.id}`}</div>
 
-                          {isOpen ? (
-                            <span style={styles.requestBadge}>new request</span>
-                          ) : null}
-
+                          {isOpen ? <span style={styles.requestBadge}>New Request</span> : null}
                           {hasUnread ? (
                             <span style={styles.unreadBadge}>
-                              {Number(j?.unread_count || 0)} new
+                              {Number(j?.unread_count || 0)} New
                             </span>
                           ) : null}
                         </div>
 
-                        <div style={{ opacity: 0.9 }}>
-                          Status: <b>{j.status || "—"}</b>
-                        </div>
+                        <span
+                          style={{
+                            ...styles.statusPill,
+                            color: statusUi.color,
+                            background: statusUi.background,
+                            border: statusUi.border,
+                          }}
+                        >
+                          {statusUi.label}
+                        </span>
                       </div>
 
-                      {j.description ? (
-                        <div style={styles.desc}>{j.description}</div>
-                      ) : null}
+                      {j.description ? <div style={styles.desc}>{j.description}</div> : null}
 
-                      <div style={styles.meta}>
-                        <div>
-                          <b>Owner:</b> {j.owner_name || "Owner"}
-                        </div>
-
+                      <div style={styles.metaList}>
+                        <div><b>Owner:</b> {j.owner_name || "Owner"}</div>
                         <div>
                           <b>Last update:</b>{" "}
-                          {formatDate(
-                            j.last_message_at || j.updated_at || j.created_at
-                          ) || "—"}
+                          {formatDate(j.last_message_at || j.updated_at || j.created_at) || "—"}
                         </div>
-
                         {j.last_message ? (
-                          <div>
-                            <b>Last message:</b> {j.last_message}
-                          </div>
+                          <div><b>Last message:</b> {j.last_message}</div>
                         ) : null}
                       </div>
 
-                      <div style={styles.actionRow}>
+                      <div style={styles.cardActions}>
                         <button
                           type="button"
                           onClick={() => acceptJob(j.id)}
-                          style={styles.actionBtn}
+                          style={styles.acceptBtn}
                         >
                           Accept
                         </button>
@@ -374,7 +470,7 @@ export default function ProviderDashboard() {
                         <button
                           type="button"
                           onClick={() => rejectJob(j.id)}
-                          style={styles.actionBtn}
+                          style={styles.rejectBtn}
                         >
                           Reject
                         </button>
@@ -382,18 +478,18 @@ export default function ProviderDashboard() {
                         <button
                           type="button"
                           onClick={() => nav(`/provider/chat/${j.id}`)}
-                          style={styles.actionBtn}
+                          style={styles.chatBtn}
                         >
                           Open Chat
                         </button>
                       </div>
 
                       {hasUnread ? (
-                        <div style={styles.helperTextHighlight}>
+                        <div style={styles.noticeRed}>
                           New message from {j.owner_name || "owner"}.
                         </div>
                       ) : isOpen ? (
-                        <div style={styles.helperTextHighlightBlue}>
+                        <div style={styles.noticeBlue}>
                           New maintenance request assigned by {j.owner_name || "owner"}.
                         </div>
                       ) : null}
@@ -405,67 +501,61 @@ export default function ProviderDashboard() {
           </div>
         )}
 
-        <div style={{ marginTop: 16 }}>
+        <div style={{ marginTop: 18 }}>
           {loading ? (
-            <div style={styles.infoBox}>Loading jobs...</div>
+            <div style={styles.emptyBox}>Loading jobs...</div>
           ) : sortedJobs.length === 0 ? (
-            <div style={styles.infoBox}>No jobs assigned yet.</div>
+            <div style={styles.emptyBox}>No jobs assigned yet.</div>
           ) : (
-            <div style={styles.grid}>
+            <div style={styles.cardsGrid}>
               {sortedJobs.map((j) => {
                 const unreadCount = Number(j?.unread_count || 0);
                 const hasUnread = unreadCount > 0;
                 const isOpen = String(j?.status || "").toLowerCase() === "open";
+                const statusUi = statusStyles(j?.status, isDark);
 
                 return (
-                  <div key={j.id} style={styles.card}>
-                    <div style={styles.cardTop}>
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                          flexWrap: "wrap",
-                        }}
-                      >
-                        <div style={{ fontWeight: 800 }}>
-                          {j.title || `Job #${j.id}`}
-                        </div>
+                  <div key={j.id} style={styles.jobCard}>
+                    <div style={styles.jobTop}>
+                      <div style={styles.jobTitleWrap}>
+                        <div style={styles.jobTitle}>{j.title || `Job #${j.id}`}</div>
 
-                        {isOpen ? (
-                          <span style={styles.requestBadge}>new request</span>
+                        {isOpen ? <span style={styles.requestBadge}>New Request</span> : null}
+                        {hasUnread ? (
+                          <span style={styles.unreadBadge}>{unreadCount} New</span>
                         ) : null}
                       </div>
 
-                      <div style={{ opacity: 0.9 }}>
-                        Status: <b>{j.status || "—"}</b>
-                      </div>
+                      <span
+                        style={{
+                          ...styles.statusPill,
+                          color: statusUi.color,
+                          background: statusUi.background,
+                          border: statusUi.border,
+                        }}
+                      >
+                        {statusUi.label}
+                      </span>
                     </div>
 
                     {j.description ? <div style={styles.desc}>{j.description}</div> : null}
 
-                    <div style={styles.meta}>
-                      <div>
-                        <b>Owner:</b> {j.owner_name || "Owner"}
-                      </div>
-
+                    <div style={styles.metaList}>
+                      <div><b>Owner:</b> {j.owner_name || "Owner"}</div>
                       <div>
                         <b>Last update:</b>{" "}
                         {formatDate(j.last_message_at || j.updated_at || j.created_at) || "—"}
                       </div>
-
                       {j.last_message ? (
-                        <div>
-                          <b>Last message:</b> {j.last_message}
-                        </div>
+                        <div><b>Last message:</b> {j.last_message}</div>
                       ) : null}
                     </div>
 
-                    <div style={styles.actionRow}>
+                    <div style={styles.cardActions}>
                       <button
                         type="button"
                         onClick={() => acceptJob(j.id)}
-                        style={styles.actionBtn}
+                        style={styles.acceptBtn}
                       >
                         Accept
                       </button>
@@ -473,7 +563,7 @@ export default function ProviderDashboard() {
                       <button
                         type="button"
                         onClick={() => rejectJob(j.id)}
-                        style={styles.actionBtn}
+                        style={styles.rejectBtn}
                       >
                         Reject
                       </button>
@@ -481,23 +571,23 @@ export default function ProviderDashboard() {
                       <button
                         type="button"
                         onClick={() => nav(`/provider/chat/${j.id}`)}
-                        style={styles.actionBtn}
+                        style={styles.chatBtn}
                       >
                         Open Chat
                       </button>
                     </div>
 
                     {hasUnread ? (
-                      <div style={styles.helperTextHighlight}>
+                      <div style={styles.noticeRed}>
                         New message from {j.owner_name || "owner"}.
                       </div>
                     ) : isOpen ? (
-                      <div style={styles.helperTextHighlightBlue}>
+                      <div style={styles.noticeBlue}>
                         New maintenance request assigned by {j.owner_name || "owner"}.
                       </div>
                     ) : j.status === "rejected" ? (
                       <div style={styles.helperText}>
-                        This job is currently rejected. You can still accept it again if you want.
+                        This job is currently rejected. You can still accept it again later.
                       </div>
                     ) : null}
                   </div>
@@ -511,198 +601,360 @@ export default function ProviderDashboard() {
   );
 }
 
-const styles = {
-  wrap: {
-    maxWidth: 1200,
-    margin: "0 auto",
-    padding: 16,
-  },
-  headerRow: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-    flexWrap: "wrap",
-    border: "1px solid rgba(255,255,255,0.10)",
-    borderRadius: 16,
-    padding: 14,
-    background: "rgba(255,255,255,0.04)",
-  },
-  topBtns: {
-    display: "flex",
-    gap: 10,
-    flexWrap: "wrap",
-  },
-  btnGhost: {
-    padding: "10px 14px",
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.15)",
-    background: "rgba(255,255,255,0.06)",
-    color: "white",
-    cursor: "pointer",
-    fontWeight: 700,
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 8,
-  },
-  btnGhostSmall: {
-    padding: "8px 12px",
-    borderRadius: 10,
-    border: "1px solid rgba(255,255,255,0.15)",
-    background: "rgba(255,255,255,0.06)",
-    color: "white",
-    cursor: "pointer",
-    fontWeight: 700,
-  },
-  btnPrimary: {
-    padding: "10px 14px",
-    borderRadius: 12,
-    border: "1px solid rgba(124,58,237,0.55)",
-    background: "linear-gradient(135deg,#6d28d9,#8b5cf6)",
-    color: "white",
-    cursor: "pointer",
-    fontWeight: 800,
-  },
-  topBadge: {
-    minWidth: 22,
-    height: 22,
-    borderRadius: 999,
-    padding: "0 7px",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    background: "rgba(239,68,68,0.95)",
-    color: "white",
-    fontSize: 12,
-    fontWeight: 900,
-  },
-  infoBox: {
-    padding: 14,
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.04)",
-    opacity: 0.9,
-  },
-  notificationsPanel: {
-    marginTop: 16,
-    padding: 14,
-    borderRadius: 16,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background: "rgba(255,255,255,0.04)",
-  },
-  notificationsHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 12,
-    marginBottom: 14,
-    flexWrap: "wrap",
-  },
-  notificationsTitle: {
-    fontSize: 20,
-    fontWeight: 900,
-  },
-  notificationsSub: {
-    fontSize: 13,
-    opacity: 0.75,
-    marginTop: 4,
-  },
-  notificationGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-    gap: 12,
-  },
-  notificationCard: {
-    border: "1px solid rgba(255,255,255,0.12)",
-    borderRadius: 16,
-    padding: 14,
-    background: "rgba(255,255,255,0.05)",
-  },
-  grid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-    gap: 12,
-  },
-  card: {
-    border: "1px solid rgba(255,255,255,0.12)",
-    borderRadius: 16,
-    padding: 14,
-    background: "rgba(255,255,255,0.04)",
-  },
-  cardTop: {
-    display: "flex",
-    justifyContent: "space-between",
-    gap: 10,
-    flexWrap: "wrap",
-  },
-  desc: {
-    marginTop: 10,
-    opacity: 0.95,
-    lineHeight: 1.45,
-  },
-  meta: {
-    marginTop: 10,
-    display: "grid",
-    gap: 6,
-    fontSize: 13,
-    opacity: 0.9,
-  },
-  actionRow: {
-    marginTop: 12,
-    display: "flex",
-    gap: 8,
-    flexWrap: "wrap",
-  },
-  helperText: {
-    marginTop: 8,
-    fontSize: 12,
-    opacity: 0.75,
-  },
-  helperTextHighlight: {
-    marginTop: 8,
-    fontSize: 12,
-    color: "#fca5a5",
-    fontWeight: 700,
-  },
-  helperTextHighlightBlue: {
-    marginTop: 8,
-    fontSize: 12,
-    color: "#93c5fd",
-    fontWeight: 700,
-  },
-  actionBtn: {
-    padding: "9px 12px",
-    borderRadius: 10,
-    border: "1px solid rgba(255,255,255,0.15)",
-    background: "rgba(124, 58, 237, 0.35)",
-    color: "white",
-    cursor: "pointer",
-    fontWeight: 700,
-  },
-  unreadBadge: {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    minWidth: 54,
-    padding: "4px 10px",
-    borderRadius: 999,
-    background: "rgba(239,68,68,0.18)",
-    border: "1px solid rgba(239,68,68,0.35)",
-    color: "#fecaca",
-    fontSize: 12,
-    fontWeight: 900,
-  },
-  requestBadge: {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    minWidth: 84,
-    padding: "4px 10px",
-    borderRadius: 999,
-    background: "rgba(59,130,246,0.18)",
-    border: "1px solid rgba(59,130,246,0.35)",
-    color: "#bfdbfe",
-    fontSize: 12,
-    fontWeight: 900,
-  },
-};
+function getStyles(isDark) {
+  return {
+    page: {
+      maxWidth: 1220,
+      margin: "0 auto",
+      padding: 20,
+    },
+
+    heroCard: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      gap: 18,
+      flexWrap: "wrap",
+      padding: 24,
+      borderRadius: 26,
+      background: isDark
+        ? "linear-gradient(135deg, #12355d 0%, #173f6e 55%, #102b49 100%)"
+        : "linear-gradient(135deg, #ffffff 0%, #f7f7ff 100%)",
+      border: isDark ? "1px solid rgba(96,165,250,0.16)" : "1px solid #ececf4",
+      boxShadow: isDark
+        ? "0 16px 40px rgba(2,12,30,0.35)"
+        : "0 16px 40px rgba(20,20,40,0.08)",
+    },
+
+    eyebrow: {
+      fontSize: 12,
+      fontWeight: 800,
+      color: isDark ? "#93c5fd" : "#8a8aa3",
+      letterSpacing: "0.12em",
+      textTransform: "uppercase",
+      marginBottom: 8,
+    },
+
+    heroTitle: {
+      margin: 0,
+      fontSize: 30,
+      fontWeight: 900,
+      color: isDark ? "#ffffff" : "#171725",
+    },
+
+    heroSub: {
+      margin: "8px 0 0 0",
+      fontSize: 15,
+      color: isDark ? "#cbd5e1" : "#66667d",
+      lineHeight: 1.5,
+    },
+
+    heroActions: {
+      display: "flex",
+      gap: 10,
+      flexWrap: "wrap",
+    },
+
+    secondaryBtn: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 8,
+      padding: "12px 16px",
+      borderRadius: 14,
+      border: isDark ? "1px solid rgba(96,165,250,0.18)" : "1px solid #e5e7ef",
+      background: isDark ? "#17395f" : "#ffffff",
+      color: isDark ? "#eff6ff" : "#2a2a3a",
+      fontWeight: 800,
+      cursor: "pointer",
+      boxShadow: isDark
+        ? "0 8px 18px rgba(2,12,30,0.18)"
+        : "0 6px 18px rgba(15,15,25,0.04)",
+    },
+
+    primaryBtn: {
+      padding: "12px 18px",
+      borderRadius: 14,
+      border: "none",
+      background: isDark
+        ? "linear-gradient(135deg, #38bdf8, #60a5fa)"
+        : "linear-gradient(135deg, #6d28d9, #8b5cf6)",
+      color: isDark ? "#082f49" : "#ffffff",
+      fontWeight: 900,
+      cursor: "pointer",
+      boxShadow: isDark
+        ? "0 12px 28px rgba(56,189,248,0.22)"
+        : "0 12px 28px rgba(124,58,237,0.22)",
+    },
+
+    badgeRed: {
+      minWidth: 22,
+      height: 22,
+      padding: "0 7px",
+      borderRadius: 999,
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      background: "#ef4444",
+      color: "#fff",
+      fontSize: 12,
+      fontWeight: 900,
+    },
+
+    badgeBlue: {
+      minWidth: 22,
+      height: 22,
+      padding: "0 7px",
+      borderRadius: 999,
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      background: isDark ? "#38bdf8" : "#3b82f6",
+      color: "#fff",
+      fontSize: 12,
+      fontWeight: 900,
+    },
+
+    statsGrid: {
+      marginTop: 18,
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+      gap: 14,
+    },
+
+    statCard: {
+      background: isDark ? "#102d50" : "#ffffff",
+      border: isDark ? "1px solid rgba(96,165,250,0.12)" : "1px solid #ececf3",
+      borderRadius: 20,
+      padding: 18,
+      boxShadow: isDark
+        ? "0 10px 28px rgba(2,12,30,0.22)"
+        : "0 10px 28px rgba(20,20,40,0.06)",
+    },
+
+    statLabel: {
+      fontSize: 12,
+      fontWeight: 800,
+      color: isDark ? "#93c5fd" : "#8a8aa0",
+      letterSpacing: "0.08em",
+      textTransform: "uppercase",
+    },
+
+    statValue: {
+      marginTop: 10,
+      fontSize: 28,
+      fontWeight: 900,
+      color: isDark ? "#ffffff" : "#151523",
+    },
+
+    panel: {
+      marginTop: 18,
+      padding: 18,
+      borderRadius: 24,
+      background: isDark ? "#102d50" : "#ffffff",
+      border: isDark ? "1px solid rgba(96,165,250,0.12)" : "1px solid #ececf3",
+      boxShadow: isDark
+        ? "0 14px 36px rgba(2,12,30,0.24)"
+        : "0 14px 36px rgba(20,20,40,0.07)",
+    },
+
+    panelHeader: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      gap: 12,
+      flexWrap: "wrap",
+      marginBottom: 14,
+    },
+
+    panelTitle: {
+      fontSize: 22,
+      fontWeight: 900,
+      color: isDark ? "#ffffff" : "#171725",
+    },
+
+    panelSub: {
+      marginTop: 4,
+      fontSize: 14,
+      color: isDark ? "#cbd5e1" : "#6b6b82",
+    },
+
+    panelCloseBtn: {
+      padding: "10px 14px",
+      borderRadius: 12,
+      border: isDark ? "1px solid rgba(96,165,250,0.18)" : "1px solid #e5e7ef",
+      background: isDark ? "#17395f" : "#ffffff",
+      color: isDark ? "#eff6ff" : "#33354a",
+      fontWeight: 800,
+      cursor: "pointer",
+    },
+
+    emptyBox: {
+      padding: 18,
+      borderRadius: 18,
+      background: isDark ? "#102d50" : "#ffffff",
+      border: isDark ? "1px solid rgba(96,165,250,0.12)" : "1px solid #ececf3",
+      color: isDark ? "#cbd5e1" : "#67677e",
+      fontWeight: 600,
+      boxShadow: isDark
+        ? "0 10px 24px rgba(2,12,30,0.2)"
+        : "0 10px 24px rgba(20,20,40,0.05)",
+    },
+
+    cardsGrid: {
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))",
+      gap: 16,
+    },
+
+    jobCard: {
+      background: isDark ? "#102d50" : "#ffffff",
+      border: isDark ? "1px solid rgba(96,165,250,0.12)" : "1px solid #ececf3",
+      borderRadius: 22,
+      padding: 18,
+      boxShadow: isDark
+        ? "0 14px 34px rgba(2,12,30,0.22)"
+        : "0 14px 34px rgba(20,20,40,0.06)",
+    },
+
+    jobTop: {
+      display: "flex",
+      justifyContent: "space-between",
+      gap: 12,
+      alignItems: "flex-start",
+      flexWrap: "wrap",
+    },
+
+    jobTitleWrap: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      flexWrap: "wrap",
+    },
+
+    jobTitle: {
+      fontSize: 22,
+      fontWeight: 900,
+      color: isDark ? "#ffffff" : "#161625",
+      lineHeight: 1.2,
+    },
+
+    statusPill: {
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "8px 12px",
+      borderRadius: 999,
+      fontSize: 12,
+      fontWeight: 900,
+      textTransform: "uppercase",
+      letterSpacing: "0.05em",
+    },
+
+    desc: {
+      marginTop: 12,
+      fontSize: 15,
+      color: isDark ? "#dbeafe" : "#3d3d52",
+      lineHeight: 1.55,
+    },
+
+    metaList: {
+      marginTop: 14,
+      display: "grid",
+      gap: 8,
+      fontSize: 14,
+      color: isDark ? "#cbd5e1" : "#525269",
+      lineHeight: 1.5,
+    },
+
+    cardActions: {
+      marginTop: 16,
+      display: "flex",
+      gap: 10,
+      flexWrap: "wrap",
+    },
+
+    acceptBtn: {
+      padding: "12px 16px",
+      borderRadius: 14,
+      border: isDark ? "1px solid rgba(74,222,128,0.26)" : "1px solid #bbf7d0",
+      background: isDark ? "#153928" : "#dcfce7",
+      color: isDark ? "#bbf7d0" : "#166534",
+      fontWeight: 900,
+      cursor: "pointer",
+    },
+
+    rejectBtn: {
+      padding: "12px 16px",
+      borderRadius: 14,
+      border: isDark ? "1px solid rgba(248,113,113,0.26)" : "1px solid #fecaca",
+      background: isDark ? "#4a1f24" : "#fee2e2",
+      color: isDark ? "#fecaca" : "#b91c1c",
+      fontWeight: 900,
+      cursor: "pointer",
+    },
+
+    chatBtn: {
+      padding: "12px 18px",
+      borderRadius: 14,
+      border: "none",
+      background: isDark
+        ? "linear-gradient(135deg, #38bdf8, #60a5fa)"
+        : "linear-gradient(135deg, #7c3aed, #8b5cf6)",
+      color: isDark ? "#082f49" : "#ffffff",
+      fontWeight: 900,
+      cursor: "pointer",
+      boxShadow: isDark
+        ? "0 10px 24px rgba(56,189,248,0.18)"
+        : "0 10px 24px rgba(124,58,237,0.18)",
+    },
+
+    helperText: {
+      marginTop: 10,
+      fontSize: 12,
+      color: isDark ? "#94a3b8" : "#74748b",
+      fontWeight: 600,
+    },
+
+    noticeRed: {
+      marginTop: 10,
+      fontSize: 12,
+      color: isDark ? "#fca5a5" : "#b91c1c",
+      fontWeight: 800,
+    },
+
+    noticeBlue: {
+      marginTop: 10,
+      fontSize: 12,
+      color: isDark ? "#93c5fd" : "#1d4ed8",
+      fontWeight: 800,
+    },
+
+    unreadBadge: {
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      minWidth: 56,
+      padding: "5px 10px",
+      borderRadius: 999,
+      background: isDark ? "#4a1f24" : "#fee2e2",
+      border: isDark ? "1px solid rgba(248,113,113,0.26)" : "1px solid #fecaca",
+      color: isDark ? "#fecaca" : "#b91c1c",
+      fontSize: 12,
+      fontWeight: 900,
+    },
+
+    requestBadge: {
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      minWidth: 92,
+      padding: "5px 10px",
+      borderRadius: 999,
+      background: isDark ? "#1e3a5f" : "#dbeafe",
+      border: isDark ? "1px solid rgba(96,165,250,0.26)" : "1px solid #bfdbfe",
+      color: isDark ? "#bfdbfe" : "#1d4ed8",
+      fontSize: 12,
+      fontWeight: 900,
+    },
+  };
+}

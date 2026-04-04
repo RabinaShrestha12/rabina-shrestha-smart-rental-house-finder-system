@@ -5,6 +5,7 @@ from django.core.files.base import ContentFile
 from PIL import Image, ImageOps
 from rest_framework import serializers
 from django.db.models import Q
+import json
 
 from .models import (
     Owner,
@@ -25,6 +26,7 @@ from .models import (
     RoommateChatThread,
     FurnitureItem,
     TenantExpense,
+    VirtualFurnitureDesign,
 )
 
 User = get_user_model()
@@ -840,3 +842,76 @@ class TenantExpenseSerializer(serializers.ModelSerializer):
         if not value.strip():
             raise serializers.ValidationError("Title is required.")
         return value.strip()
+
+
+
+
+class VirtualFurnitureDesignSerializer(serializers.ModelSerializer):
+    room_image_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = VirtualFurnitureDesign
+        fields = [
+            "id",
+            "title",
+            "room_image",
+            "room_image_url",
+            "room_image_path",
+            "placed_items",
+            "notes",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "room_image_url", "created_at", "updated_at"]
+
+    def get_room_image_url(self, obj):
+        request = self.context.get("request")
+        if obj.room_image:
+            url = obj.room_image.url
+            if request is not None:
+                return request.build_absolute_uri(url)
+            return url
+        return ""
+
+    def validate_placed_items(self, value):
+        if not isinstance(value, list):
+            raise serializers.ValidationError("placed_items must be a list.")
+        return value
+
+
+class VirtualFurnitureDesignCreateUpdateSerializer(serializers.ModelSerializer):
+    placed_items = serializers.JSONField(required=False)
+
+    class Meta:
+        model = VirtualFurnitureDesign
+        fields = [
+            "id",
+            "title",
+            "room_image",
+            "room_image_path",
+            "placed_items",
+            "notes",
+        ]
+        read_only_fields = ["id"]
+
+    def to_internal_value(self, data):
+        mutable = data.copy()
+
+        raw_placed_items = mutable.get("placed_items")
+
+        if raw_placed_items in [None, ""]:
+            mutable["placed_items"] = []
+        elif isinstance(raw_placed_items, str):
+            try:
+                mutable["placed_items"] = json.loads(raw_placed_items)
+            except json.JSONDecodeError:
+                raise serializers.ValidationError(
+                    {"placed_items": "Invalid JSON format for placed_items."}
+                )
+
+        return super().to_internal_value(mutable)
+
+    def validate_placed_items(self, value):
+        if not isinstance(value, list):
+            raise serializers.ValidationError("placed_items must be a list.")
+        return value

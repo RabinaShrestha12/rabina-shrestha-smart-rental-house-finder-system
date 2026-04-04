@@ -1,14 +1,45 @@
-import React, { useEffect, useMemo, useState } from "react";
+// src/pages/dashboard/TenantDashboard.jsx
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../auth/AuthContext";
+import { useTheme } from "../../components/ThemeContext";
 import Shell from "../../components/Shell";
 import api from "../../api/axios";
+import {
+  Search,
+  Heart,
+  MessageSquare,
+  MapPin,
+  Sparkles,
+  Users,
+  Sofa,
+  Calculator,
+  Wallet,
+  CreditCard,
+  LogOut,
+  Info,
+  X,
+  Send,
+  Calendar,
+  Inbox,
+  RefreshCw,
+  Home,
+  ArrowRight,
+  Bell,
+  CheckCircle2,
+  WalletCards,
+  BarChart3,
+} from "lucide-react";
 
 const BACKEND = "http://127.0.0.1:8000";
 
 function toImageSrc(value) {
-  if (!value) return "/no-image.png";
+  if (!value) {
+    return "https://images.unsplash.com/photo-1560518883-ce09059eeffa?auto=format&fit=crop&q=80&w=1200";
+  }
+
   const s = String(value).trim();
+
   if (s.startsWith("http://") || s.startsWith("https://")) return s;
   if (s.startsWith("/media/http://") || s.startsWith("/media/https://")) {
     return s.replace(/^\/media\//, "");
@@ -19,16 +50,11 @@ function toImageSrc(value) {
 
 export default function TenantDashboard() {
   const { role, email, logout, isAuthed } = useAuth();
+  const { theme } = useTheme();
   const nav = useNavigate();
 
-  const [darkMode, setDarkMode] = useState(() => {
-    try {
-      const saved = localStorage.getItem("tenant_dashboard_theme");
-      return saved ? saved === "dark" : false;
-    } catch {
-      return false;
-    }
-  });
+  const isDark = theme === "dark";
+  const username = email?.split("@")[0] || "Tenant";
 
   const [loading, setLoading] = useState(true);
   const [listings, setListings] = useState([]);
@@ -36,9 +62,9 @@ export default function TenantDashboard() {
 
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState(null);
-
   const [msg, setMsg] = useState("");
   const [sending, setSending] = useState(false);
+
   const [toast, setToast] = useState({ type: "info", msg: "" });
 
   const [q, setQ] = useState("");
@@ -53,18 +79,58 @@ export default function TenantDashboard() {
     }
   });
 
+  const [notifications, setNotifications] = useState([
+    {
+      id: 1,
+      title: "Request Accepted",
+      message: "Your booking request has been accepted by the owner.",
+      type: "accepted",
+      read: false,
+      actionPath: "/tenant/booking-payments",
+    },
+    {
+      id: 2,
+      title: "New Message",
+      message: "You received a new message in your inbox.",
+      type: "message",
+      read: false,
+      actionPath: "/tenant/inbox",
+    },
+    {
+      id: 3,
+      title: "Expense Tracking",
+      message: "Track this month's rental and living expenses.",
+      type: "expense",
+      read: false,
+      actionPath: "/tenant/expenses",
+    },
+    {
+      id: 4,
+      title: "Monthly Income Report",
+      message: "Your monthly expense and income report is ready to view.",
+      type: "report",
+      read: false,
+      actionPath: "/tenant/expenses",
+    },
+  ]);
+
+  const [notifOpen, setNotifOpen] = useState(false);
+  const notifRef = useRef(null);
+
+  const [inboxUnreadCount, setInboxUnreadCount] = useState(3);
+
   useEffect(() => {
     localStorage.setItem("tenant_favorites", JSON.stringify(favorites));
   }, [favorites]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(
-        "tenant_dashboard_theme",
-        darkMode ? "dark" : "light"
-      );
-    } catch {}
-  }, [darkMode]);
+    if (toast.msg) {
+      const t = setTimeout(() => {
+        setToast({ type: "info", msg: "" });
+      }, 2600);
+      return () => clearTimeout(t);
+    }
+  }, [toast]);
 
   useEffect(() => {
     if (!isAuthed) {
@@ -76,6 +142,16 @@ export default function TenantDashboard() {
     }
   }, [isAuthed, role, nav]);
 
+  useEffect(() => {
+    const onClickOutside = (e) => {
+      if (notifRef.current && !notifRef.current.contains(e.target)) {
+        setNotifOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, []);
+
   const handleLogout = () => {
     logout();
     nav("/auth", { replace: true });
@@ -84,15 +160,16 @@ export default function TenantDashboard() {
   const safeArr = (data) =>
     Array.isArray(data) ? data : Array.isArray(data?.results) ? data.results : [];
 
-  const getId = (item) =>
-    item?.id ?? item?.pk ?? item?.listing_id ?? item?.property_id;
-
+  const getId = (item) => item?.id ?? item?.pk ?? item?.listing_id ?? item?.property_id;
   const getTitle = (x) => x?.title || x?.property_name || x?.name || "Property";
-  const getAddress = (x) => x?.address || x?.location || x?.city || x?.area || "—";
+  const getAddress = (x) => x?.address || x?.location || x?.city || x?.area || "Nepal";
   const getRent = (x) => x?.rent ?? x?.price ?? x?.monthly_rent ?? null;
-  const getType = (x) => x?.property_type || x?.type || "Property";
+  const getType = (x) => x?.property_type || x?.type || "House";
   const getDescription = (x) =>
-    x?.description || x?.details || x?.about || "No description available.";
+    x?.description ||
+    x?.details ||
+    x?.about ||
+    "A premium rental property managed through the Smart Rental platform.";
 
   const getImage = (x) =>
     x?.image_url ||
@@ -111,13 +188,6 @@ export default function TenantDashboard() {
     return Number.isNaN(n) ? String(v) : n.toLocaleString();
   };
 
-  const axiosErr = (e, fallback) =>
-    e?.response?.data?.detail ||
-    e?.response?.data?.message ||
-    (typeof e?.response?.data === "string" ? e.response.data : "") ||
-    e?.message ||
-    fallback;
-
   const fetchListings = async () => {
     setLoading(true);
     setError("");
@@ -125,7 +195,7 @@ export default function TenantDashboard() {
       const res = await api.get("public/listings/");
       setListings(safeArr(res.data));
     } catch (e) {
-      setError(axiosErr(e, "Could not load listings. Check backend endpoint."));
+      setError("Could not load listings. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -140,8 +210,7 @@ export default function TenantDashboard() {
 
     const priceOk = (rent) => {
       const n = Number(rent);
-      if (Number.isNaN(n)) return true;
-      if (priceFilter === "any") return true;
+      if (Number.isNaN(n) || priceFilter === "any") return true;
       if (priceFilter === "lt5000") return n < 5000;
       if (priceFilter === "5000_10000") return n >= 5000 && n <= 10000;
       if (priceFilter === "gt10000") return n > 10000;
@@ -152,44 +221,20 @@ export default function TenantDashboard() {
       const t = (getTitle(x) || "").toLowerCase();
       const a = (getAddress(x) || "").toLowerCase();
       const d = (getDescription(x) || "").toLowerCase();
-      const rent = getRent(x);
 
       const matchQuery =
         !query || t.includes(query) || a.includes(query) || d.includes(query);
 
-      return matchQuery && priceOk(rent);
+      return matchQuery && priceOk(getRent(x));
     });
   }, [listings, q, priceFilter]);
 
-  const totalFiltered = filteredListings.length;
+  const featuredListings = useMemo(() => filteredListings.slice(0, 8), [filteredListings]);
 
-  const openListingDetails = (item) => {
-    const id = getId(item);
-    if (!id) {
-      setToast({ type: "error", msg: "This listing has no id. Fix list API response." });
-      return;
-    }
-    nav(`/public/listings/${id}`);
-  };
-
-  const openContactModal = (item) => {
-    const id = getId(item);
-    if (!id) {
-      setToast({ type: "error", msg: "Cannot contact owner: listing id missing." });
-      return;
-    }
-    setSelected(item);
-    setMsg("");
-    setToast({ type: "info", msg: "" });
-    setOpen(true);
-  };
-
-  const closeModal = () => {
-    setOpen(false);
-    setSelected(null);
-    setMsg("");
-    setToast({ type: "info", msg: "" });
-  };
+  const unreadNotifCount = useMemo(
+    () => notifications.filter((n) => !n.read).length,
+    [notifications]
+  );
 
   const toggleFavorite = (item) => {
     const id = getId(item);
@@ -211,685 +256,820 @@ export default function TenantDashboard() {
     return id ? favorites.includes(id) : false;
   };
 
+  const openMessageModal = (item) => {
+    setSelected(item);
+    setMsg("");
+    setOpen(true);
+  };
+
   const sendMessage = async () => {
     const listingId = selected ? getId(selected) : null;
-
-    if (!listingId) {
-      setToast({ type: "error", msg: "Cannot send message: listing id missing." });
-      return;
-    }
-
-    if (!msg.trim()) {
-      setToast({ type: "error", msg: "Please write a message first." });
-      return;
-    }
+    if (!listingId || !msg.trim()) return;
 
     setSending(true);
-    setToast({ type: "info", msg: "" });
-
     try {
       const res = await api.post("tenant/booking-requests/create/", {
         listing_id: listingId,
         first_message: msg.trim(),
       });
 
-      const bookingId = res?.data?.id;
-
-      setToast({
-        type: "success",
-        msg: bookingId
-          ? `Sent. Opening Inbox (Request #${bookingId})`
-          : "Sent. Opening Inbox",
-      });
-
-      setMsg("");
+      setToast({ type: "success", msg: "Message sent successfully." });
       setOpen(false);
 
-      if (bookingId) nav(`/tenant/inbox?open=${bookingId}`);
-      else nav("/tenant/inbox");
+      setNotifications((prev) => [
+        {
+          id: Date.now(),
+          title: "New Message",
+          message: "Your message has been sent. You can continue in the inbox.",
+          type: "message",
+          read: false,
+          actionPath: "/tenant/inbox",
+        },
+        ...prev,
+      ]);
+
+      setInboxUnreadCount((prev) => prev + 1);
+      nav(`/tenant/inbox?open=${res?.data?.id || ""}`);
     } catch (e) {
-      setToast({ type: "error", msg: axiosErr(e, "Failed to send message.") });
+      setToast({ type: "error", msg: "Failed to send message." });
     } finally {
       setSending(false);
     }
   };
 
-  const ownerName =
-    selected?.owner_name || selected?.owner?.name || selected?.owner || "Owner";
-  const ownerEmail = selected?.owner_email || selected?.owner?.email || "";
-  const ownerPhone = selected?.owner_phone || selected?.owner?.phone || "";
+  const markAllNotificationsRead = () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  };
 
-  const isDark = darkMode;
+  const handleNotificationToggle = () => {
+    if (!notifOpen) {
+      setNotifOpen(true);
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    } else {
+      setNotifOpen(false);
+    }
+  };
 
-  const pageWrap = isDark
-    ? "min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.14),_transparent_24%),radial-gradient(circle_at_top_right,_rgba(99,102,241,0.12),_transparent_22%),linear-gradient(135deg,#020617_0%,#0b1120_45%,#111827_100%)] text-white"
-    : "min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(96,165,250,0.18),_transparent_22%),radial-gradient(circle_at_top_right,_rgba(192,132,252,0.14),_transparent_20%),linear-gradient(135deg,#f8fbff_0%,#eef5ff_38%,#fdfdff_100%)] text-slate-900";
+  const handleNotificationClick = (item) => {
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === item.id ? { ...n, read: true } : n))
+    );
+    setNotifOpen(false);
 
-  const glassCard = isDark
-    ? "rounded-[32px] border border-white/10 bg-white/5 backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.28)]"
-    : "rounded-[32px] border border-white/60 bg-white/80 backdrop-blur-xl shadow-[0_20px_60px_rgba(15,23,42,0.08)]";
+    if (item?.actionPath) {
+      nav(item.actionPath);
+    }
+  };
 
-  const sectionCard = isDark
-    ? "rounded-[28px] border border-white/10 bg-slate-900/75 p-6 shadow-xl"
-    : "rounded-[28px] border border-slate-200/80 bg-white/90 p-6 shadow-lg";
+  const handleInboxOpen = () => {
+    setInboxUnreadCount(0);
+    nav("/tenant/inbox");
+  };
 
-  const subText = isDark ? "text-slate-300" : "text-slate-600";
-  const mutedText = isDark ? "text-slate-400" : "text-slate-500";
+  const pageBg = isDark
+    ? "bg-[linear-gradient(180deg,#071120_0%,#0a1a30_45%,#0c2240_100%)]"
+    : "bg-[linear-gradient(180deg,#f4f9ff_0%,#e8f2ff_55%,#ddeaff_100%)]";
+
+  const cardClass = isDark
+    ? "border border-white/10 bg-[#10294d]/95 shadow-[0_10px_30px_rgba(0,0,0,0.22)]"
+    : "border border-slate-200 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.06)]";
+
+  const mutedCardClass = isDark
+    ? "border border-white/10 bg-[#0d223f]"
+    : "border border-slate-200 bg-slate-50";
 
   const inputClass = isDark
-    ? "w-full rounded-2xl border border-white/10 bg-slate-800/90 px-4 py-3 text-sm text-white outline-none transition focus:border-blue-400/50 focus:ring-2 focus:ring-blue-400/20"
-    : "w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-200";
+    ? "bg-[#16345c] border-white/10 text-white placeholder:text-slate-400"
+    : "bg-white border-slate-200 text-slate-900 placeholder:text-slate-400";
 
-  const ghostBtn = isDark
-    ? "rounded-2xl border border-white/10 bg-slate-800/90 px-4 py-3 text-sm font-medium text-slate-100 transition hover:bg-slate-700"
-    : "rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-800 transition hover:bg-slate-50";
+  const headingText = isDark ? "text-white" : "text-slate-900";
+  const subText = isDark ? "text-slate-300" : "text-slate-600";
 
-  const actionBtn = (tone = "normal") => {
-    const darkMap = {
-      normal: "border-white/10 bg-slate-800/90 text-slate-100 hover:bg-slate-700",
-      blue: "border-blue-400/20 bg-blue-500/10 text-blue-100 hover:bg-blue-500/15",
-      green: "border-emerald-400/20 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/15",
-      pink: "border-pink-400/20 bg-pink-500/10 text-pink-100 hover:bg-pink-500/15",
-      red: "border-red-400/20 bg-red-500/10 text-red-100 hover:bg-red-500/15",
-      purple: "border-purple-400/20 bg-purple-500/10 text-purple-100 hover:bg-purple-500/15",
-      cyan: "border-cyan-400/20 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-500/15",
-      amber: "border-amber-400/20 bg-amber-500/10 text-amber-100 hover:bg-amber-500/15",
-    };
-
-    const lightMap = {
-      normal: "border-slate-200 bg-white text-slate-800 hover:bg-slate-50",
-      blue: "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100",
-      green: "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100",
-      pink: "border-pink-200 bg-pink-50 text-pink-700 hover:bg-pink-100",
-      red: "border-red-200 bg-red-50 text-red-700 hover:bg-red-100",
-      purple: "border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100",
-      cyan: "border-cyan-200 bg-cyan-50 text-cyan-700 hover:bg-cyan-100",
-      amber: "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100",
-    };
-
-    return `rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
-      isDark ? darkMap[tone] : lightMap[tone]
-    }`;
-  };
-
-  const quickCard = (tone) => {
-    const darkMap = {
-      purple: "border-purple-400/15 from-purple-500/15 to-indigo-500/10",
-      cyan: "border-cyan-400/15 from-cyan-500/15 to-sky-500/10",
-      rose: "border-rose-400/15 from-rose-500/15 to-pink-500/10",
-      amber: "border-amber-400/15 from-amber-500/15 to-orange-500/10",
-      sky: "border-sky-400/15 from-sky-500/15 to-blue-500/10",
-      green: "border-emerald-400/15 from-emerald-500/15 to-lime-500/10",
-      teal: "border-teal-400/15 from-teal-500/15 to-emerald-500/10",
-      blue: "border-blue-400/15 from-blue-500/15 to-indigo-500/10",
-    };
+  const getSoftPanelClass = (tone = "blue") => {
+    if (isDark) {
+      const darkMap = {
+        blue: "border border-blue-400/20 bg-[linear-gradient(180deg,rgba(59,130,246,0.22),rgba(16,41,77,0.97))]",
+        pink: "border border-pink-400/20 bg-[linear-gradient(180deg,rgba(236,72,153,0.2),rgba(16,41,77,0.97))]",
+        green: "border border-emerald-400/20 bg-[linear-gradient(180deg,rgba(16,185,129,0.2),rgba(16,41,77,0.97))]",
+        violet: "border border-violet-400/20 bg-[linear-gradient(180deg,rgba(139,92,246,0.2),rgba(16,41,77,0.97))]",
+        amber: "border border-amber-400/20 bg-[linear-gradient(180deg,rgba(245,158,11,0.2),rgba(16,41,77,0.97))]",
+        cyan: "border border-cyan-400/20 bg-[linear-gradient(180deg,rgba(6,182,212,0.2),rgba(16,41,77,0.97))]",
+      };
+      return darkMap[tone] || darkMap.blue;
+    }
 
     const lightMap = {
-      purple: "border-purple-200 from-purple-50 to-indigo-50",
-      cyan: "border-cyan-200 from-cyan-50 to-sky-50",
-      rose: "border-rose-200 from-rose-50 to-pink-50",
-      amber: "border-amber-200 from-amber-50 to-orange-50",
-      sky: "border-sky-200 from-sky-50 to-blue-50",
-      green: "border-emerald-200 from-emerald-50 to-lime-50",
-      teal: "border-teal-200 from-teal-50 to-emerald-50",
-      blue: "border-blue-200 from-blue-50 to-indigo-50",
+      blue: "border border-blue-200 bg-[linear-gradient(180deg,#ffffff_0%,#dfeeff_100%)]",
+      pink: "border border-pink-200 bg-[linear-gradient(180deg,#ffffff_0%,#ffe2ef_100%)]",
+      green: "border border-emerald-200 bg-[linear-gradient(180deg,#ffffff_0%,#dcfcef_100%)]",
+      violet: "border border-violet-200 bg-[linear-gradient(180deg,#ffffff_0%,#ece6ff_100%)]",
+      amber: "border border-amber-200 bg-[linear-gradient(180deg,#ffffff_0%,#ffedd5_100%)]",
+      cyan: "border border-cyan-200 bg-[linear-gradient(180deg,#ffffff_0%,#dff7ff_100%)]",
     };
-
-    return `group rounded-[26px] border bg-gradient-to-br p-5 text-left transition duration-300 hover:-translate-y-1 hover:shadow-xl ${
-      isDark ? darkMap[tone] : lightMap[tone]
-    }`;
+    return lightMap[tone] || lightMap.blue;
   };
 
-  const toastClass =
-    toast.type === "success"
-      ? isDark
-        ? "border-green-500/20 bg-green-500/10 text-green-200"
-        : "border-green-200 bg-green-50 text-green-700"
-      : toast.type === "error"
-      ? isDark
-        ? "border-red-500/20 bg-red-500/10 text-red-200"
-        : "border-red-200 bg-red-50 text-red-700"
-      : isDark
-      ? "border-white/10 bg-slate-800 text-slate-200"
-      : "border-slate-200 bg-slate-50 text-slate-700";
+  const getSoftIconClass = (tone = "blue") => {
+    if (isDark) {
+      const darkMap = {
+        blue: "bg-blue-500/22 text-blue-300",
+        pink: "bg-pink-500/22 text-pink-300",
+        green: "bg-emerald-500/22 text-emerald-300",
+        violet: "bg-violet-500/22 text-violet-300",
+        amber: "bg-amber-500/22 text-amber-300",
+        cyan: "bg-cyan-500/22 text-cyan-300",
+      };
+      return darkMap[tone] || darkMap.blue;
+    }
+
+    const lightMap = {
+      blue: "bg-blue-100 text-blue-700",
+      pink: "bg-pink-100 text-pink-700",
+      green: "bg-emerald-100 text-emerald-700",
+      violet: "bg-violet-100 text-violet-700",
+      amber: "bg-amber-100 text-amber-700",
+      cyan: "bg-cyan-100 text-cyan-700",
+    };
+    return lightMap[tone] || lightMap.blue;
+  };
+
+  const notificationTone = (type) => {
+    if (type === "accepted") return "green";
+    if (type === "message") return "blue";
+    if (type === "expense") return "amber";
+    if (type === "report") return "violet";
+    return "cyan";
+  };
+
+  const notificationIcon = (type) => {
+    if (type === "accepted") return CheckCircle2;
+    if (type === "message") return MessageSquare;
+    if (type === "expense") return WalletCards;
+    if (type === "report") return BarChart3;
+    return Bell;
+  };
+
+  const QuickAction = ({ icon: Icon, label, subtitle, onClick, tone = "blue" }) => (
+    <button
+      onClick={onClick}
+      className={`group flex h-full min-h-[128px] flex-col justify-between rounded-3xl p-5 text-left transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${getSoftPanelClass(
+        tone
+      )}`}
+    >
+      <div className="flex items-start justify-between">
+        <div
+          className={`flex h-12 w-12 items-center justify-center rounded-2xl ${getSoftIconClass(
+            tone
+          )}`}
+        >
+          <Icon className="h-5 w-5" />
+        </div>
+        <ArrowRight
+          className={`h-4 w-4 transition-transform group-hover:translate-x-1 ${
+            isDark ? "text-slate-400" : "text-slate-500"
+          }`}
+        />
+      </div>
+
+      <div>
+        <h3 className={`text-sm font-extrabold tracking-wide ${headingText}`}>{label}</h3>
+        <p className={`mt-1 text-xs leading-5 ${subText}`}>{subtitle}</p>
+      </div>
+    </button>
+  );
+
+  const StatCard = ({ label, value, icon: Icon, accent }) => {
+    return (
+      <div
+        className={`rounded-3xl p-5 shadow-[0_10px_24px_rgba(15,23,42,0.06)] ${getSoftPanelClass(
+          accent
+        )}`}
+      >
+        <div className="flex items-center justify-between">
+          <div>
+            <p className={`text-[11px] font-extrabold uppercase tracking-[0.18em] ${subText}`}>
+              {label}
+            </p>
+            <h3 className={`mt-2 text-3xl font-black tracking-tight ${headingText}`}>
+              {value}
+            </h3>
+          </div>
+          <div
+            className={`flex h-12 w-12 items-center justify-center rounded-2xl ${getSoftIconClass(
+              accent
+            )}`}
+          >
+            <Icon className="h-5 w-5" />
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <Shell
-      title=""
-      subtitle=""
-      right={null}
-    >
-      <div className={pageWrap}>
-        <div className="mx-auto w-full max-w-[1680px] px-4 py-6 sm:px-6 lg:px-8 xl:px-10">
-          <div className={`${glassCard} p-5 md:p-7 xl:p-8`}>
-            <div className="flex flex-col gap-6">
-              <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <div className={`inline-flex h-12 w-12 items-center justify-center rounded-2xl ${
-                      isDark ? "bg-white/10" : "bg-blue-50"
-                    }`}>
-                      <span className="text-2xl">🏠</span>
-                    </div>
-                    <div>
-                      <h1 className={`text-3xl font-black tracking-tight md:text-4xl ${
-                        isDark ? "text-white" : "text-slate-900"
-                      }`}>
-                        Tenant Dashboard
-                      </h1>
-                      <p className={`mt-1 max-w-3xl text-sm leading-6 md:text-base ${subText}`}>
-                        Welcome {email || "Tenant"}. Explore homes, contact owners, manage bookings,
-                        track expenses, and keep all your tenant tools in one place.
-                      </p>
-                    </div>
-                  </div>
+      title="Tenant Dashboard"
+      subtitle={`Welcome back, ${username}. Manage listings, favorites, booking requests, and tenant tools.`}
+      right={
+        <div className="relative flex items-center gap-3" ref={notifRef}>
+          <button
+            onClick={handleInboxOpen}
+            className={`relative flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-bold transition ${
+              isDark
+                ? "bg-white/10 text-slate-200 hover:bg-blue-500/20 hover:text-white"
+                : "bg-slate-100 text-slate-700 hover:bg-blue-100 hover:text-blue-700"
+            }`}
+          >
+            <Inbox className="h-4 w-4" />
+            Inbox
+            {inboxUnreadCount > 0 && (
+              <span className="ml-1 inline-flex min-w-[22px] items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[11px] font-extrabold text-white">
+                {inboxUnreadCount}
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={handleNotificationToggle}
+            className={`relative flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-bold transition ${
+              isDark
+                ? "bg-white/10 text-slate-200 hover:bg-amber-500/20 hover:text-white"
+                : "bg-slate-100 text-slate-700 hover:bg-amber-100 hover:text-amber-700"
+            }`}
+          >
+            <Bell className="h-4 w-4" />
+            Notifications
+            {unreadNotifCount > 0 && (
+              <span className="ml-1 inline-flex min-w-[22px] items-center justify-center rounded-full bg-amber-500 px-1.5 py-0.5 text-[11px] font-extrabold text-white">
+                {unreadNotifCount}
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={handleLogout}
+            className={`flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-bold transition ${
+              isDark
+                ? "bg-red-500/10 text-red-300 hover:bg-red-500/20 hover:text-white"
+                : "bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700"
+            }`}
+          >
+            <LogOut className="h-4 w-4" />
+            Logout
+          </button>
+
+          {notifOpen && (
+            <div
+              className={`absolute right-0 top-[58px] z-50 w-[380px] overflow-hidden rounded-3xl border shadow-2xl ${
+                isDark
+                  ? "border-white/10 bg-[#10294d]"
+                  : "border-slate-200 bg-white"
+              }`}
+            >
+              <div
+                className={`flex items-center justify-between border-b px-5 py-4 ${
+                  isDark ? "border-white/10" : "border-slate-200"
+                }`}
+              >
+                <div>
+                  <h3 className={`text-sm font-black ${headingText}`}>Notifications</h3>
+                  <p className={`mt-1 text-xs ${subText}`}>
+                    Latest updates for chat, request, and reports
+                  </p>
                 </div>
 
-                <div className="xl:max-w-[860px] xl:flex-1">
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4">
-                    <button
-                      onClick={() => setDarkMode((v) => !v)}
-                      className={actionBtn("blue")}
-                    >
-                      {isDark ? "☀️ Light Mode" : "🌙 Dark Mode"}
-                    </button>
-
-                    <button onClick={() => nav("/tenant/inbox")} className={actionBtn("normal")}>
-                      📩 Inbox
-                    </button>
-
-                    <button onClick={() => nav("/tenant/roommates")} className={actionBtn("purple")}>
-                      👥 Roommates
-                    </button>
-
-                    <button
-                      onClick={() => nav("/tenant/roommates/chats")}
-                      className={actionBtn("cyan")}
-                    >
-                      💬 Chat List
-                    </button>
-
-                    <button
-                      onClick={() => nav("/tenant/booking-payments")}
-                      className={actionBtn("blue")}
-                    >
-                      💳 Payments
-                    </button>
-
-                    <button
-                      onClick={() => nav("/tenant/expenses")}
-                      className={actionBtn("green")}
-                    >
-                      💰 Expenses
-                    </button>
-
-                    <button
-                      onClick={() =>
-                        setToast({
-                          type: "info",
-                          msg: `Favorites saved: ${favorites.length}`,
-                        })
-                      }
-                      className={actionBtn("pink")}
-                    >
-                      ❤️ Favorites
-                    </button>
-
-                    <button onClick={handleLogout} className={actionBtn("red")}>
-                      Logout
-                    </button>
-                  </div>
-                </div>
+                <button
+                  onClick={markAllNotificationsRead}
+                  className="rounded-xl bg-blue-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-blue-700"
+                >
+                  Mark all read
+                </button>
               </div>
 
-              <div className={`${sectionCard}`}>
-                <div className="flex flex-col gap-5 2xl:flex-row 2xl:items-end 2xl:justify-between">
-                  <div className="grid flex-1 gap-4 md:grid-cols-2 xl:grid-cols-[1.7fr_0.75fr_auto_auto_auto]">
-                    <div>
-                      <label className={`mb-2 block text-xs font-bold uppercase tracking-[0.18em] ${mutedText}`}>
-                        Search
-                      </label>
-                      <input
-                        value={q}
-                        onChange={(e) => setQ(e.target.value)}
-                        placeholder="Search by title, location, or description..."
-                        className={inputClass}
-                      />
-                    </div>
-
-                    <div>
-                      <label className={`mb-2 block text-xs font-bold uppercase tracking-[0.18em] ${mutedText}`}>
-                        Price
-                      </label>
-                      <select
-                        value={priceFilter}
-                        onChange={(e) => setPriceFilter(e.target.value)}
-                        className={inputClass}
-                      >
-                        <option value="any">Any Price</option>
-                        <option value="lt5000">Below 5,000</option>
-                        <option value="5000_10000">5,000 – 10,000</option>
-                        <option value="gt10000">Above 10,000</option>
-                      </select>
-                    </div>
-
-                    <button onClick={() => nav("/map")} className={ghostBtn}>
-                      🗺️ Map Search
-                    </button>
-
-                    <button
-                      onClick={() => nav("/tenant/ai")}
-                      className={actionBtn("purple")}
-                    >
-                      ✨ AI Search
-                    </button>
-
-                    <button
-                      onClick={() => nav("/tenant/roommates/chats")}
-                      className={actionBtn("cyan")}
-                    >
-                      💬 Roommate Chats
-                    </button>
-                  </div>
-
-                  <button onClick={fetchListings} className={ghostBtn}>
-                    Refresh Listings
-                  </button>
-                </div>
-
-                <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-4">
-                  <button
-                    onClick={() => nav("/tenant/ai")}
-                    className={quickCard("purple")}
-                  >
-                    <div className={`text-lg font-extrabold ${isDark ? "text-white" : "text-slate-900"}`}>
-                      ✨ AI Search
-                    </div>
-                    <div className={`mt-2 text-sm leading-6 ${subText}`}>
-                      Smarter property suggestions based on your needs and preferences.
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={() => nav("/tenant/roommates")}
-                    className={quickCard("cyan")}
-                  >
-                    <div className={`text-lg font-extrabold ${isDark ? "text-white" : "text-slate-900"}`}>
-                      👥 Roommate Finder
-                    </div>
-                    <div className={`mt-2 text-sm leading-6 ${subText}`}>
-                      Match with suitable roommates by budget, lifestyle, and location.
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={() => nav("/tenant/roommates/chats")}
-                    className={quickCard("rose")}
-                  >
-                    <div className={`text-lg font-extrabold ${isDark ? "text-white" : "text-slate-900"}`}>
-                      💬 Roommate Chats
-                    </div>
-                    <div className={`mt-2 text-sm leading-6 ${subText}`}>
-                      Open your roommate conversations quickly and manage chat history.
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={() => nav("/tenant/inbox")}
-                    className={quickCard("amber")}
-                  >
-                    <div className={`text-lg font-extrabold ${isDark ? "text-white" : "text-slate-900"}`}>
-                      📩 Inbox
-                    </div>
-                    <div className={`mt-2 text-sm leading-6 ${subText}`}>
-                      Continue owner conversations and follow up on your booking requests.
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={() => nav("/tenant/virtual-furniture")}
-                    className={quickCard("sky")}
-                  >
-                    <div className={`text-lg font-extrabold ${isDark ? "text-white" : "text-slate-900"}`}>
-                      🛋️ Virtual Furniture
-                    </div>
-                    <div className={`mt-2 text-sm leading-6 ${subText}`}>
-                      Preview room setup before making your booking decision.
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={() => nav("/tools/budget-split")}
-                    className={quickCard("green")}
-                  >
-                    <div className={`text-lg font-extrabold ${isDark ? "text-white" : "text-slate-900"}`}>
-                      🧮 Budget Split
-                    </div>
-                    <div className={`mt-2 text-sm leading-6 ${subText}`}>
-                      Split rent and shared costs clearly with housemates.
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={() => nav("/tenant/expenses")}
-                    className={quickCard("teal")}
-                  >
-                    <div className={`text-lg font-extrabold ${isDark ? "text-white" : "text-slate-900"}`}>
-                      💰 Expense Tracker
-                    </div>
-                    <div className={`mt-2 text-sm leading-6 ${subText}`}>
-                      Track daily and monthly expenses with a cleaner summary.
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={() => nav("/tenant/booking-payments")}
-                    className={quickCard("blue")}
-                  >
-                    <div className={`text-lg font-extrabold ${isDark ? "text-white" : "text-slate-900"}`}>
-                      💳 My Payments
-                    </div>
-                    <div className={`mt-2 text-sm leading-6 ${subText}`}>
-                      View payment history, booking transactions, and related details.
-                    </div>
-                  </button>
-                </div>
-              </div>
-
-              <div className={sectionCard}>
-                <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <div className={`text-2xl font-black md:text-3xl ${isDark ? "text-white" : "text-slate-900"}`}>
-                      Available Properties
-                    </div>
-                    <div className={`mt-1 text-sm ${mutedText}`}>
-                      Browse suitable places and contact owners directly.
-                    </div>
-                  </div>
-
+              <div className="max-h-[420px] overflow-y-auto p-3">
+                {notifications.length === 0 ? (
                   <div
-                    className={`rounded-full px-4 py-2 text-xs font-semibold ${
-                      isDark
-                        ? "border border-white/10 bg-slate-800 text-slate-300"
-                        : "border border-slate-200 bg-slate-50 text-slate-600"
+                    className={`rounded-2xl px-4 py-6 text-center text-sm ${
+                      isDark ? "text-slate-300" : "text-slate-600"
                     }`}
                   >
-                    {totalFiltered} result{totalFiltered === 1 ? "" : "s"}
+                    No notifications available.
                   </div>
-                </div>
-
-                {toast.msg && (
-                  <div className={`mb-4 rounded-2xl border p-4 text-sm ${toastClass}`}>
-                    {toast.msg}
-                  </div>
-                )}
-
-                {loading && (
-                  <div className={`rounded-2xl p-5 text-sm ${
-                    isDark
-                      ? "border border-white/10 bg-slate-800 text-slate-300"
-                      : "border border-slate-200 bg-slate-50 text-slate-700"
-                  }`}>
-                    Loading listings…
-                  </div>
-                )}
-
-                {!loading && error && (
-                  <div className={`rounded-2xl p-4 text-sm ${
-                    isDark
-                      ? "border border-red-500/20 bg-red-500/10 text-red-200"
-                      : "border border-red-200 bg-red-50 text-red-700"
-                  }`}>
-                    {error}
-                  </div>
-                )}
-
-                {!loading && !error && filteredListings.length === 0 && (
-                  <div className={`rounded-2xl p-6 text-center text-sm ${
-                    isDark
-                      ? "border border-white/10 bg-slate-800 text-slate-300"
-                      : "border border-slate-200 bg-slate-50 text-slate-700"
-                  }`}>
-                    No properties found. Try changing your search or price filter.
-                  </div>
-                )}
-
-                {!loading && !error && filteredListings.length > 0 && (
-                  <div className="grid gap-6 md:grid-cols-2 2xl:grid-cols-4">
-                    {filteredListings.map((item) => {
-                      const id = getId(item);
-                      const img = toImageSrc(getImage(item));
-                      const rent = getRent(item);
-
+                ) : (
+                  <div className="space-y-3">
+                    {notifications.map((item) => {
+                      const Icon = notificationIcon(item.type);
                       return (
-                        <div
-                          key={id ?? `${getTitle(item)}-${getAddress(item)}`}
-                          className={`overflow-hidden rounded-[30px] transition duration-300 hover:-translate-y-1 ${
+                        <button
+                          key={item.id}
+                          onClick={() => handleNotificationClick(item)}
+                          className={`w-full rounded-2xl border p-4 text-left transition ${
                             isDark
-                              ? "border border-white/10 bg-slate-900/90 hover:bg-slate-800/95 hover:shadow-2xl"
-                              : "border border-slate-200 bg-white hover:shadow-xl"
+                              ? "border-white/10 bg-white/5 hover:bg-white/10"
+                              : "border-slate-200 bg-slate-50 hover:bg-slate-100"
                           }`}
                         >
-                          <div className="relative">
-                            <img
-                              src={img}
-                              alt="property"
-                              className="h-64 w-full object-cover"
-                              onError={(e) => {
-                                e.currentTarget.onerror = null;
-                                e.currentTarget.src = "/no-image.png";
-                              }}
-                            />
-
-                            <button
-                              onClick={() => toggleFavorite(item)}
-                              disabled={!id}
-                              className={`absolute right-3 top-3 rounded-full px-3 py-2 text-sm backdrop-blur transition disabled:opacity-60 ${
-                                isDark
-                                  ? "border border-white/10 bg-black/45 text-white hover:bg-black/60"
-                                  : "border border-slate-200 bg-white/90 text-slate-800 hover:bg-white"
-                              }`}
+                          <div className="flex gap-3">
+                            <div
+                              className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${getSoftIconClass(
+                                notificationTone(item.type)
+                              )}`}
                             >
-                              {isFav(item) ? "❤️" : "🤍"}
-                            </button>
+                              <Icon className="h-4 w-4" />
+                            </div>
 
-                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent p-4">
-                              <div className="flex items-center justify-between gap-2">
-                                <span className="rounded-full border border-white/10 bg-black/35 px-3 py-1 text-xs font-semibold text-white backdrop-blur">
-                                  {getType(item)}
-                                </span>
-                                <span className="rounded-full border border-emerald-400/20 bg-emerald-500/20 px-3 py-1 text-xs font-bold text-emerald-100 backdrop-blur">
-                                  Rs {currency(rent)}
-                                </span>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-start justify-between gap-3">
+                                <h4 className={`text-sm font-bold ${headingText}`}>
+                                  {item.title}
+                                </h4>
+                                {!item.read && (
+                                  <span className="mt-0.5 h-2.5 w-2.5 rounded-full bg-blue-500" />
+                                )}
                               </div>
+                              <p className={`mt-1 text-xs leading-5 ${subText}`}>
+                                {item.message}
+                              </p>
                             </div>
                           </div>
-
-                          <div className="p-5">
-                            <div className={`line-clamp-1 text-xl font-black ${isDark ? "text-white" : "text-slate-900"}`}>
-                              {getTitle(item)}
-                            </div>
-
-                            <div className={`mt-2 line-clamp-1 text-sm ${subText}`}>
-                              📍 {getAddress(item)}
-                            </div>
-
-                            <div className={`mt-3 min-h-[52px] line-clamp-2 text-sm leading-6 ${mutedText}`}>
-                              {getDescription(item)}
-                            </div>
-
-                            <div className="mt-5 grid grid-cols-2 gap-3">
-                              <button
-                                onClick={() => openListingDetails(item)}
-                                disabled={!id}
-                                className={
-                                  isDark
-                                    ? "rounded-2xl border border-white/10 bg-slate-800 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:opacity-60"
-                                    : "rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-100 disabled:opacity-60"
-                                }
-                              >
-                                View Details
-                              </button>
-
-                              <button
-                                onClick={() => openContactModal(item)}
-                                disabled={!id}
-                                className={
-                                  isDark
-                                    ? "rounded-2xl border border-purple-400/20 bg-purple-500/10 px-4 py-3 text-sm font-semibold text-purple-100 transition hover:bg-purple-500/15 disabled:opacity-60"
-                                    : "rounded-2xl border border-purple-200 bg-purple-50 px-4 py-3 text-sm font-semibold text-purple-700 transition hover:bg-purple-100 disabled:opacity-60"
-                                }
-                              >
-                                Chat Owner
-                              </button>
-                            </div>
-
-                            <div className="mt-3 grid grid-cols-2 gap-3">
-                              <button
-                                onClick={() => nav(`/map?listing=${id}`)}
-                                disabled={!id}
-                                className={ghostBtn + " disabled:opacity-60"}
-                              >
-                                🗺️ Map
-                              </button>
-
-                              <button
-                                onClick={() => nav(`/tenant/book/${id}`)}
-                                disabled={!id}
-                                className={
-                                  isDark
-                                    ? "rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-3 py-2.5 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-500/15 disabled:opacity-60"
-                                    : "rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-60"
-                                }
-                              >
-                                📅 Book
-                              </button>
-                            </div>
-                          </div>
-                        </div>
+                        </button>
                       );
                     })}
                   </div>
                 )}
               </div>
             </div>
-          </div>
-
-          {open && selected && (
+          )}
+        </div>
+      }
+    >
+      <div className={`min-h-screen w-full transition-colors duration-300 ${pageBg}`}>
+        <div className="mx-auto w-full max-w-[1600px] px-6 py-6 xl:px-8 2xl:px-10">
+          {toast.msg && (
             <div
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
-              onClick={closeModal}
+              className={`mb-6 flex items-center gap-3 rounded-2xl border px-4 py-3 text-sm font-bold ${
+                toast.type === "success"
+                  ? isDark
+                    ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-300"
+                    : "border-emerald-100 bg-emerald-50 text-emerald-700"
+                  : toast.type === "error"
+                  ? isDark
+                    ? "border-red-500/20 bg-red-500/10 text-red-300"
+                    : "border-red-100 bg-red-50 text-red-700"
+                  : isDark
+                  ? "border-blue-500/20 bg-blue-500/10 text-blue-300"
+                  : "border-blue-100 bg-blue-50 text-blue-700"
+              }`}
             >
+              <Info className="h-4 w-4" />
+              {toast.msg}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.7fr_1fr]">
+            <div className={`rounded-[32px] p-7 ${cardClass}`}>
+              <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
+                <div className="max-w-3xl">
+                  <p className="mb-3 text-xs font-black uppercase tracking-[0.24em] text-blue-600">
+                    Smart Rental House Finder
+                  </p>
+                  <h1 className={`text-3xl font-black leading-tight xl:text-4xl ${headingText}`}>
+                    Find the right room, faster and more professionally
+                  </h1>
+                  <p className={`mt-3 max-w-2xl text-sm leading-6 ${subText}`}>
+                    Search listings, message owners, manage saved properties, and
+                    access your tenant tools from one clean dashboard.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    onClick={() => nav("/tenant/ai")}
+                    className="inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-blue-700"
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    AI Finder
+                  </button>
+
+                  <button
+                    onClick={() => nav("/map")}
+                    className={`inline-flex items-center gap-2 rounded-2xl px-5 py-3 text-sm font-bold transition ${
+                      isDark
+                        ? "bg-white/10 text-white hover:bg-white/15"
+                        : "bg-slate-100 text-slate-800 hover:bg-slate-200"
+                    }`}
+                  >
+                    <MapPin className="h-4 w-4" />
+                    Map Search
+                  </button>
+                </div>
+              </div>
+
               <div
-                className={`w-full max-w-4xl overflow-hidden rounded-[32px] shadow-2xl ${
+                className={`mt-6 rounded-[28px] p-5 ${
                   isDark
-                    ? "border border-white/10 bg-slate-950"
-                    : "border border-slate-200 bg-white"
+                    ? "border border-white/10 bg-[linear-gradient(180deg,#123158_0%,#102a4d_100%)]"
+                    : "border border-blue-200 bg-[linear-gradient(180deg,#ffffff_0%,#dcecff_100%)]"
                 }`}
-                onClick={(e) => e.stopPropagation()}
               >
-                <div
-                  className={`p-5 ${
-                    isDark
-                      ? "border-b border-white/10 bg-gradient-to-r from-purple-500/15 via-indigo-500/10 to-cyan-500/10"
-                      : "border-b border-slate-200 bg-gradient-to-r from-purple-50 via-indigo-50 to-cyan-50"
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <div className={`text-xl font-black ${isDark ? "text-white" : "text-slate-900"}`}>
-                        {getTitle(selected)}
-                      </div>
-                      <div className={`mt-1 text-sm ${subText}`}>
-                        📍 {getAddress(selected)}
-                      </div>
-                    </div>
-
-                    <button onClick={closeModal} className={ghostBtn}>
-                      Close
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid gap-5 p-5 md:grid-cols-2">
-                  <div className={sectionCard}>
-                    <div className={`text-sm font-semibold ${subText}`}>Owner Information</div>
-                    <div className={`mt-3 text-lg font-black ${isDark ? "text-white" : "text-slate-900"}`}>
-                      {ownerName}
-                    </div>
-                    <div className={`mt-2 text-sm ${subText}`}>
-                      {ownerEmail || "No email available"}
-                    </div>
-                    <div className={`mt-1 text-sm ${subText}`}>
-                      {ownerPhone || "No phone available"}
-                    </div>
-                  </div>
-
-                  <div className={sectionCard}>
-                    <div className={`text-sm font-semibold ${subText}`}>Rent</div>
-                    <div className={`mt-3 text-3xl font-black ${isDark ? "text-emerald-200" : "text-emerald-700"}`}>
-                      Rs {currency(getRent(selected))}
-                    </div>
-                    <div className={`mt-2 text-sm ${mutedText}`}>
-                      You can message the owner first or go directly to booking.
-                    </div>
-                  </div>
-                </div>
-
-                <div className="px-5 pb-5">
-                  <div className={sectionCard}>
-                    <div className={`text-base font-black ${isDark ? "text-white" : "text-slate-900"}`}>
-                      Message Owner
-                    </div>
-                    <div className={`mt-1 text-sm ${mutedText}`}>
-                      Introduce yourself and ask about availability, visit time, or move-in details.
-                    </div>
-
-                    <textarea
-                      value={msg}
-                      onChange={(e) => setMsg(e.target.value)}
-                      rows={5}
-                      className={`mt-4 w-full rounded-2xl px-4 py-3 text-sm outline-none transition ${
-                        isDark
-                          ? "border border-white/10 bg-slate-800 text-white focus:border-purple-400/40 focus:ring-2 focus:ring-purple-400/20"
-                          : "border border-slate-200 bg-slate-50 text-slate-900 focus:border-purple-400 focus:ring-2 focus:ring-purple-200"
-                      }`}
-                      placeholder="Hi, I’m interested in this property. Is it available to visit?"
+                <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.5fr_1fr_220px]">
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <input
+                      value={q}
+                      onChange={(e) => setQ(e.target.value)}
+                      placeholder="Search by property title, city, area, or keywords..."
+                      className={`h-14 w-full rounded-2xl border pl-11 pr-4 text-sm font-medium outline-none transition focus:border-blue-500 ${inputClass}`}
                     />
-
-                    <div className="mt-4 flex flex-wrap gap-3">
-                      <button
-                        onClick={sendMessage}
-                        disabled={sending}
-                        className="rounded-2xl bg-purple-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-purple-500 disabled:opacity-60"
-                      >
-                        {sending ? "Sending…" : "Send & Open Inbox"}
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          const id = getId(selected);
-                          if (id) nav(`/tenant/book/${id}`);
-                        }}
-                        className={
-                          isDark
-                            ? "rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-5 py-3 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15"
-                            : "rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-3 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100"
-                        }
-                      >
-                        📅 Book This Property
-                      </button>
-
-                      <button onClick={() => nav("/tenant/inbox")} className={ghostBtn}>
-                        Go Inbox
-                      </button>
-                    </div>
                   </div>
+
+                  <select
+                    value={priceFilter}
+                    onChange={(e) => setPriceFilter(e.target.value)}
+                    className={`h-14 rounded-2xl border px-4 text-sm font-bold outline-none transition focus:border-blue-500 ${inputClass}`}
+                  >
+                    <option value="any">All Budgets</option>
+                    <option value="lt5000">Under Rs 5,000</option>
+                    <option value="5000_10000">Rs 5,000 - 10,000</option>
+                    <option value="gt10000">Above Rs 10,000</option>
+                  </select>
+
+                  <button
+                    onClick={fetchListings}
+                    className={`inline-flex h-14 items-center justify-center gap-2 rounded-2xl px-5 text-sm font-bold transition ${
+                      isDark
+                        ? "bg-cyan-500/20 text-cyan-200 hover:bg-cyan-500/30 hover:text-white"
+                        : "bg-cyan-50 text-cyan-700 hover:bg-cyan-100 hover:text-cyan-800"
+                    }`}
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    Refresh
+                  </button>
                 </div>
               </div>
             </div>
-          )}
+
+            <div className="grid grid-cols-2 gap-4">
+              <StatCard label="Saved" value={favorites.length} icon={Heart} accent="pink" />
+              <StatCard label="All Listings" value={listings.length} icon={Home} accent="blue" />
+              <StatCard label="Visible" value={filteredListings.length} icon={Search} accent="green" />
+              <StatCard label="Inbox" value={inboxUnreadCount} icon={MessageSquare} accent="violet" />
+            </div>
+          </div>
+
+          <div className="mt-8">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.22em] text-blue-600">
+                  Quick Access
+                </p>
+                <h2 className={`mt-1 text-2xl font-black tracking-tight ${headingText}`}>
+                  Tenant Tools Hub
+                </h2>
+              </div>
+
+              <button
+                onClick={() =>
+                  setToast({
+                    type: "info",
+                    msg: `${favorites.length} properties currently saved.`,
+                  })
+                }
+                className={`rounded-xl px-4 py-2 text-sm font-bold transition ${
+                  isDark
+                    ? "bg-violet-500/20 text-violet-200 hover:bg-violet-500/30 hover:text-white"
+                    : "bg-violet-50 text-violet-700 hover:bg-violet-100 hover:text-violet-800"
+                }`}
+              >
+                View saved count
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-8">
+              <QuickAction
+                icon={MapPin}
+                label="Map Search"
+                subtitle="Browse properties by location"
+                tone="blue"
+                onClick={() => nav("/map")}
+              />
+              <QuickAction
+                icon={Users}
+                label="Roommates"
+                subtitle="Find shared flat matches"
+                tone="violet"
+                onClick={() => nav("/tenant/roommates")}
+              />
+              <QuickAction
+                icon={Sofa}
+                label="Virtual Furniture"
+                subtitle="Preview room arrangement"
+                tone="pink"
+                onClick={() => nav("/tenant/virtual-furniture")}
+              />
+              <QuickAction
+                icon={Calculator}
+                label="Budget Split"
+                subtitle="Split rent and bills quickly"
+                tone="amber"
+                onClick={() => nav("/tools/budget-split")}
+              />
+              <QuickAction
+                icon={Wallet}
+                label="Expenses"
+                subtitle="Track your rental spending"
+                tone="green"
+                onClick={() => nav("/tenant/expenses")}
+              />
+              <QuickAction
+                icon={CreditCard}
+                label="Payments"
+                subtitle="See booking payment status"
+                tone="cyan"
+                onClick={() => nav("/tenant/booking-payments")}
+              />
+              <QuickAction
+                icon={Heart}
+                label="Saved Items"
+                subtitle="Access your favorite listings"
+                tone="pink"
+                onClick={() =>
+                  setToast({
+                    type: "info",
+                    msg: `${favorites.length} properties currently saved.`,
+                  })
+                }
+              />
+              <QuickAction
+                icon={Inbox}
+                label="Inbox"
+                subtitle="Open your owner conversations"
+                tone="violet"
+                onClick={handleInboxOpen}
+              />
+            </div>
+          </div>
+
+          <div className="mt-10">
+            <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.22em] text-blue-600">
+                  Property Listings
+                </p>
+                <h2 className={`mt-1 text-2xl font-black tracking-tight ${headingText}`}>
+                  Available Residences
+                </h2>
+              </div>
+
+              <button
+                onClick={fetchListings}
+                className={`rounded-xl px-4 py-2 text-sm font-bold transition ${
+                  isDark
+                    ? "bg-cyan-500/20 text-cyan-200 hover:bg-cyan-500/30 hover:text-white"
+                    : "bg-cyan-50 text-cyan-700 hover:bg-cyan-100 hover:text-cyan-800"
+                }`}
+              >
+                Refresh listings
+              </button>
+            </div>
+
+            {loading ? (
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                {[1, 2, 3, 4].map((i) => (
+                  <div
+                    key={i}
+                    className={`h-[430px] animate-pulse rounded-[28px] ${
+                      isDark ? "bg-[#10294d]" : "bg-slate-200"
+                    }`}
+                  />
+                ))}
+              </div>
+            ) : error ? (
+              <div
+                className={`rounded-3xl border p-8 ${
+                  isDark
+                    ? "border-red-500/20 bg-red-500/10 text-red-300"
+                    : "border-red-100 bg-red-50 text-red-700"
+                }`}
+              >
+                <div className="flex items-center gap-2 text-base font-bold">
+                  <Info className="h-5 w-5" />
+                  {error}
+                </div>
+              </div>
+            ) : featuredListings.length === 0 ? (
+              <div
+                className={`flex h-64 flex-col items-center justify-center rounded-[30px] border border-dashed ${
+                  isDark
+                    ? "border-white/10 bg-[#0d223f] text-slate-400"
+                    : "border-slate-300 bg-slate-50 text-slate-500"
+                }`}
+              >
+                <Info className="mb-3 h-10 w-10 opacity-30" />
+                <p className="font-medium">No listings match your current filters.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                {featuredListings.map((item) => {
+                  const id = getId(item);
+                  const rent = getRent(item);
+
+                  return (
+                    <div
+                      key={id}
+                      className={`group overflow-hidden rounded-[30px] transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl ${cardClass}`}
+                    >
+                      <div className="relative h-56 overflow-hidden">
+                        <img
+                          src={toImageSrc(getImage(item))}
+                          alt={getTitle(item)}
+                          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
+
+                        <div className="absolute left-4 top-4">
+                          <span className="rounded-full bg-white/20 px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-white backdrop-blur">
+                            {getType(item)}
+                          </span>
+                        </div>
+
+                        <button
+                          onClick={() => toggleFavorite(item)}
+                          className={`absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full transition ${
+                            isFav(item)
+                              ? "bg-red-500 text-white"
+                              : "bg-white/90 text-slate-700 hover:bg-white"
+                          }`}
+                        >
+                          <Heart className={`h-4 w-4 ${isFav(item) ? "fill-current" : ""}`} />
+                        </button>
+
+                        <div className="absolute bottom-4 left-4 right-4">
+                          <h3 className="line-clamp-1 text-xl font-black text-white">
+                            {getTitle(item)}
+                          </h3>
+                          <div className="mt-1 flex items-center gap-1 text-xs font-medium text-white/85">
+                            <MapPin className="h-3.5 w-3.5" />
+                            <span className="line-clamp-1">{getAddress(item)}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex min-h-[230px] flex-col p-5">
+                        <div className="mb-3 flex items-end justify-between gap-3">
+                          <div>
+                            <div className={`text-2xl font-black tracking-tight ${headingText}`}>
+                              Rs {currency(rent)}
+                            </div>
+                            <div className={`text-xs font-bold uppercase tracking-[0.16em] ${subText}`}>
+                              Per month
+                            </div>
+                          </div>
+                        </div>
+
+                        <p className={`mb-5 line-clamp-3 text-sm leading-6 ${subText}`}>
+                          {getDescription(item)}
+                        </p>
+
+                        <div className="mt-auto space-y-3">
+                          <button
+                            onClick={() => nav(`/public/listings/${id}`)}
+                            className={`w-full rounded-2xl py-3 text-sm font-bold transition ${
+                              isDark
+                                ? "bg-white/10 text-white hover:bg-white/15"
+                                : "bg-slate-900 text-white hover:bg-black"
+                            }`}
+                          >
+                            View Full Details
+                          </button>
+
+                          <div className="grid grid-cols-2 gap-3">
+                            <button
+                              onClick={() => openMessageModal(item)}
+                              className={`inline-flex items-center justify-center gap-2 rounded-2xl py-3 text-sm font-bold transition ${
+                                isDark
+                                  ? "bg-blue-500/10 text-blue-300 hover:bg-blue-500/20 hover:text-white"
+                                  : "bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-700"
+                              }`}
+                            >
+                              <MessageSquare className="h-4 w-4" />
+                              Message
+                            </button>
+
+                            <button
+                              onClick={() => nav(`/tenant/book/${id}`)}
+                              className={`inline-flex items-center justify-center gap-2 rounded-2xl py-3 text-sm font-bold transition ${
+                                isDark
+                                  ? "bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 hover:text-white"
+                                  : "bg-emerald-50 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700"
+                              }`}
+                            >
+                              <Calendar className="h-4 w-4" />
+                              Book
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
+
+        {open && selected && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+            <div
+              className={`w-full max-w-2xl overflow-hidden rounded-[32px] shadow-2xl ${
+                isDark ? "border border-white/10 bg-[#10294d]" : "bg-white"
+              }`}
+            >
+              <div
+                className={`relative border-b px-7 py-6 ${
+                  isDark ? "border-white/10" : "border-slate-200"
+                }`}
+              >
+                <button
+                  onClick={() => setOpen(false)}
+                  className={`absolute right-6 top-6 ${
+                    isDark ? "text-slate-400 hover:text-white" : "text-slate-400 hover:text-slate-900"
+                  }`}
+                >
+                  <X className="h-5 w-5" />
+                </button>
+
+                <p className="mb-2 text-[11px] font-black uppercase tracking-[0.22em] text-blue-600">
+                  Contact Property Owner
+                </p>
+                <h3 className={`text-2xl font-black ${headingText}`}>{getTitle(selected)}</h3>
+                <p className={`mt-1 text-sm ${subText}`}>{getAddress(selected)}</p>
+              </div>
+
+              <div className="space-y-6 p-7">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className={`rounded-2xl p-4 ${mutedCardClass}`}>
+                    <p className={`text-[10px] font-black uppercase tracking-[0.18em] ${subText}`}>
+                      Owner
+                    </p>
+                    <p className={`mt-2 text-sm font-bold ${headingText}`}>
+                      {selected?.owner_name || "Verified Landlord"}
+                    </p>
+                  </div>
+
+                  <div className={`rounded-2xl p-4 ${mutedCardClass}`}>
+                    <p className={`text-[10px] font-black uppercase tracking-[0.18em] ${subText}`}>
+                      Monthly Rent
+                    </p>
+                    <p className="mt-2 text-sm font-bold text-blue-600">
+                      Rs {currency(getRent(selected))}
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <label className={`mb-2 block text-[10px] font-black uppercase tracking-[0.18em] ${subText}`}>
+                    Your Message
+                  </label>
+                  <textarea
+                    value={msg}
+                    onChange={(e) => setMsg(e.target.value)}
+                    placeholder="Introduce yourself, mention your move-in date, budget, and any important details..."
+                    className={`h-36 w-full rounded-2xl border p-4 text-sm font-medium outline-none transition focus:border-blue-500 ${inputClass}`}
+                  />
+                </div>
+
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <button
+                    onClick={sendMessage}
+                    disabled={sending || !msg.trim()}
+                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-3.5 text-sm font-bold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {sending ? (
+                      "Sending..."
+                    ) : (
+                      <>
+                        <Send className="h-4 w-4" />
+                        Send Message
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    onClick={() => nav(`/tenant/book/${getId(selected)}`)}
+                    className={`flex-1 rounded-2xl px-5 py-3.5 text-sm font-bold transition ${
+                      isDark
+                        ? "bg-white/10 text-white hover:bg-white/15"
+                        : "bg-slate-100 text-slate-800 hover:bg-slate-200"
+                    }`}
+                  >
+                    Go to Booking
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </Shell>
   );

@@ -1,24 +1,66 @@
 import React from "react";
+import { useTheme } from "./ThemeContext";
 
-export default function Shell({ title, subtitle, children, right }) {
+export default function Shell({
+  title,
+  subtitle,
+  right,
+  children,
+}) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-white">
-      <div className="mx-auto max-w-6xl px-4 py-10">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
-            {subtitle && <p className="mt-2 text-sm text-slate-300 max-w-2xl">{subtitle}</p>}
+    <div
+      className="min-h-screen w-full transition-colors duration-300"
+      style={{
+        background: isDark
+          ? "linear-gradient(180deg, #071a31 0%, #0b2340 45%, #0a1f38 100%)"
+          : "linear-gradient(180deg, #f4f8ff 0%, #edf4ff 45%, #eaf2fd 100%)",
+        color: isDark ? "#ffffff" : "#0f172a",
+      }}
+    >
+      <div className="mx-auto w-full max-w-[1600px] px-6 pt-32 pb-10 xl:px-8 2xl:px-10">
+        {(title || subtitle || right) && (
+          <div
+            className="mb-8 rounded-[34px] border p-7 transition-colors duration-300"
+            style={{
+              backgroundColor: isDark ? "#0f2947" : "#ffffff",
+              borderColor: isDark ? "rgba(96, 165, 250, 0.16)" : "#dbe7f5",
+              boxShadow: isDark
+                ? "0 10px 30px rgba(0,0,0,0.18)"
+                : "0 10px 30px rgba(59, 130, 246, 0.08)",
+            }}
+          >
+            <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+              <div className="min-w-0">
+                {title ? (
+                  <h1
+                    className="text-3xl font-black tracking-tight xl:text-4xl"
+                    style={{ color: isDark ? "#ffffff" : "#0f172a" }}
+                  >
+                    {title}
+                  </h1>
+                ) : null}
+
+                {subtitle ? (
+                  <p
+                    className="mt-3 max-w-3xl text-base leading-7"
+                    style={{
+                      color: isDark ? "rgba(191,219,254,0.82)" : "#475569",
+                    }}
+                  >
+                    {subtitle}
+                  </p>
+                ) : null}
+              </div>
+
+              {right ? <div className="shrink-0">{right}</div> : null}
+            </div>
           </div>
-          {right}
-        </div>
+        )}
 
-        <div className="mt-8 rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl backdrop-blur">
-          {children}
-        </div>
-
-        <div className="mt-10 text-center text-xs text-slate-400">
-          Smart Rental • React + Django + JWT
-        </div>
+        <div>{children}</div>
       </div>
     </div>
   );

@@ -82,6 +82,12 @@ from myapp.view.expense_views import (
     GenerateEndOfMonthExpenseNotificationView,
 )
 
+from myapp.view.virtual_furniture_views import (
+    VirtualFurnitureDesignListCreateView,
+    VirtualFurnitureDesignDetailView,
+    VirtualFurnitureDesignQuickSaveView,
+)
+
 urlpatterns = [
     path("register_user/", register_user),
     path("verify-otp/", verify_otp),
@@ -192,6 +198,10 @@ urlpatterns = [
     path("tenant/expenses/<int:pk>/", TenantExpenseDetailView.as_view()),
     path("tenant/expenses/month-summary/", TenantExpenseMonthSummaryView.as_view()),
     path("tenant/expenses/generate-month-notification/", GenerateEndOfMonthExpenseNotificationView.as_view()),
+
+    path("tenant/virtual-furniture/designs/", VirtualFurnitureDesignListCreateView.as_view()),
+    path("tenant/virtual-furniture/designs/<int:pk>/", VirtualFurnitureDesignDetailView.as_view()),
+    path("tenant/virtual-furniture/designs/save/", VirtualFurnitureDesignQuickSaveView.as_view()),
 ]
 
    

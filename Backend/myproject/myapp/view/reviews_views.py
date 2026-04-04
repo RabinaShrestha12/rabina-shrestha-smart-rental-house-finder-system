@@ -89,11 +89,10 @@ def tenant_create_review(request):
 
 
 @api_view(["GET"])
-@permission_classes([IsAuthenticated])
 def listing_reviews(request, listing_id):
     qs = (
         Review.objects
-        .filter(listing_id=listing_id)
+        .filter(listing_id=listing_id, rating__gt=3)
         .select_related("listing", "tenant", "owner")
         .order_by("-created_at")
     )

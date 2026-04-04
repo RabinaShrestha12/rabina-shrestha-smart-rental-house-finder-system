@@ -2,18 +2,327 @@
 @tailwind components;
 @tailwind utilities;
 
+/* =========================
+   THEME TOKENS
+========================= */
+:root {
+  --bg-color: #ffffff;
+  --surface-color: #f8fafc;
+  --card-bg: #ffffff;
+  --card-bg-soft: #f8fbff;
+  --text-color: #0f172a;
+  --text-soft: #475569;
+  --text-muted: #64748b;
 
+  --nav-bg: rgba(255, 255, 255, 0.92);
+  --sidebar-bg: #ffffff;
 
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  --input-bg: #ffffff;
+  --input-text: #0f172a;
+  --input-border: #dbe3ee;
+
+  --button-bg: #0f172a;
+  --button-text: #ffffff;
+  --button-hover: #1e293b;
+
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --primary-soft: #dbeafe;
+
+  --border-color: #e2e8f0;
+  --shadow-sm: 0 6px 18px rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 12px 30px rgba(15, 23, 42, 0.1);
+  --shadow-lg: 0 18px 50px rgba(15, 23, 42, 0.14);
+
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+
+  --link-color: #2563eb;
 }
 
-code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+[data-theme="dark"] {
+  --bg-color: #0f2747;
+  --surface-color: #10294d;
+  --card-bg: #16345c;
+  --card-bg-soft: #1b3d69;
+  --text-color: #f8fbff;
+  --text-soft: #d7e4f5;
+  --text-muted: #bdd0e8;
+
+  --nav-bg: rgba(18, 44, 80, 0.9);
+  --sidebar-bg: #102847;
+
+  --input-bg: #1b3d69;
+  --input-text: #f8fbff;
+  --input-border: #335b8a;
+
+  --button-bg: #f8fbff;
+  --button-text: #0f2747;
+  --button-hover: #dbeafe;
+
+  --primary: #60a5fa;
+  --primary-hover: #93c5fd;
+  --primary-soft: rgba(96, 165, 250, 0.18);
+
+  --border-color: #2f537d;
+  --shadow-sm: 0 8px 20px rgba(0, 0, 0, 0.18);
+  --shadow-md: 0 14px 36px rgba(0, 0, 0, 0.24);
+  --shadow-lg: 0 22px 60px rgba(0, 0, 0, 0.3);
+
+  --link-color: #93c5fd;
+}
+
+/* =========================
+   BASE RESET
+========================= */
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  background: var(--bg-color);
+  color: var(--text-color);
+  font-family: Arial, Helvetica, sans-serif;
+  transition: background 0.3s ease, color 0.3s ease;
+}
+
+body {
+  background: var(--bg-color);
+  color: var(--text-color);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+a {
+  color: var(--link-color);
+  text-decoration: none;
+  transition: color 0.25s ease, opacity 0.25s ease;
+}
+
+a:hover {
+  opacity: 0.9;
+}
+
+/* =========================
+   TYPOGRAPHY
+========================= */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  margin: 0;
+  color: var(--text-color);
+}
+
+p {
+  color: var(--text-soft);
+  line-height: 1.65;
+}
+
+small,
+label,
+span,
+strong,
+li,
+td,
+th {
+  color: inherit;
+}
+
+/* =========================
+   FORM ELEMENTS
+========================= */
+button {
+  border: 1px solid var(--border-color);
+  background: var(--button-bg);
+  color: var(--button-text);
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+button:hover {
+  background: var(--button-hover);
+}
+
+button:active {
+  transform: scale(0.98);
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  border: 1px solid var(--input-border);
+  background: var(--input-bg);
+  color: var(--input-text);
+  outline: none;
+  transition: all 0.25s ease;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-muted);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.16);
+}
+
+/* =========================
+   TABLES
+========================= */
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+/* =========================
+   COMMON REUSABLE CLASSES
+========================= */
+.themed-container {
+  min-height: 100vh;
+  background: var(--bg-color);
+  color: var(--text-color);
+}
+
+.themed-surface {
+  background: var(--surface-color);
+  color: var(--text-color);
+}
+
+.themed-card {
+  background: var(--card-bg);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  padding: 20px;
+}
+
+.themed-card-soft {
+  background: var(--card-bg-soft);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.themed-input {
+  background: var(--input-bg);
+  color: var(--input-text);
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+}
+
+.themed-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 12px 18px;
+  background: var(--button-bg);
+  color: var(--button-text);
+  font-weight: 700;
+  box-shadow: var(--shadow-sm);
+}
+
+.themed-button:hover {
+  background: var(--button-hover);
+}
+
+.themed-button-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 12px 18px;
+  background: var(--primary);
+  color: #ffffff;
+  font-weight: 700;
+  box-shadow: var(--shadow-md);
+}
+
+.themed-button-primary:hover {
+  background: var(--primary-hover);
+}
+
+.themed-nav {
+  background: var(--nav-bg);
+  color: var(--text-color);
+  border-bottom: 1px solid var(--border-color);
+  backdrop-filter: blur(12px);
+}
+
+.themed-sidebar {
+  background: var(--sidebar-bg);
+  color: var(--text-color);
+  border-right: 1px solid var(--border-color);
+}
+
+.muted-text {
+  color: var(--text-muted);
+}
+
+.soft-text {
+  color: var(--text-soft);
+}
+
+.glass-card {
+  background: color-mix(in srgb, var(--card-bg) 78%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent);
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(16px);
+  border-radius: var(--radius-lg);
+}
+
+.section-padding {
+  padding: 80px 24px;
+}
+
+.content-width {
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+/* =========================
+   OPTIONAL BETTER SCROLLBAR
+========================= */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--surface-color);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
 }

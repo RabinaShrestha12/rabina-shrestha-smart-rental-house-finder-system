@@ -4,6 +4,11 @@ import api from "../../api/axios";
 import { useAuth } from "../../auth/AuthContext";
 import Shell from "../../components/Shell";
 import Toast from "../../components/Toast";
+import { 
+  Users, Home, MessageSquare, Image as ImageIcon, 
+  CreditCard, RefreshCw, LogOut, ShieldCheck, 
+  Mail, Settings, ChevronRight
+} from "lucide-react";
 
 function isHtml(x) {
   return typeof x === "string" && x.trim().toLowerCase().includes("<!doctype html");
@@ -82,25 +87,15 @@ export default function AdminDashboard() {
 
   const loadData = async () => {
     setLoading(true);
-    setOwners([]);
-    setTenants([]);
-    setProviders([]);
+    setOwners([]); setTenants([]); setProviders([]);
     setToast({ type: "info", msg: "" });
 
     try {
       const adminData = await getFirstWorking([
-        "admin/dashboard/",
-        "admin/dashboard",
-        "admin/users/",
-        "admin/users",
+        "admin/dashboard/", "admin/dashboard", "admin/users/", "admin/users",
       ]);
 
-      if (
-        adminData?.owners ||
-        adminData?.tenants ||
-        adminData?.providers ||
-        adminData?.service_providers
-      ) {
+      if (adminData?.owners || adminData?.tenants || adminData?.providers || adminData?.service_providers) {
         setOwners(safeArr(adminData?.owners));
         setTenants(safeArr(adminData?.tenants));
         setProviders(safeArr(adminData?.providers || adminData?.service_providers));
@@ -109,44 +104,16 @@ export default function AdminDashboard() {
       } else if (adminData?.results) {
         splitByRole(safeArr(adminData));
       } else {
-        const ownersData = await getFirstWorking([
-          "admin/owners/",
-          "admin/owners",
-          "owners/",
-          "owners",
-        ]);
-
-        const tenantsData = await getFirstWorking([
-          "admin/tenants/",
-          "admin/tenants",
-          "tenants/",
-          "tenants",
-        ]);
-
-        const providersData = await getFirstWorking([
-          "admin/providers/",
-          "admin/providers",
-          "admin/service-providers/",
-          "admin/service-providers",
-          "admin/service_providers/",
-          "admin/service_providers",
-          "providers/",
-          "providers",
-          "service-providers/",
-          "service-providers",
-          "service_providers/",
-          "service_providers",
-        ]);
+        const ownersData = await getFirstWorking(["admin/owners/", "admin/owners", "owners/", "owners"]);
+        const tenantsData = await getFirstWorking(["admin/tenants/", "admin/tenants", "tenants/", "tenants"]);
+        const providersData = await getFirstWorking(["admin/providers/", "admin/providers", "admin/service-providers/", "admin/service-providers", "admin/service_providers/", "admin/service_providers", "providers/", "providers", "service-providers/", "service-providers", "service_providers/", "service_providers"]);
 
         setOwners(safeArr(ownersData));
         setTenants(safeArr(tenantsData));
         setProviders(safeArr(providersData));
       }
     } catch (e) {
-      const msg =
-        e?.response?.data?.detail ||
-        e?.message ||
-        "Failed to load admin data (wrong API endpoint).";
+      const msg = e?.response?.data?.detail || e?.message || "Failed to load admin data.";
       showToast("error", msg);
     } finally {
       setLoading(false);
@@ -159,76 +126,52 @@ export default function AdminDashboard() {
       return;
     }
     loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [role]);
+  }, [role, nav]);
 
-  const stats = useMemo(
-    () => [
-      {
-        label: "Owners",
-        count: owners.length,
-        icon: "🏠",
-        bg: "linear-gradient(135deg, rgba(59,130,246,0.20), rgba(37,99,235,0.08))",
-      },
-      {
-        label: "Tenants",
-        count: tenants.length,
-        icon: "👥",
-        bg: "linear-gradient(135deg, rgba(16,185,129,0.20), rgba(5,150,105,0.08))",
-      },
-      {
-        label: "Providers",
-        count: providers.length,
-        icon: "🛠️",
-        bg: "linear-gradient(135deg, rgba(168,85,247,0.20), rgba(126,34,206,0.08))",
-      },
-    ],
-    [owners.length, tenants.length, providers.length]
-  );
-
-  const renderRows = (list) =>
-    (list || []).map((u, idx) => {
-      const r = normalizeRole(u?.role || u?.user_type || u?.account_type);
-      return (
-        <tr
-          key={u?.id ?? u?.pk ?? idx}
-          style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}
-        >
-          <td style={td}>{u?.id ?? u?.pk ?? "-"}</td>
-          <td style={td}>{u?.username ?? u?.name ?? "-"}</td>
-          <td style={td}>{u?.email ?? "-"}</td>
-          <td style={td}>
-            <span style={badge}>{r || "-"}</span>
-          </td>
-        </tr>
-      );
-    });
+  const stats = useMemo(() => [
+    { label: "Owners", count: owners.length, icon: Home, color: "text-blue-600", bg: "bg-blue-50" },
+    { label: "Tenants", count: tenants.length, icon: Users, color: "text-emerald-600", bg: "bg-emerald-50" },
+    { label: "Providers", count: providers.length, icon: Settings, color: "text-purple-600", bg: "bg-purple-50" },
+  ], [owners.length, tenants.length, providers.length]);
 
   const renderSection = (title, list, emptyText) => (
-    <div style={card}>
-      <div style={sectionHeader}>
-        <h3 style={{ margin: 0, fontSize: 20 }}>{title}</h3>
-        <span style={smallPill}>
-          {list.length} item{list.length === 1 ? "" : "s"}
+    <div className="bg-white rounded-[32px] border border-neutral-100 shadow-sm p-6 mb-8 overflow-hidden">
+      <div className="flex items-center justify-between mb-6">
+        <h3 className="text-xl font-black text-neutral-900">{title}</h3>
+        <span className="px-3 py-1 bg-neutral-100 text-neutral-500 rounded-full text-xs font-bold uppercase tracking-wider">
+          {list.length} total
         </span>
       </div>
 
       {loading ? (
-        <div style={{ opacity: 0.85 }}>Loading…</div>
+        <div className="py-12 flex justify-center"><RefreshCw className="w-8 h-8 text-blue-500 animate-spin" /></div>
       ) : list.length === 0 ? (
-        <div style={{ opacity: 0.75 }}>{emptyText}</div>
+        <div className="py-12 text-center text-neutral-400 font-medium italic">{emptyText}</div>
       ) : (
-        <div style={{ overflowX: "auto" }}>
-          <table style={table}>
+        <div className="overflow-x-auto -mx-6 px-6">
+          <table className="w-full text-left">
             <thead>
-              <tr>
-                <th style={th}>ID</th>
-                <th style={th}>Username</th>
-                <th style={th}>Email</th>
-                <th style={th}>Role</th>
+              <tr className="border-b border-neutral-50">
+                <th className="py-4 text-[10px] font-black text-neutral-400 uppercase tracking-widest pl-4">ID</th>
+                <th className="py-4 text-[10px] font-black text-neutral-400 uppercase tracking-widest">User Entity</th>
+                <th className="py-4 text-[10px] font-black text-neutral-400 uppercase tracking-widest">Email Address</th>
+                <th className="py-4 text-[10px] font-black text-neutral-400 uppercase tracking-widest pr-4 text-right">Access Role</th>
               </tr>
             </thead>
-            <tbody>{renderRows(list)}</tbody>
+            <tbody>
+              {list.map((u, idx) => (
+                <tr key={u?.id ?? u?.pk ?? idx} className="border-b border-neutral-50/50 hover:bg-neutral-50 transition-colors group">
+                  <td className="py-4 pl-4 text-xs font-mono text-neutral-400">#{u?.id ?? u?.pk ?? "-"}</td>
+                  <td className="py-4 font-bold text-neutral-900">{u?.username ?? u?.name ?? "-"}</td>
+                  <td className="py-4 text-sm text-neutral-500 font-medium">{u?.email ?? "-"}</td>
+                  <td className="py-4 pr-4 text-right">
+                     <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-[10px] font-black uppercase tracking-wider border border-blue-100">
+                       {normalizeRole(u?.role || u?.user_type || u?.account_type) || "user"}
+                     </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
           </table>
         </div>
       )}
@@ -236,264 +179,59 @@ export default function AdminDashboard() {
   );
 
   return (
-    <Shell>
-      <div style={{ maxWidth: 1180, margin: "0 auto", padding: 16 }}>
-        <Toast
-          type={toast.type}
-          msg={toast.msg}
-          onClose={() => setToast({ type: "info", msg: "" })}
-        />
+    <Shell 
+      title="Global Management"
+      subtitle="Enterprise-grade control over your platform users and systems."
+      right={(
+        <button onClick={handleLogout} className="px-6 py-2.5 bg-red-50 text-red-600 hover:bg-red-100 transition-colors rounded-xl font-bold text-sm flex items-center gap-2">
+          <LogOut className="w-4 h-4" /> Sign Out
+        </button>
+      )}
+    >
+      <div className="max-w-6xl mx-auto">
+        <Toast type={toast.type} msg={toast.msg} onClose={() => setToast({ type: "info", msg: "" })} />
 
-        <div style={heroCard}>
-          <div style={heroLeft}>
-            <div>
-              <h2 style={{ margin: 0, fontSize: 30, fontWeight: 800 }}>
-                Admin Dashboard
-              </h2>
-              <div style={{ opacity: 0.82, marginTop: 8, fontSize: 15 }}>
-                Welcome {email || "Admin"}. Manage users, listings, communication, furniture, and payments.
-              </div>
-            </div>
-
-            <div style={actionRow}>
-              <button style={btnGhost} onClick={loadData}>
-                Refresh
-              </button>
-
-              <button
-                style={btnBlue}
-                onClick={() => nav("/listings")}
-              >
-                Listings
-              </button>
-
-              <button
-                style={btnPurple}
-                onClick={() => nav("/admin/email-broadcast")}
-              >
-                Communication
-              </button>
-
-              <button
-                style={btnCyan}
-                onClick={() => nav("/admin/furnitures")}
-              >
-                Furnitures
-              </button>
-
-              <button
-                style={btnGreen}
-                onClick={() => nav("/admin/booking-payments")}
-              >
-                Tenant Payments
-              </button>
-            </div>
-          </div>
-
-          <div style={heroRight}>
-            <button style={btn} onClick={handleLogout}>
-              Logout
-            </button>
-          </div>
+        {/* Action Belt */}
+        <div className="flex flex-wrap items-center gap-3 mb-12 bg-neutral-50 p-4 rounded-[24px] border border-neutral-100 shadow-inner">
+          <button onClick={loadData} className="p-3 bg-white text-neutral-600 rounded-xl hover:bg-neutral-100 transition-all border border-neutral-200">
+            <RefreshCw className="w-5 h-5" />
+          </button>
+          <div className="w-px h-6 bg-neutral-200 mx-2"></div>
+          <button onClick={() => nav("/listings")} className="px-5 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-xs uppercase tracking-widest shadow-lg shadow-blue-500/30 flex items-center gap-2 hover:bg-blue-700 transition-all hover:-translate-y-0.5">
+            <ShieldCheck className="w-4 h-4" /> Listings Audit
+          </button>
+          <button onClick={() => nav("/admin/email-broadcast")} className="px-5 py-2.5 bg-white text-neutral-700 border border-neutral-200 rounded-xl font-bold text-xs uppercase tracking-widest flex items-center gap-2 hover:bg-neutral-50 transition-all">
+            <Mail className="w-4 h-4 text-blue-500" /> Broadcasts
+          </button>
+          <button onClick={() => nav("/admin/furnitures")} className="px-5 py-2.5 bg-white text-neutral-700 border border-neutral-200 rounded-xl font-bold text-xs uppercase tracking-widest flex items-center gap-2 hover:bg-neutral-50 transition-all">
+            <Settings className="w-4 h-4 text-purple-500" /> Assets
+          </button>
+          <button onClick={() => nav("/admin/booking-payments")} className="px-5 py-2.5 bg-white text-neutral-700 border border-neutral-200 rounded-xl font-bold text-xs uppercase tracking-widest flex items-center gap-2 hover:bg-neutral-50 transition-all">
+            <CreditCard className="w-4 h-4 text-emerald-500" /> Revenue
+          </button>
         </div>
 
-        <div style={statsGrid}>
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
           {stats.map((s) => (
-            <div key={s.label} style={{ ...statCard, background: s.bg }}>
-              <div style={statTop}>
-                <span style={{ fontSize: 28 }}>{s.icon}</span>
-                <span style={statPill}>{s.label}</span>
+            <div key={s.label} className="bg-white rounded-[32px] border border-neutral-100 p-8 shadow-sm flex items-center gap-6 group hover:border-blue-200 transition-all cursor-default">
+              <div className={`w-14 h-14 ${s.bg} rounded-[20px] flex items-center justify-center transition-transform group-hover:scale-110 duration-500`}>
+                <s.icon className={`w-7 h-7 ${s.color}`} />
               </div>
-              <div style={statNumber}>{loading ? "..." : s.count}</div>
-              <div style={statLabel}>Total {s.label.toLowerCase()}</div>
+              <div>
+                <div className="text-[10px] font-black text-neutral-400 uppercase tracking-[0.2em] mb-1">{s.label}</div>
+                <div className="text-3xl font-black text-neutral-900">{loading ? "..." : s.count}</div>
+              </div>
+              <ChevronRight className="w-5 h-5 text-neutral-200 ml-auto group-hover:text-neutral-400 transition-colors" />
             </div>
           ))}
         </div>
 
-        {renderSection("Owners", owners, "No owners found.")}
-        {renderSection("Tenants", tenants, "No tenants found.")}
-        {renderSection("Service Providers", providers, "No service providers found.")}
+        {/* User Sections */}
+        {renderSection("Global Owners", owners, "No property owners registered yet.")}
+        {renderSection("Global Tenants", tenants, "No customers registered yet.")}
+        {renderSection("Global Service Providers", providers, "No service nodes established.")}
       </div>
     </Shell>
   );
 }
-
-const heroCard = {
-  display: "flex",
-  alignItems: "stretch",
-  justifyContent: "space-between",
-  gap: 16,
-  flexWrap: "wrap",
-  border: "1px solid rgba(255,255,255,0.10)",
-  borderRadius: 24,
-  padding: 20,
-  background:
-    "linear-gradient(135deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03))",
-  boxShadow: "0 10px 30px rgba(0,0,0,0.18)",
-};
-
-const heroLeft = {
-  flex: "1 1 520px",
-  display: "flex",
-  flexDirection: "column",
-  gap: 18,
-};
-
-const heroRight = {
-  display: "flex",
-  alignItems: "flex-start",
-  justifyContent: "flex-end",
-};
-
-const actionRow = {
-  display: "flex",
-  gap: 12,
-  flexWrap: "wrap",
-};
-
-const statsGrid = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-  gap: 16,
-  marginTop: 18,
-};
-
-const statCard = {
-  border: "1px solid rgba(255,255,255,0.10)",
-  borderRadius: 20,
-  padding: 18,
-  minHeight: 120,
-};
-
-const statTop = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  gap: 12,
-};
-
-const statPill = {
-  padding: "6px 12px",
-  borderRadius: 999,
-  fontSize: 12,
-  fontWeight: 700,
-  border: "1px solid rgba(255,255,255,0.14)",
-  background: "rgba(255,255,255,0.06)",
-};
-
-const statNumber = {
-  marginTop: 16,
-  fontSize: 36,
-  fontWeight: 800,
-  lineHeight: 1,
-};
-
-const statLabel = {
-  marginTop: 8,
-  fontSize: 13,
-  opacity: 0.8,
-};
-
-const card = {
-  marginTop: 18,
-  border: "1px solid rgba(255,255,255,0.10)",
-  borderRadius: 20,
-  padding: 16,
-  background: "rgba(255,255,255,0.04)",
-  boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
-};
-
-const sectionHeader = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  gap: 12,
-  flexWrap: "wrap",
-  marginBottom: 8,
-};
-
-const smallPill = {
-  display: "inline-block",
-  padding: "6px 12px",
-  borderRadius: 999,
-  border: "1px solid rgba(255,255,255,0.14)",
-  background: "rgba(255,255,255,0.05)",
-  fontSize: 12,
-  opacity: 0.9,
-};
-
-const btn = {
-  padding: "11px 16px",
-  borderRadius: 14,
-  border: "1px solid rgba(255,255,255,0.15)",
-  background: "rgba(255,255,255,0.08)",
-  color: "white",
-  cursor: "pointer",
-  fontWeight: 700,
-};
-
-const btnGhost = {
-  padding: "11px 16px",
-  borderRadius: 14,
-  border: "1px solid rgba(255,255,255,0.15)",
-  background: "rgba(255,255,255,0.06)",
-  color: "white",
-  cursor: "pointer",
-  fontWeight: 700,
-};
-
-const btnBlue = {
-  padding: "11px 16px",
-  borderRadius: 14,
-  border: "1px solid rgba(59,130,246,0.30)",
-  background: "rgba(59,130,246,0.14)",
-  color: "#dbeafe",
-  cursor: "pointer",
-  fontWeight: 700,
-};
-
-const btnPurple = {
-  padding: "11px 16px",
-  borderRadius: 14,
-  border: "1px solid rgba(168,85,247,0.30)",
-  background: "rgba(168,85,247,0.14)",
-  color: "#f3e8ff",
-  cursor: "pointer",
-  fontWeight: 700,
-};
-
-const btnCyan = {
-  padding: "11px 16px",
-  borderRadius: 14,
-  border: "1px solid rgba(34,211,238,0.30)",
-  background: "rgba(6,182,212,0.14)",
-  color: "#d8fbff",
-  cursor: "pointer",
-  fontWeight: 700,
-};
-
-const btnGreen = {
-  padding: "11px 16px",
-  borderRadius: 14,
-  border: "1px solid rgba(34,197,94,0.30)",
-  background: "rgba(34,197,94,0.14)",
-  color: "#dcfce7",
-  cursor: "pointer",
-  fontWeight: 700,
-};
-
-const table = { width: "100%", borderCollapse: "collapse", marginTop: 10 };
-const th = {
-  textAlign: "left",
-  fontSize: 12,
-  opacity: 0.8,
-  padding: "12px 8px",
-};
-const td = { padding: "12px 8px", fontSize: 13 };
-const badge = {
-  display: "inline-block",
-  padding: "5px 10px",
-  borderRadius: 999,
-  border: "1px solid rgba(255,255,255,0.18)",
-  background: "rgba(124,58,237,0.25)",
-};

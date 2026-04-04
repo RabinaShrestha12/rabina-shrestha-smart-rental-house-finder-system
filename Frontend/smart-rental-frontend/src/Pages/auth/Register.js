@@ -1,13 +1,15 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../auth/AuthContext";
-
-// ✅ IMPORTANT: import your css here
+import { useTheme } from "../../components/ThemeContext";
 import "./UserAuth.css";
 
 export default function Register() {
   const nav = useNavigate();
   const { startRegister, verifyOtp } = useAuth();
+  const { theme } = useTheme();
+
+  const isDark = theme === "dark";
 
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
@@ -24,12 +26,12 @@ export default function Register() {
   const [otpOpen, setOtpOpen] = useState(false);
   const [otpCode, setOtpCode] = useState("");
 
-  // ✅ frontend normalize (only for service_provider -> provider safety)
   const normalizeRole = (r) => {
     const role = String(r || "").trim().toLowerCase();
     if (["tenant", "owner", "provider"].includes(role)) return role;
-    if (["service_provider", "service provider", "service-provider"].includes(role))
+    if (["service_provider", "service provider", "service-provider"].includes(role)) {
       return "provider";
+    }
     return "tenant";
   };
 
@@ -78,8 +80,15 @@ export default function Register() {
 
     const code = String(otpCode || "").trim();
 
-    if (!email) return setMsg("Email missing. Please register again.");
-    if (!code) return setMsg("Please enter the OTP code.");
+    if (!email) {
+      setMsg("Email missing. Please register again.");
+      return;
+    }
+
+    if (!code) {
+      setMsg("Please enter the OTP code.");
+      return;
+    }
 
     setLoading(true);
     setMsg("");
@@ -106,30 +115,30 @@ export default function Register() {
     }
   };
 
+  const styles = getStyles(isDark);
+
   return (
     <div style={styles.page}>
+      <div style={styles.overlay} />
       <div style={styles.card}>
-        <h2 style={{ marginTop: 0 }}>Create account</h2>
+        <h2 style={styles.heading}>Create account</h2>
 
         {!otpOpen ? (
           <form onSubmit={handleRegister}>
             <label style={styles.label}>Register as</label>
 
-            {/* ✅ COLORFUL DROPDOWN */}
-            <div className="selectWrap">
+            <div className={`selectWrap ${isDark ? "dark" : "light"}`}>
               <select
                 name="role"
                 value={form.role}
                 onChange={onChange}
-                className="roleSelect"
+                className={`roleSelect ${isDark ? "dark" : "light"}`}
               >
                 <option value="tenant">Tenant</option>
                 <option value="owner">Owner</option>
                 <option value="provider">Service Provider</option>
               </select>
-
-              {/* ✅ custom arrow */}
-              <span className="selectArrow">▾</span>
+              <span className={`selectArrow ${isDark ? "dark" : "light"}`}>▾</span>
             </div>
 
             <label style={styles.label}>Username</label>
@@ -185,14 +194,18 @@ export default function Register() {
               {loading ? "Please wait..." : "Create account"}
             </button>
 
-            <button type="button" onClick={() => nav("/auth")} style={styles.secondaryBtn}>
+            <button
+              type="button"
+              onClick={() => nav("/auth")}
+              style={styles.secondaryBtn}
+            >
               Back to Login
             </button>
           </form>
         ) : (
           <form onSubmit={handleVerifyOtp}>
-            <h3 style={{ marginTop: 0 }}>Enter OTP</h3>
-            <p style={{ opacity: 0.85 }}>
+            <h3 style={styles.subHeading}>Enter OTP</h3>
+            <p style={styles.otpText}>
               We sent a code to{" "}
               <b>{(sessionStorage.getItem("otp_email") || form.email || "").trim()}</b>
             </p>
@@ -209,7 +222,11 @@ export default function Register() {
               {loading ? "Verifying..." : "Verify OTP"}
             </button>
 
-            <button type="button" onClick={() => setOtpOpen(false)} style={styles.secondaryBtn}>
+            <button
+              type="button"
+              onClick={() => setOtpOpen(false)}
+              style={styles.secondaryBtn}
+            >
               Back
             </button>
           </form>
@@ -221,63 +238,135 @@ export default function Register() {
   );
 }
 
-const styles = {
-  page: {
-    minHeight: "100vh",
-    display: "grid",
-    placeItems: "center",
-    padding: 20,
-    background:
-      "radial-gradient(circle at 30% 10%, #4c1d95 0%, #0b1020 55%, #020617 100%)",
-    color: "white",
-    fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, Arial",
-  },
-  card: {
-    width: "min(520px, 96vw)",
-    borderRadius: 22,
-    padding: 22,
-    background: "rgba(255,255,255,0.06)",
-    border: "1px solid rgba(255,255,255,0.10)",
-    boxShadow: "0 20px 60px rgba(0,0,0,0.45)",
-  },
-  label: {
-    display: "block",
-    fontSize: 12,
-    opacity: 0.85,
-    marginBottom: 6,
-    marginTop: 10,
-  },
-  input: {
-    width: "100%",
-    padding: 12,
-    marginBottom: 12,
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.06)",
-    color: "white",
-    outline: "none",
-  },
-  primaryBtn: {
-    width: "100%",
-    padding: 14,
-    borderRadius: 16,
-    border: "none",
-    background: "linear-gradient(135deg,#6d28d9,#8b5cf6)",
-    color: "white",
-    fontWeight: 800,
-    cursor: "pointer",
-    marginTop: 6,
-  },
-  secondaryBtn: {
-    width: "100%",
-    padding: 12,
-    borderRadius: 16,
-    border: "1px solid rgba(255,255,255,0.14)",
-    background: "rgba(255,255,255,0.06)",
-    color: "white",
-    fontWeight: 700,
-    cursor: "pointer",
-    marginTop: 10,
-  },
-  msg: { marginTop: 12, color: "#ffb4b4", fontWeight: 700 },
-};
+function getStyles(isDark) {
+  return {
+    page: {
+      minHeight: "100vh",
+      width: "100%",
+      display: "grid",
+      placeItems: "center",
+      padding: "24px",
+      position: "relative",
+      overflow: "hidden",
+      background: isDark
+        ? "linear-gradient(135deg, #071224 0%, #0b1f3a 45%, #123765 100%)"
+        : "linear-gradient(135deg, #f8fbff 0%, #eef4ff 45%, #dbeafe 100%)",
+      color: isDark ? "#ffffff" : "#0f172a",
+      fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif",
+      transition: "all 0.3s ease",
+    },
+
+    overlay: {
+      position: "absolute",
+      inset: 0,
+      background: isDark
+        ? "radial-gradient(circle at top left, rgba(59,130,246,0.18), transparent 30%), radial-gradient(circle at bottom right, rgba(96,165,250,0.12), transparent 28%)"
+        : "radial-gradient(circle at top left, rgba(37,99,235,0.10), transparent 30%), radial-gradient(circle at bottom right, rgba(59,130,246,0.10), transparent 28%)",
+      pointerEvents: "none",
+    },
+
+    card: {
+      position: "relative",
+      zIndex: 1,
+      width: "min(520px, 96vw)",
+      borderRadius: "24px",
+      padding: "26px",
+      background: isDark ? "rgba(15, 23, 42, 0.72)" : "rgba(255, 255, 255, 0.90)",
+      border: isDark
+        ? "1px solid rgba(148, 163, 184, 0.18)"
+        : "1px solid rgba(148, 163, 184, 0.24)",
+      boxShadow: isDark
+        ? "0 24px 70px rgba(0,0,0,0.45)"
+        : "0 18px 45px rgba(37,99,235,0.12)",
+      backdropFilter: "blur(16px)",
+      transition: "all 0.3s ease",
+    },
+
+    heading: {
+      marginTop: 0,
+      marginBottom: "12px",
+      fontSize: "30px",
+      fontWeight: 800,
+      color: isDark ? "#ffffff" : "#0f172a",
+    },
+
+    subHeading: {
+      marginTop: 0,
+      marginBottom: "10px",
+      fontSize: "24px",
+      fontWeight: 800,
+      color: isDark ? "#ffffff" : "#0f172a",
+    },
+
+    otpText: {
+      opacity: 0.92,
+      color: isDark ? "#dbeafe" : "#334155",
+      marginBottom: "14px",
+    },
+
+    label: {
+      display: "block",
+      fontSize: "12px",
+      fontWeight: 700,
+      letterSpacing: "0.08em",
+      textTransform: "uppercase",
+      marginBottom: "7px",
+      marginTop: "12px",
+      color: isDark ? "#cbd5e1" : "#475569",
+    },
+
+    input: {
+      width: "100%",
+      padding: "13px 14px",
+      marginBottom: "12px",
+      borderRadius: "14px",
+      border: isDark
+        ? "1px solid rgba(148, 163, 184, 0.16)"
+        : "1px solid rgba(203, 213, 225, 1)",
+      background: isDark ? "rgba(30, 41, 59, 0.82)" : "#f8fafc",
+      color: isDark ? "#ffffff" : "#0f172a",
+      outline: "none",
+      fontSize: "15px",
+      transition: "all 0.25s ease",
+      boxSizing: "border-box",
+    },
+
+    primaryBtn: {
+      width: "100%",
+      padding: "14px",
+      borderRadius: "16px",
+      border: "none",
+      background: "linear-gradient(135deg, #2563eb, #3b82f6)",
+      color: "#ffffff",
+      fontWeight: 800,
+      fontSize: "15px",
+      cursor: "pointer",
+      marginTop: "8px",
+      boxShadow: "0 12px 24px rgba(37,99,235,0.22)",
+      transition: "all 0.25s ease",
+    },
+
+    secondaryBtn: {
+      width: "100%",
+      padding: "13px",
+      borderRadius: "16px",
+      border: isDark
+        ? "1px solid rgba(148, 163, 184, 0.18)"
+        : "1px solid rgba(203, 213, 225, 1)",
+      background: isDark ? "rgba(30, 41, 59, 0.70)" : "#ffffff",
+      color: isDark ? "#e2e8f0" : "#1e293b",
+      fontWeight: 700,
+      fontSize: "15px",
+      cursor: "pointer",
+      marginTop: "10px",
+      transition: "all 0.25s ease",
+    },
+
+    msg: {
+      marginTop: "14px",
+      color: isDark ? "#fca5a5" : "#dc2626",
+      fontWeight: 700,
+      fontSize: "14px",
+    },
+  };
+}

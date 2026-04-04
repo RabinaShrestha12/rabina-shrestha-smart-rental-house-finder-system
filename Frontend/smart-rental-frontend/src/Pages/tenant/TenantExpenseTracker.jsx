@@ -1,9 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "../../api/axios";
+import Shell from "../../components/Shell";
+import { useTheme } from "../../components/ThemeContext";
 
 export default function TenantExpenseTracker() {
   const nav = useNavigate();
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
 
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -28,6 +32,19 @@ export default function TenantExpenseTracker() {
   });
 
   const [error, setError] = useState("");
+
+  const categories = [
+    "Food",
+    "Clothes",
+    "Travel",
+    "Rent",
+    "Education",
+    "Bills",
+    "Health",
+    "Shopping",
+    "Entertainment",
+    "Other",
+  ];
 
   const getMonthYear = () => {
     const [year, month] = selectedMonth.split("-");
@@ -164,9 +181,7 @@ export default function TenantExpenseTracker() {
     }
   };
 
-  const monthRecords = useMemo(() => {
-    return records || [];
-  }, [records]);
+  const monthRecords = useMemo(() => records || [], [records]);
 
   const totalMonthlyExpense = useMemo(() => {
     return Number(summary?.total_monthly_expense || 0);
@@ -176,61 +191,101 @@ export default function TenantExpenseTracker() {
     return summary?.category_summary || [];
   }, [summary]);
 
-  return (
-    <div className="min-h-screen bg-slate-950 text-white px-4 py-8">
-      <div className="mx-auto max-w-6xl">
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-3xl font-extrabold">💰 Expense Tracker</h1>
-            <p className="mt-1 text-sm text-slate-300">
-              Store your daily expenses and check your monthly spending record.
-            </p>
-          </div>
+  const pageWrapClass = isDark
+    ? "mx-auto w-full max-w-[1500px] px-2 pb-10 text-white"
+    : "mx-auto w-full max-w-[1500px] px-2 pb-10 text-slate-900";
 
+  const inputClass = isDark
+    ? "w-full rounded-2xl border border-white/10 bg-[#123a64] px-4 py-3 text-sm text-white outline-none transition-all duration-200 placeholder:text-blue-100/45 focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10"
+    : "w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition-all duration-200 placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100";
+
+  const panelClass = isDark
+    ? "rounded-[28px] border border-white/10 bg-[#0f3258]/95 p-6 shadow-[0_20px_60px_rgba(0,0,0,0.25)] transition-colors"
+    : "rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm transition-colors";
+
+  const innerCardClass = isDark
+    ? "rounded-[22px] border border-white/10 bg-[#123a64] p-4 transition-colors"
+    : "rounded-[22px] border border-slate-200 bg-slate-50 p-4 transition-colors";
+
+  const summaryCardGreen = isDark
+    ? "rounded-[22px] border border-emerald-400/20 bg-emerald-500/10 p-5 transition-colors"
+    : "rounded-[22px] border border-emerald-200 bg-emerald-50 p-5 transition-colors";
+
+  const summaryCardCyan = isDark
+    ? "rounded-[22px] border border-cyan-400/20 bg-cyan-500/10 p-5 transition-colors"
+    : "rounded-[22px] border border-cyan-200 bg-cyan-50 p-5 transition-colors";
+
+  return (
+    <Shell
+      title="Expense Tracker"
+      subtitle="Store your daily expenses and check your monthly spending record."
+      right={
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={() => nav(-1)}
+            className={`rounded-2xl border px-5 py-2.5 text-sm font-semibold transition ${
+              isDark
+                ? "border-white/10 bg-[#123a64] text-blue-100 hover:bg-[#174876]"
+                : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+            }`}
+          >
+            ← Back
+          </button>
           <button
             onClick={() => nav("/tenant")}
-            className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:bg-white/10"
+            className="rounded-2xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
           >
-            Back to Dashboard
+            Dashboard
           </button>
         </div>
-
+      }
+    >
+      <div className={pageWrapClass}>
         {error ? (
-          <div className="mb-4 rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+          <div
+            className={`mb-6 rounded-2xl border px-4 py-3 text-sm ${
+              isDark
+                ? "border-red-400/20 bg-red-500/10 text-red-200"
+                : "border-red-200 bg-red-50 text-red-700"
+            }`}
+          >
             {error}
           </div>
         ) : null}
 
-        <div className="grid gap-6 lg:grid-cols-[1fr_1.2fr]">
-          <div className="rounded-3xl border border-white/10 bg-black/30 p-5">
-            <div className="text-xl font-bold">Add Expense</div>
+        <div className="grid gap-8 xl:grid-cols-[0.95fr_1.25fr]">
+          <div className={panelClass}>
+            <div className="mb-5">
+              <h2
+                className={`text-2xl font-black tracking-tight ${
+                  isDark ? "text-white" : "text-slate-900"
+                }`}
+              >
+                Add Expense
+              </h2>
+            </div>
 
-            <form onSubmit={addExpense} className="mt-4 grid gap-4">
+            <form onSubmit={addExpense} className="grid gap-4">
               <input
                 type="text"
                 name="title"
                 value={form.title}
                 onChange={onChange}
                 placeholder="Expense name (Food, Travel, Clothes...)"
-                className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                className={inputClass}
               />
 
               <select
                 name="category"
                 value={form.category}
                 onChange={onChange}
-                className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                className={inputClass}
               >
-                <option value="Food">Food</option>
-                <option value="Clothes">Clothes</option>
-                <option value="Travel">Travel</option>
-                <option value="Rent">Rent</option>
-                <option value="Education">Education</option>
-                <option value="Bills">Bills</option>
-                <option value="Health">Health</option>
-                <option value="Shopping">Shopping</option>
-                <option value="Entertainment">Entertainment</option>
-                <option value="Other">Other</option>
+                {categories.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
               </select>
 
               <input
@@ -240,7 +295,7 @@ export default function TenantExpenseTracker() {
                 value={form.amount}
                 onChange={onChange}
                 placeholder="Amount"
-                className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                className={inputClass}
               />
 
               <input
@@ -248,114 +303,218 @@ export default function TenantExpenseTracker() {
                 name="date"
                 value={form.date}
                 onChange={onChange}
-                className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                className={inputClass}
               />
 
               <textarea
                 name="note"
                 value={form.note}
                 onChange={onChange}
-                rows={3}
+                rows={4}
                 placeholder="Optional note"
-                className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none"
+                className={`${inputClass} resize-none`}
               />
 
               <button
                 type="submit"
                 disabled={saving}
-                className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-70"
+                className="rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {saving ? "Saving..." : "Save Expense"}
               </button>
             </form>
           </div>
 
-          <div className="rounded-3xl border border-white/10 bg-black/30 p-5">
+          <div className={panelClass}>
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="text-xl font-bold">Monthly Expense Record</div>
+              <h2
+                className={`text-2xl font-black tracking-tight ${
+                  isDark ? "text-white" : "text-slate-900"
+                }`}
+              >
+                Monthly Expense Record
+              </h2>
 
               <input
                 type="month"
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(e.target.value)}
-                className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white outline-none"
+                className={`rounded-2xl border px-4 py-2.5 text-sm outline-none transition ${
+                  isDark
+                    ? "border-white/10 bg-[#123a64] text-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10"
+                    : "border-slate-300 bg-white text-slate-800 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                }`}
               />
             </div>
 
-            <div className="mt-5 grid gap-4 md:grid-cols-2">
-              <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4">
-                <div className="text-sm text-emerald-200">Total Monthly Expense</div>
-                <div className="mt-2 text-3xl font-black text-white">
+            <div className="mt-6 grid gap-4 lg:grid-cols-2">
+              <div className={summaryCardGreen}>
+                <div
+                  className={`text-sm font-semibold ${
+                    isDark ? "text-emerald-300" : "text-emerald-700"
+                  }`}
+                >
+                  Total Monthly Expense
+                </div>
+                <div
+                  className={`mt-2 text-4xl font-black tracking-tight ${
+                    isDark ? "text-white" : "text-slate-900"
+                  }`}
+                >
                   Rs {totalMonthlyExpense.toLocaleString()}
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/10 p-4">
-                <div className="text-sm text-cyan-200">Total Records</div>
-                <div className="mt-2 text-3xl font-black text-white">
+              <div className={summaryCardCyan}>
+                <div
+                  className={`text-sm font-semibold ${
+                    isDark ? "text-cyan-300" : "text-cyan-700"
+                  }`}
+                >
+                  Total Records
+                </div>
+                <div
+                  className={`mt-2 text-4xl font-black tracking-tight ${
+                    isDark ? "text-white" : "text-slate-900"
+                  }`}
+                >
                   {summary?.total_records || 0}
                 </div>
               </div>
             </div>
 
-            <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4">
-              <div className="text-base font-bold">Category Summary</div>
-
-              {categoryTotals.length === 0 ? (
-                <div className="mt-3 text-sm text-slate-400">No expenses for this month.</div>
-              ) : (
-                <div className="mt-3 grid gap-2">
-                  {categoryTotals.map((item, idx) => (
-                    <div
-                      key={`${item.category}-${idx}`}
-                      className="flex items-center justify-between rounded-xl border border-white/10 bg-black/20 px-4 py-3"
-                    >
-                      <span className="text-sm text-slate-200">{item.category}</span>
-                      <span className="text-sm font-bold text-white">
-                        Rs {Number(item.total || 0).toLocaleString()}
-                      </span>
-                    </div>
-                  ))}
+            <div className="mt-6">
+              <div className={innerCardClass}>
+                <div
+                  className={`text-lg font-bold ${
+                    isDark ? "text-white" : "text-slate-900"
+                  }`}
+                >
+                  Category Summary
                 </div>
-              )}
+
+                {categoryTotals.length === 0 ? (
+                  <div
+                    className={`mt-3 text-sm ${
+                      isDark ? "text-slate-400" : "text-slate-500"
+                    }`}
+                  >
+                    No expenses for this month.
+                  </div>
+                ) : (
+                  <div className="mt-4 grid gap-3">
+                    {categoryTotals.map((item, idx) => (
+                      <div
+                        key={`${item.category}-${idx}`}
+                        className={`flex items-center justify-between rounded-2xl border px-4 py-3 transition-colors ${
+                          isDark
+                            ? "border-white/10 bg-[#0d2948]"
+                            : "border-slate-200 bg-white"
+                        }`}
+                      >
+                        <span
+                          className={`text-sm font-medium ${
+                            isDark ? "text-slate-200" : "text-slate-700"
+                          }`}
+                        >
+                          {item.category}
+                        </span>
+                        <span
+                          className={`text-sm font-bold ${
+                            isDark ? "text-white" : "text-slate-900"
+                          }`}
+                        >
+                          Rs {Number(item.total || 0).toLocaleString()}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="mt-6">
-              <div className="text-base font-bold">Expense Records</div>
+              <div
+                className={`mb-3 text-lg font-bold ${
+                  isDark ? "text-white" : "text-slate-900"
+                }`}
+              >
+                Expense Records
+              </div>
 
               {loading ? (
-                <div className="mt-3 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-400">
-                  Loading expenses...
+                <div className={innerCardClass}>
+                  <div
+                    className={`text-sm ${
+                      isDark ? "text-slate-400" : "text-slate-500"
+                    }`}
+                  >
+                    Loading expenses...
+                  </div>
                 </div>
               ) : monthRecords.length === 0 ? (
-                <div className="mt-3 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-400">
-                  No expense records found for this month.
+                <div className={innerCardClass}>
+                  <div
+                    className={`text-sm ${
+                      isDark ? "text-slate-400" : "text-slate-500"
+                    }`}
+                  >
+                    No expense records found for this month.
+                  </div>
                 </div>
               ) : (
-                <div className="mt-3 grid gap-3">
+                <div className="grid gap-4">
                   {monthRecords.map((item) => (
                     <div
                       key={item.id}
-                      className="rounded-2xl border border-white/10 bg-white/5 p-4"
+                      className={`rounded-[22px] border p-5 shadow-sm transition-colors ${
+                        isDark
+                          ? "border-white/10 bg-[#123a64]"
+                          : "border-slate-200 bg-slate-50"
+                      }`}
                     >
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <div className="text-lg font-bold text-white">{item.title}</div>
-                          <div className="mt-1 text-sm text-slate-300">
+                      <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div className="min-w-[220px] flex-1">
+                          <div
+                            className={`text-lg font-bold ${
+                              isDark ? "text-white" : "text-slate-900"
+                            }`}
+                          >
+                            {item.title}
+                          </div>
+                          <div
+                            className={`mt-1 text-sm ${
+                              isDark ? "text-slate-300" : "text-slate-600"
+                            }`}
+                          >
                             {item.category} • {item.date}
                           </div>
                           {item.note ? (
-                            <div className="mt-2 text-sm text-slate-400">{item.note}</div>
+                            <div
+                              className={`mt-3 text-sm leading-6 ${
+                                isDark ? "text-slate-400" : "text-slate-500"
+                              }`}
+                            >
+                              {item.note}
+                            </div>
                           ) : null}
                         </div>
 
-                        <div className="text-right">
-                          <div className="text-lg font-bold text-emerald-200">
+                        <div className="min-w-[140px] text-right">
+                          <div
+                            className={`text-xl font-black ${
+                              isDark ? "text-emerald-300" : "text-emerald-700"
+                            }`}
+                          >
                             Rs {Number(item.amount).toLocaleString()}
                           </div>
                           <button
                             onClick={() => deleteExpense(item.id)}
-                            className="mt-2 rounded-xl border border-red-400/20 bg-red-500/10 px-3 py-1 text-xs text-red-200 transition hover:bg-red-500/15"
+                            className={`mt-3 rounded-xl border px-3 py-1.5 text-xs font-semibold transition ${
+                              isDark
+                                ? "border-red-400/20 bg-red-500/10 text-red-200 hover:bg-red-500/15"
+                                : "border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+                            }`}
                           >
                             Delete
                           </button>
@@ -369,6 +528,6 @@ export default function TenantExpenseTracker() {
           </div>
         </div>
       </div>
-    </div>
+    </Shell>
   );
 }

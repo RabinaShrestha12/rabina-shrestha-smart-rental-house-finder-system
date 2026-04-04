@@ -1,7 +1,10 @@
-from django.db import models
-from django.contrib.auth.models import AbstractUser
+from decimal import Decimal, ROUND_HALF_UP
+
 from django.conf import settings
+from django.contrib.auth.models import AbstractUser
+from django.db import models
 from django.utils import timezone
+
 
 # USER MODEL (single table for login)
 class User(AbstractUser):
@@ -23,7 +26,6 @@ class User(AbstractUser):
 
     def __str__(self):
         return f"{self.username} ({self.role})"
-
 
 
 # PENDING SIGNUP (OTP BEFORE REGISTRATION)
@@ -67,14 +69,13 @@ class PendingSignupOTP(models.Model):
         return f"PendingSignupOTP({self.pending.email})"
 
 
-# OWNER / TENANT PROFILES (optional tables, but user link MUST NOT be null)
+# OWNER / TENANT PROFILES
 class Owner(models.Model):
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="owner",
     )
-    # optional extra fields (User already has address/phone)
     location = models.CharField(max_length=200, blank=True, default="")
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -99,7 +100,7 @@ class Tenant(models.Model):
         return f"Tenant({self.user.username})"
 
 
-# SERVICE PROVIDER PROFILE (for provider dashboard & filtering)
+# SERVICE PROVIDER PROFILE
 class ServiceProviderProfile(models.Model):
     CATEGORY_CHOICES = (
         ("plumbing", "Plumbing"),
@@ -138,6 +139,7 @@ class ServiceProviderProfile(models.Model):
     def __str__(self):
         return f"{self.user.username} ({self.category}) - {self.availability}"
 
+
 # LISTING MODEL
 class Listing(models.Model):
     PROPERTY_TYPE_CHOICES = [
@@ -146,7 +148,6 @@ class Listing(models.Model):
         ("apartment", "Apartment"),
     ]
 
-    # ✅ keep simple: owner is a User with role="owner"
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -201,6 +202,7 @@ class Listing(models.Model):
 
     def __str__(self):
         return f"{self.title} - {self.location}"
+
 
 # BOOKING + CHAT (Tenant <-> Owner)
 class BookingRequest(models.Model):
@@ -278,7 +280,7 @@ class Review(models.Model):
         related_name="reviews_received",
     )
 
-    rating = models.PositiveSmallIntegerField(default=5)  # 1..5
+    rating = models.PositiveSmallIntegerField(default=5)
     comment = models.TextField(blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -291,8 +293,7 @@ class Review(models.Model):
         return f"Review(listing={self.listing_id}, tenant={self.tenant_id}, rating={self.rating})"
 
 
-# ✅ OWNER -> PROVIDER MAINTENANCE JOB/REQUEST
-# (Owner does NOT need to pick listing; listing is optional)
+# OWNER -> PROVIDER MAINTENANCE JOB/REQUEST
 class MaintenanceRequest(models.Model):
     STATUS = (
         ("open", "Open"),
@@ -319,14 +320,12 @@ class MaintenanceRequest(models.Model):
         ("other", "Other"),
     )
 
-    # ✅ created by owner
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="owner_maintenance_requests",
     )
 
-    # ✅ optional: connect to listing if you want (not required)
     listing = models.ForeignKey(
         "Listing",
         on_delete=models.SET_NULL,
@@ -335,7 +334,6 @@ class MaintenanceRequest(models.Model):
         related_name="maintenance_requests",
     )
 
-    # ✅ optional: assign provider profile
     assigned_provider = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -359,7 +357,7 @@ class MaintenanceRequest(models.Model):
         return f"MaintenanceRequest#{self.id} ({self.category})"
 
 
-# ✅ OWNER <-> PROVIDER IN-APP MESSAGES (Provider Inbox)
+# OWNER <-> PROVIDER IN-APP MESSAGES
 class ProviderMessage(models.Model):
     maintenance = models.ForeignKey(
         MaintenanceRequest,
@@ -381,7 +379,6 @@ class ProviderMessage(models.Model):
         related_name="provider_messages_received",
     )
 
-    # who sent THIS message (owner or provider)
     sender = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -403,17 +400,34 @@ class ProviderMessage(models.Model):
         return f"ProviderMessage#{self.id} to provider={self.provider_id}"
 
 
-# IN-APP NOTIFICATIONS
+# SINGLE NOTIFICATION MODEL
 class Notification(models.Model):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notifications")
-    title = models.CharField(max_length=140, default="")
-    message = models.TextField(default="")
-    link = models.CharField(max_length=255, blank=True, default="")
+    NOTIFICATION_TYPES = [
+        ("booking", "Booking"),
+        ("provider", "Provider"),
+        ("review", "Review"),
+        ("expense", "Expense"),
+        ("general", "General"),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="notifications"
+    )
+    title = models.CharField(max_length=255)
+    message = models.TextField()
+    notification_type = models.CharField(max_length=30, choices=NOTIFICATION_TYPES, default="general")
     is_read = models.BooleanField(default=False)
+    link = models.CharField(max_length=500, blank=True, null=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        ordering = ["-created_at"]
+
     def __str__(self):
-        return f"Notification({self.user_id}) {self.title}"
+        return f"{self.user.email} - {self.title}"
 
 
 # REMINDERS
@@ -459,9 +473,6 @@ class ListingFacility(models.Model):
 
 
 class RoommateProfile(models.Model):
-    """
-    One profile per tenant user.
-    """
     GENDER_CHOICES = (
         ("male", "Male"),
         ("female", "Female"),
@@ -475,7 +486,6 @@ class RoommateProfile(models.Model):
         related_name="roommate_profile"
     )
 
-    # Basic info / preferences
     gender = models.CharField(max_length=10, choices=GENDER_CHOICES, default="any")
     preferred_gender = models.CharField(max_length=10, choices=GENDER_CHOICES, default="any")
 
@@ -483,21 +493,19 @@ class RoommateProfile(models.Model):
     max_budget = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
 
     city = models.CharField(max_length=120, blank=True, default="")
-    preferred_area = models.CharField(max_length=120, blank=True, default="")  # e.g., "Canberra CBD"
+    preferred_area = models.CharField(max_length=120, blank=True, default="")
 
     move_in_date = models.DateField(null=True, blank=True)
-    stay_length_months = models.IntegerField(null=True, blank=True)  # optional
+    stay_length_months = models.IntegerField(null=True, blank=True)
 
-    # Lifestyle flags
     smoker = models.BooleanField(default=False)
     pets_ok = models.BooleanField(default=True)
-    tidy_level = models.IntegerField(default=3)  # 1..5
-    quiet_level = models.IntegerField(default=3)  # 1..5
+    tidy_level = models.IntegerField(default=3)
+    quiet_level = models.IntegerField(default=3)
 
-    # Free-text
     bio = models.TextField(blank=True, default="")
 
-    is_active = models.BooleanField(default=True)  # hide profile if not looking
+    is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -506,9 +514,6 @@ class RoommateProfile(models.Model):
 
 
 class RoommateRequest(models.Model):
-    """
-    Tenant -> Tenant roommate request
-    """
     STATUS_CHOICES = (
         ("pending", "Pending"),
         ("accepted", "Accepted"),
@@ -534,15 +539,13 @@ class RoommateRequest(models.Model):
     responded_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        unique_together = ("from_user", "to_user")  # prevent duplicates
+        unique_together = ("from_user", "to_user")
 
     def __str__(self):
         return f"RoommateRequest({self.from_user} -> {self.to_user}, {self.status})"
 
+
 class RoommateChatThread(models.Model):
-    """
-    One chat thread for two tenants (created after request accepted)
-    """
     user1 = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -567,9 +570,6 @@ class RoommateChatThread(models.Model):
 
 
 class RoommateChatMessage(models.Model):
-    """
-    Messages inside roommate chat thread
-    """
     thread = models.ForeignKey(
         RoommateChatThread,
         on_delete=models.CASCADE,
@@ -587,6 +587,7 @@ class RoommateChatMessage(models.Model):
 
     def __str__(self):
         return f"RoommateChatMessage(thread={self.thread_id}, sender={self.sender_id})"
+
 
 class FurnitureItem(models.Model):
     CATEGORY_CHOICES = [
@@ -614,8 +615,6 @@ class FurnitureItem(models.Model):
     def __str__(self):
         return self.name
 
-
-from decimal import Decimal, ROUND_HALF_UP
 
 class BookingPayment(models.Model):
     STATUS_CHOICES = [
@@ -736,32 +735,29 @@ class TenantExpense(models.Model):
 
     def __str__(self):
         return f"{self.tenant.email} - {self.title} - {self.amount}"
+    
 
 
-class Notification(models.Model):
-    NOTIFICATION_TYPES = [
-        ("booking", "Booking"),
-        ("provider", "Provider"),
-        ("review", "Review"),
-        ("expense", "Expense"),
-        ("general", "General"),
-    ]
-
-    user = models.ForeignKey(
+class VirtualFurnitureDesign(models.Model):
+    tenant = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name="notifications"
+        related_name="virtual_furniture_designs",
     )
     title = models.CharField(max_length=255)
-    message = models.TextField()
-    notification_type = models.CharField(max_length=30, choices=NOTIFICATION_TYPES, default="general")
-    is_read = models.BooleanField(default=False)
-    link = models.CharField(max_length=500, blank=True, null=True)
-
+    room_image = models.ImageField(
+        upload_to="virtual_furniture/rooms/",
+        null=True,
+        blank=True,
+    )
+    room_image_path = models.CharField(max_length=500, blank=True, default="")
+    placed_items = models.JSONField(default=list, blank=True)
+    notes = models.TextField(blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ["-created_at"]
+        ordering = ["-updated_at"]
 
     def __str__(self):
-        return f"{self.user.email} - {self.title}"
+        return f"{self.title} - {self.tenant_id}"

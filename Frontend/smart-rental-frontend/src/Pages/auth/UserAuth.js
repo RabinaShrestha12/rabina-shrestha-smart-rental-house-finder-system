@@ -1,6 +1,21 @@
-// src/pages/auth/UserAuth.jsx
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
+import { useTheme } from "../../components/ThemeContext";
+import {
+  Mail,
+  Lock,
+  User,
+  Phone,
+  MapPin,
+  ArrowRight,
+  ShieldCheck,
+  CheckCircle2,
+  Home,
+  ChevronLeft,
+  KeyRound,
+  Fingerprint,
+} from "lucide-react";
 
 function normalizeRole(r) {
   r = String(r || "")
@@ -15,7 +30,6 @@ function normalizeRole(r) {
   return r;
 }
 
-// ✅ when sending to backend (often backend expects service_provider, not provider)
 function roleToBackend(role) {
   const r = normalizeRole(role);
   if (r === "provider") return "service_provider";
@@ -36,7 +50,6 @@ function axiosMsg(err, fallback) {
   return data?.detail || data?.message || data?.error || err?.message || fallback;
 }
 
-// ✅ extract tokens from many possible backend responses
 function extractTokens(resData) {
   const access =
     resData?.access ||
@@ -59,7 +72,6 @@ function extractTokens(resData) {
   return { access, refresh };
 }
 
-// ✅ extract role from many possible backend responses
 function extractRole(resData) {
   const raw =
     resData?.role ||
@@ -70,21 +82,57 @@ function extractRole(resData) {
     resData?.profile?.role ||
     resData?.data?.role ||
     "";
+
   return normalizeRole(raw);
 }
 
+const InputField = ({ label, icon: Icon, isDark, ...props }) => (
+  <div className="mb-5">
+    {label && (
+      <label
+        className={`block text-[11px] font-black uppercase tracking-widest mb-2 ml-1 ${
+          isDark ? "text-slate-300" : "text-slate-500"
+        }`}
+      >
+        {label}
+      </label>
+    )}
+
+    <div className="relative group">
+      <div
+        className={`absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-colors z-10 ${
+          isDark
+            ? "text-slate-400 group-focus-within:text-blue-300"
+            : "text-slate-400 group-focus-within:text-blue-600"
+        }`}
+      >
+        <Icon className="w-5 h-5" />
+      </div>
+
+      <input
+        {...props}
+        className={`block w-full pl-12 pr-4 py-4 rounded-2xl transition-all font-medium shadow-sm focus:outline-none focus:ring-4 ${
+          isDark
+            ? "bg-[#17365c] border border-white/10 text-white placeholder:text-slate-400 hover:bg-[#1b3f69] focus:bg-[#1b3f69] focus:border-blue-400/50 focus:ring-blue-300/10"
+            : "bg-[#f8fafc] border border-slate-200 text-slate-900 placeholder:text-slate-400 hover:bg-white focus:bg-white focus:border-blue-500 focus:ring-blue-500/10"
+        }`}
+      />
+    </div>
+  </div>
+);
+
 export default function UserAuth() {
-  const [tab, setTab] = useState("login"); // login | register | otp | forgotRequest | forgotReset
+  const nav = useNavigate();
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+
+  const [tab, setTab] = useState("login");
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
 
-  // ✅ LOGIN FORM (removed loginAs)
-  const [lForm, setLForm] = useState({
-    email: "",
-    password: "",
-  });
+  const [lForm, setLForm] = useState({ email: "", password: "" });
 
-  // ✅ REGISTER FORM
   const [rForm, setRForm] = useState({
     role: "tenant",
     username: "",
@@ -94,11 +142,9 @@ export default function UserAuth() {
     password: "",
   });
 
-  // ✅ OTP
   const [otpEmail, setOtpEmail] = useState("");
   const [otpCode, setOtpCode] = useState("");
 
-  // ✅ FORGOT PASSWORD FORM
   const [forgotForm, setForgotForm] = useState({
     email: "",
     code: "",
@@ -125,18 +171,17 @@ export default function UserAuth() {
     if (email) localStorage.setItem("email", String(email).trim().toLowerCase());
     if (finalRole) localStorage.setItem("role", finalRole);
 
-    // ✅ helps some AuthContexts that listen to storage changes
     window.dispatchEvent(new Event("storage"));
-
     return { access, refresh, role: finalRole };
   };
 
-  // ✅ REGISTER -> SEND OTP
   const handleRegister = async (e) => {
     e.preventDefault();
     if (loading) return;
+
     setLoading(true);
     setMsg("");
+    setSuccessMsg("");
 
     try {
       const cleanEmail = String(rForm.email || "").trim().toLowerCase();
@@ -153,7 +198,7 @@ export default function UserAuth() {
       setOtpEmail(cleanEmail);
       setOtpCode("");
       setTab("otp");
-      setMsg(`OTP sent to ${cleanEmail}. Check Inbox/Spam.`);
+      setSuccessMsg(`Account created! We've sent an OTP to ${cleanEmail}.`);
     } catch (err) {
       setMsg(axiosMsg(err, "Register failed"));
     } finally {
@@ -161,12 +206,13 @@ export default function UserAuth() {
     }
   };
 
-  // ✅ OTP VERIFY -> back to login
   const handleVerifyOtp = async (e) => {
     e.preventDefault();
     if (loading) return;
+
     setLoading(true);
     setMsg("");
+    setSuccessMsg("");
 
     try {
       const email = String(otpEmail || "").trim().toLowerCase();
@@ -174,7 +220,7 @@ export default function UserAuth() {
 
       await api.post("verify-otp/", { email, code, purpose: "signup" });
 
-      setMsg("OTP verified ✅ Now login.");
+      setSuccessMsg("OTP verified successfully! Please login.");
       setTab("login");
       setLForm((p) => ({ ...p, email, password: "" }));
     } catch (err) {
@@ -184,31 +230,29 @@ export default function UserAuth() {
     }
   };
 
-  // ✅ LOGIN -> redirect using backend role
   const handleLogin = async (e) => {
     e.preventDefault();
     if (loading) return;
+
     setLoading(true);
     setMsg("");
+    setSuccessMsg("");
 
     try {
       const email = String(lForm.email || "").trim().toLowerCase();
       const password = lForm.password;
 
       const res = await api.post("login_user/", { email, password });
-
       const saved = saveSession(res.data, email);
 
       if (!saved.access) {
-        setMsg("Login failed: access token missing. Check backend response keys.");
+        setMsg("Access token missing in response.");
         setLoading(false);
         return;
       }
 
       if (!saved.role) {
-        setMsg(
-          "Login success but role missing from backend response. Please return role in login API."
-        );
+        setMsg("User role not found in response.");
         setLoading(false);
         return;
       }
@@ -221,91 +265,56 @@ export default function UserAuth() {
       try {
         const res2 = await api.post("login_admin/", { email, password });
         const saved2 = saveSession(res2.data, email, "admin");
-
-        if (!saved2.access) {
-          setMsg("Login failed: access token missing from admin login.");
-          setLoading(false);
-          return;
-        }
-
-        window.location.href = roleToPath(saved2.role || "admin");
+        if (saved2.access) window.location.href = roleToPath("admin");
       } catch (err2) {
-        setMsg(axiosMsg(err2, axiosMsg(err, "Login failed")));
+        setMsg(axiosMsg(err2, axiosMsg(err, "Invalid credentials")));
       }
     } finally {
       setLoading(false);
     }
   };
 
-  // ✅ SEND RESET OTP
   const handleForgotRequestOtp = async (e) => {
     e.preventDefault();
     if (loading) return;
+
     setLoading(true);
     setMsg("");
+    setSuccessMsg("");
 
     try {
       const email = String(forgotForm.email || "").trim().toLowerCase();
-
       await api.post("request-password-reset-otp/", { email });
-
-      setForgotForm((p) => ({
-        ...p,
-        email,
-        code: "",
-        new_password: "",
-        confirm_password: "",
-      }));
-
       setTab("forgotReset");
-      setMsg(`Reset OTP sent to ${email}. Check Inbox/Spam.`);
+      setSuccessMsg(`Reset code sent to ${email}.`);
     } catch (err) {
-      setMsg(axiosMsg(err, "Failed to send reset OTP"));
+      setMsg(axiosMsg(err, "Failed to send reset code"));
     } finally {
       setLoading(false);
     }
   };
 
-  // ✅ RESET PASSWORD
   const handleForgotResetPassword = async (e) => {
     e.preventDefault();
     if (loading) return;
+
     setLoading(true);
     setMsg("");
+    setSuccessMsg("");
+
+    const { email, code, new_password, confirm_password } = forgotForm;
+
+    if (new_password !== confirm_password) {
+      setMsg("Passwords do not match.");
+      setLoading(false);
+      return;
+    }
 
     try {
-      const email = String(forgotForm.email || "").trim().toLowerCase();
-      const code = String(forgotForm.code || "").trim();
-      const new_password = forgotForm.new_password;
-      const confirm_password = forgotForm.confirm_password;
-
-      if (!email || !code || !new_password || !confirm_password) {
-        setMsg("Please fill all fields.");
-        setLoading(false);
-        return;
-      }
-
-      if (new_password !== confirm_password) {
-        setMsg("New password and confirm password do not match.");
-        setLoading(false);
-        return;
-      }
-
-      await api.post("reset-password/", {
-        email,
-        code,
-        new_password,
-      });
-
-      setMsg("Password reset successful. Now login with your new password.");
+      await api.post("reset-password/", { email, code, new_password });
+      setSuccessMsg("Password reset successfully. Please login.");
       setTab("login");
       setLForm((p) => ({ ...p, email, password: "" }));
-      setForgotForm({
-        email: "",
-        code: "",
-        new_password: "",
-        confirm_password: "",
-      });
     } catch (err) {
       setMsg(axiosMsg(err, "Password reset failed"));
     } finally {
@@ -313,411 +322,513 @@ export default function UserAuth() {
     }
   };
 
-  const styles = useMemo(
-    () => ({
-      page: {
-        minHeight: "100vh",
-        display: "grid",
-        placeItems: "center",
-        padding: 20,
-        background:
-          "radial-gradient(circle at 30% 10%, #4c1d95 0%, #0b1020 55%, #020617 100%)",
-        color: "white",
-        fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, Arial",
-      },
-      card: {
-        width: "min(760px, 96vw)",
-        borderRadius: 26,
-        padding: 22,
-        background: "rgba(255,255,255,0.06)",
-        border: "1px solid rgba(255,255,255,0.10)",
-        boxShadow: "0 20px 60px rgba(0,0,0,0.45)",
-      },
-      header: { display: "flex", gap: 14, alignItems: "center", marginBottom: 14 },
-      logo: {
-        width: 44,
-        height: 44,
-        borderRadius: 14,
-        background: "linear-gradient(135deg,#7c3aed,#a78bfa)",
-      },
-      title: { fontSize: 22, fontWeight: 900, lineHeight: 1.1 },
-      subtitle: { opacity: 0.8, marginTop: 4, fontSize: 13 },
-      tabs: {
-        display: "grid",
-        gridTemplateColumns: "1fr 1fr",
-        gap: 10,
-        marginTop: 10,
-        marginBottom: 14,
-        background: "rgba(255,255,255,0.05)",
-        padding: 10,
-        borderRadius: 16,
-        border: "1px solid rgba(255,255,255,0.10)",
-      },
-      tabBtn: {
-        padding: "12px 14px",
-        borderRadius: 14,
-        border: "1px solid rgba(255,255,255,0.12)",
-        background: "rgba(255,255,255,0.04)",
-        color: "white",
-        cursor: "pointer",
-        fontWeight: 900,
-      },
-      tabActive: {
-        background: "rgba(124,58,237,0.35)",
-        border: "1px solid rgba(124,58,237,0.55)",
-      },
-      form: {
-        marginTop: 6,
-        padding: 16,
-        borderRadius: 18,
-        border: "1px solid rgba(255,255,255,0.10)",
-        background: "rgba(0,0,0,0.12)",
-      },
-      h3: { fontSize: 16, fontWeight: 900, marginBottom: 10 },
-      label: { fontSize: 12, opacity: 0.85, marginBottom: 6, marginTop: 10 },
-      input: {
-        width: "100%",
-        padding: 12,
-        borderRadius: 14,
-        border: "1px solid rgba(255,255,255,0.12)",
-        background: "rgba(255,255,255,0.06)",
-        color: "white",
-        outline: "none",
-      },
-      select: {
-        width: "100%",
-        padding: 12,
-        borderRadius: 14,
-        border: "1px solid rgba(255,255,255,0.12)",
-        background: "linear-gradient(135deg,#4c1d95,#1e1b4b)",
-        color: "white",
-        outline: "none",
-      },
-      grid2: {
-        display: "grid",
-        gridTemplateColumns: "1fr 1fr",
-        gap: 12,
-        marginTop: 8,
-      },
-      btn: {
-        width: "100%",
-        marginTop: 14,
-        padding: 14,
-        borderRadius: 16,
-        border: "none",
-        background: "linear-gradient(135deg,#6d28d9,#8b5cf6)",
-        color: "white",
-        fontWeight: 900,
-        cursor: loading ? "not-allowed" : "pointer",
-        opacity: loading ? 0.85 : 1,
-      },
-      forgotBtn: {
-        marginTop: 12,
-        background: "transparent",
-        border: "none",
-        color: "#d8b4fe",
-        cursor: "pointer",
-        fontWeight: 700,
-        fontSize: 13,
-        padding: 0,
-      },
-      backBtn: {
-        marginTop: 12,
-        padding: "10px 14px",
-        borderRadius: 12,
-        border: "1px solid rgba(255,255,255,0.16)",
-        background: "transparent",
-        color: "white",
-        cursor: "pointer",
-        fontWeight: 700,
-      },
-      msg: { marginTop: 12, color: "#ffb4b4", fontWeight: 900, fontSize: 13 },
-      ok: { marginTop: 12, color: "#b7ffcf", fontWeight: 900, fontSize: 13 },
-    }),
-    [loading]
-  );
-
   return (
-    <div style={styles.page}>
-      <div style={styles.card}>
-        <div style={styles.header}>
-          <div style={styles.logo} />
-          <div>
-            <div style={styles.title}>Smart Rental System</div>
-            <div style={styles.subtitle}>Login/Register and go to your dashboard.</div>
+    <div
+      className={`min-h-screen flex flex-col md:flex-row font-sans selection:bg-blue-600 selection:text-white overflow-hidden transition-colors duration-300 ${
+        isDark ? "bg-[#0b2340] text-white" : "bg-[#f8fafc] text-slate-900"
+      }`}
+    >
+      <div className="hidden md:flex md:w-1/2 lg:w-3/5 relative">
+        <img
+          src="https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&q=80&w=2000"
+          alt="Luxury Architecture"
+          className="absolute inset-0 w-full h-full object-cover opacity-75"
+        />
+
+        <div
+          className={`absolute inset-0 ${
+            isDark
+              ? "bg-gradient-to-t from-[#05101d] via-[#0b2340]/55 to-transparent"
+              : "bg-gradient-to-t from-black/70 via-black/30 to-transparent"
+          }`}
+        />
+        <div className="absolute inset-0 bg-blue-900/10 mix-blend-overlay" />
+
+        <div className="relative z-10 w-full p-16 flex flex-col justify-between">
+          <div
+            className="flex items-center gap-3 cursor-pointer group"
+            onClick={() => nav("/")}
+          >
+            <div className="w-12 h-12 rounded-2xl bg-white/12 backdrop-blur-md flex items-center justify-center border border-white/20 group-hover:bg-blue-600 group-hover:border-blue-500 transition-all duration-300">
+              <Home className="text-white w-6 h-6" />
+            </div>
+            <span className="text-2xl font-black text-white tracking-tight">
+              Smart Rental
+            </span>
+          </div>
+
+          <div className="max-w-xl">
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white text-xs font-bold uppercase tracking-widest mb-8">
+              <ShieldCheck className="w-4 h-4 text-blue-400" />
+              Secure Portal Access
+            </div>
+
+            <h2 className="text-5xl lg:text-6xl font-extrabold text-white leading-[1.1] mb-6 tracking-tight">
+              Unlock Your <br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-sky-300">
+                Perfect Space.
+              </span>
+            </h2>
+
+            <p className="text-xl text-slate-200 leading-relaxed mb-10 font-medium max-w-md">
+              The premier destination for premium properties. Connect with verified
+              landlords and secure your high-end rental today.
+            </p>
+
+            <div className="flex gap-4">
+              <div className="flex items-center gap-3 bg-white/8 backdrop-blur-md border border-white/10 rounded-2xl px-5 py-3">
+                <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                <span className="text-sm font-bold text-white">Verified Users</span>
+              </div>
+
+              <div className="flex items-center gap-3 bg-white/8 backdrop-blur-md border border-white/10 rounded-2xl px-5 py-3">
+                <KeyRound className="w-5 h-5 text-blue-400" />
+                <span className="text-sm font-bold text-white">Bank-Grade Security</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="text-slate-300 text-sm font-medium flex items-center gap-2">
+            © 2026 Smart Rental
+            <span className="w-1 h-1 bg-slate-400/70 rounded-full"></span>
+            Real Estate Standards Defined.
           </div>
         </div>
+      </div>
 
-        {(tab === "login" || tab === "register") && (
-          <div style={styles.tabs}>
-            <button
-              type="button"
-              onClick={() => {
-                setTab("login");
-                setMsg("");
-              }}
-              style={{ ...styles.tabBtn, ...(tab === "login" ? styles.tabActive : {}) }}
-            >
-              Login
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setTab("register");
-                setMsg("");
-              }}
-              style={{ ...styles.tabBtn, ...(tab === "register" ? styles.tabActive : {}) }}
-            >
-              Register
-            </button>
+      <div
+        className={`w-full md:w-1/2 lg:w-2/5 flex flex-col items-center justify-center p-6 md:p-12 relative overflow-y-auto transition-colors duration-300 ${
+          isDark ? "bg-[#0f2d52]" : "bg-white"
+        }`}
+      >
+        <div
+          className="md:hidden flex items-center gap-3 w-full max-w-md mb-8 cursor-pointer"
+          onClick={() => nav("/")}
+        >
+          <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
+            <Home className="text-white w-5 h-5" />
           </div>
-        )}
+          <span
+            className={`text-xl font-bold tracking-tight ${
+              isDark ? "text-white" : "text-slate-900"
+            }`}
+          >
+            Smart Rental
+          </span>
+        </div>
 
-        {/* REGISTER */}
-        {tab === "register" && (
-          <form onSubmit={handleRegister} style={styles.form}>
-            <div style={styles.h3}>Create account</div>
-
-            <div style={styles.label}>Register as</div>
-            <select
-              name="role"
-              value={rForm.role}
-              onChange={onChangeRegister}
-              style={styles.select}
+        <div className="w-full max-w-md">
+          {(tab === "login" || tab === "register") && (
+            <div
+              className={`flex p-1.5 rounded-[22px] mb-10 w-full transition-colors duration-300 ${
+                isDark
+                  ? "bg-[#1c3f69] border border-white/10"
+                  : "bg-slate-100 border border-slate-200"
+              }`}
             >
-              <option value="tenant">Tenant</option>
-              <option value="owner">Owner</option>
-              <option value="provider">Service Provider</option>
-            </select>
+              <button
+                type="button"
+                onClick={() => {
+                  setTab("login");
+                  setMsg("");
+                  setSuccessMsg("");
+                }}
+                className={`flex-1 py-3 text-sm font-bold rounded-2xl transition-all duration-300 ${
+                  tab === "login"
+                    ? "bg-blue-600 text-white shadow-md shadow-blue-500/20"
+                    : isDark
+                    ? "bg-[#2b4f7a] text-slate-100 hover:bg-[#35639a] hover:text-white border border-white/10"
+                    : "bg-white text-slate-600 hover:bg-blue-50 hover:text-blue-600 border border-slate-200"
+                }`}
+              >
+                Sign In
+              </button>
 
-            <div style={styles.grid2}>
-              <div>
-                <div style={styles.label}>Username</div>
-                <input
+              <button
+                type="button"
+                onClick={() => {
+                  setTab("register");
+                  setMsg("");
+                  setSuccessMsg("");
+                }}
+                className={`flex-1 py-3 text-sm font-bold rounded-2xl transition-all duration-300 ${
+                  tab === "register"
+                    ? "bg-blue-600 text-white shadow-md shadow-blue-500/20"
+                    : isDark
+                    ? "bg-[#2b4f7a] text-slate-100 hover:bg-[#35639a] hover:text-white border border-white/10"
+                    : "bg-white text-slate-600 hover:bg-blue-50 hover:text-blue-600 border border-slate-200"
+                }`}
+              >
+                Create Account
+              </button>
+            </div>
+          )}
+
+          {tab !== "login" && tab !== "register" && (
+            <div className="mb-10">
+              <h1
+                className={`text-3xl font-black tracking-tight mb-2 ${
+                  isDark ? "text-white" : "text-slate-900"
+                }`}
+              >
+                {tab === "otp" ? "Security Check" : "Password Recovery"}
+              </h1>
+              <p className={`${isDark ? "text-slate-300" : "text-slate-500"} font-medium`}>
+                {tab === "otp"
+                  ? "Please enter the verification code sent to your email."
+                  : "Follow the steps to reset your password securely."}
+              </p>
+            </div>
+          )}
+
+          {msg && (
+            <div
+              className={`mb-8 p-4 rounded-2xl text-sm font-bold flex items-start gap-3 ${
+                isDark
+                  ? "bg-red-400/10 border border-red-300/20 text-red-200"
+                  : "bg-red-50 border border-red-100 text-red-600"
+              }`}
+            >
+              <span className="shrink-0 text-lg">⚠️</span>
+              {msg}
+            </div>
+          )}
+
+          {successMsg && (
+            <div
+              className={`mb-8 p-4 rounded-2xl text-sm font-bold flex items-start gap-3 ${
+                isDark
+                  ? "bg-emerald-400/10 border border-emerald-300/20 text-emerald-200"
+                  : "bg-emerald-50 border border-emerald-100 text-emerald-700"
+              }`}
+            >
+              <span className="shrink-0 text-lg">✅</span>
+              {successMsg}
+            </div>
+          )}
+
+          <div className="relative">
+            {tab === "login" && (
+              <form onSubmit={handleLogin} className="space-y-4">
+                <InputField
+                  label="Email Address"
+                  name="email"
+                  type="email"
+                  placeholder="name@example.com"
+                  icon={Mail}
+                  value={lForm.email}
+                  onChange={onChangeLogin}
+                  required
+                  isDark={isDark}
+                />
+
+                <InputField
+                  label="Password"
+                  name="password"
+                  type="password"
+                  placeholder="••••••••"
+                  icon={Lock}
+                  value={lForm.password}
+                  onChange={onChangeLogin}
+                  required
+                  isDark={isDark}
+                />
+
+                <div className="flex justify-end pt-1 pb-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTab("forgotRequest");
+                      setMsg("");
+                    }}
+                    className={`text-sm font-semibold transition-colors bg-transparent px-0 py-0 shadow-none border-none hover:underline ${
+                      isDark
+                        ? "text-blue-300 hover:text-blue-200"
+                        : "text-blue-600 hover:text-blue-700"
+                    }`}
+                  >
+                    Forgot your password?
+                  </button>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-bold text-lg shadow-xl shadow-blue-500/20 flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                >
+                  {loading ? "Authenticating..." : "Sign into Account"}
+                  {!loading && <ArrowRight className="w-5 h-5" />}
+                </button>
+              </form>
+            )}
+
+            {tab === "register" && (
+              <form onSubmit={handleRegister} className="space-y-5">
+                <div className="mb-6">
+                  <label
+                    className={`block text-[11px] font-black uppercase tracking-widest mb-3 ml-1 ${
+                      isDark ? "text-slate-300" : "text-slate-500"
+                    }`}
+                  >
+                    Select Account Type
+                  </label>
+
+                  <div
+                    className={`grid grid-cols-3 gap-3 p-1.5 rounded-2xl ${
+                      isDark
+                        ? "bg-[#1c3f69] border border-white/10"
+                        : "bg-slate-100 border border-slate-200"
+                    }`}
+                  >
+                    {["tenant", "owner", "provider"].map((r) => (
+                      <button
+                        key={r}
+                        type="button"
+                        onClick={() => setRForm((p) => ({ ...p, role: r }))}
+                        className={`py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
+                          rForm.role === r
+                            ? "bg-blue-600 text-white shadow-md shadow-blue-500/20"
+                            : isDark
+                            ? "bg-[#2b4f7a] text-slate-100 hover:bg-[#35639a] hover:text-white border border-white/10"
+                            : "bg-white text-slate-600 hover:text-blue-600 hover:bg-blue-50 border border-slate-200"
+                        }`}
+                      >
+                        {r === "tenant"
+                          ? "Tenant"
+                          : r === "owner"
+                          ? "Owner"
+                          : "Provider"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <InputField
+                  label="Full Name"
                   name="username"
+                  placeholder="John Doe"
+                  icon={User}
                   value={rForm.username}
                   onChange={onChangeRegister}
-                  style={styles.input}
                   required
+                  isDark={isDark}
                 />
-              </div>
-              <div>
-                <div style={styles.label}>Phone</div>
-                <input
-                  name="phone"
-                  value={rForm.phone}
+
+                <InputField
+                  label="Email Address"
+                  name="email"
+                  type="email"
+                  placeholder="john@example.com"
+                  icon={Mail}
+                  value={rForm.email}
                   onChange={onChangeRegister}
-                  style={styles.input}
+                  required
+                  isDark={isDark}
                 />
-              </div>
-            </div>
 
-            <div style={styles.label}>Address</div>
-            <input
-              name="address"
-              value={rForm.address}
-              onChange={onChangeRegister}
-              style={styles.input}
-            />
+                <div className="grid grid-cols-2 gap-4">
+                  <InputField
+                    label="Phone"
+                    name="phone"
+                    placeholder="+1 234 567"
+                    icon={Phone}
+                    value={rForm.phone}
+                    onChange={onChangeRegister}
+                    isDark={isDark}
+                  />
 
-            <div style={styles.label}>Email</div>
-            <input
-              name="email"
-              value={rForm.email}
-              onChange={onChangeRegister}
-              style={styles.input}
-              required
-            />
+                  <InputField
+                    label="City"
+                    name="address"
+                    placeholder="Kathmandu"
+                    icon={MapPin}
+                    value={rForm.address}
+                    onChange={onChangeRegister}
+                    isDark={isDark}
+                  />
+                </div>
 
-            <div style={styles.label}>Password</div>
-            <input
-              name="password"
-              type="password"
-              value={rForm.password}
-              onChange={onChangeRegister}
-              style={styles.input}
-              required
-            />
+                <InputField
+                  label="Secure Password"
+                  name="password"
+                  type="password"
+                  placeholder="Min. 8 characters"
+                  icon={Lock}
+                  value={rForm.password}
+                  onChange={onChangeRegister}
+                  required
+                  isDark={isDark}
+                />
 
-            <button type="submit" disabled={loading} style={styles.btn}>
-              {loading ? "Please wait..." : "Create account"}
-            </button>
-          </form>
-        )}
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-bold text-lg shadow-xl shadow-blue-500/20 flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                >
+                  {loading ? "Creating Profile..." : "Complete Registration"}
+                  {!loading && <ArrowRight className="w-5 h-5" />}
+                </button>
+              </form>
+            )}
 
-        {/* OTP */}
-        {tab === "otp" && (
-          <form onSubmit={handleVerifyOtp} style={styles.form}>
-            <div style={styles.h3}>Verify OTP</div>
+            {tab === "otp" && (
+              <form onSubmit={handleVerifyOtp} className="space-y-6">
+                <div
+                  className={`flex flex-col items-center justify-center p-8 rounded-[30px] border mb-8 text-center ${
+                    isDark
+                      ? "bg-[#21446e] border-white/10"
+                      : "bg-blue-50 border-blue-100"
+                  }`}
+                >
+                  <div
+                    className={`w-20 h-20 rounded-full flex items-center justify-center mb-5 ${
+                      isDark ? "bg-blue-500/15 text-blue-300" : "bg-white text-blue-600 shadow-sm"
+                    }`}
+                  >
+                    <Fingerprint className="w-10 h-10" />
+                  </div>
 
-            <div style={styles.label}>Email</div>
-            <input value={otpEmail} readOnly style={styles.input} />
+                  <h3
+                    className={`text-xl font-bold tracking-tight ${
+                      isDark ? "text-white" : "text-slate-900"
+                    }`}
+                  >
+                    Check your email
+                  </h3>
 
-            <div style={styles.label}>OTP Code</div>
-            <input
-              value={otpCode}
-              onChange={(e) => setOtpCode(e.target.value)}
-              style={styles.input}
-            />
+                  <p className={`text-sm font-medium mt-2 ${isDark ? "text-slate-300" : "text-slate-500"}`}>
+                    We've sent a 6-digit verification code to <br className="hidden sm:block" />
+                    <span className="font-bold text-blue-600">{otpEmail}</span>
+                  </p>
+                </div>
 
-            <button type="submit" disabled={loading} style={styles.btn}>
-              {loading ? "Verifying..." : "Verify OTP"}
-            </button>
+                <InputField
+                  label="OTP Verification Code"
+                  placeholder="e.g. 123456"
+                  icon={KeyRound}
+                  value={otpCode}
+                  onChange={(e) => setOtpCode(e.target.value)}
+                  required
+                  isDark={isDark}
+                />
 
-            <button
-              type="button"
-              onClick={() => {
-                setTab("login");
-                setMsg("");
-              }}
-              style={styles.backBtn}
-            >
-              Back to Login
-            </button>
-          </form>
-        )}
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-bold text-lg shadow-xl shadow-blue-500/20 transition-all disabled:opacity-50"
+                >
+                  {loading ? "Verifying..." : "Verify & Sign In"}
+                </button>
 
-        {/* LOGIN */}
-        {tab === "login" && (
-          <form onSubmit={handleLogin} style={styles.form}>
-            <div style={styles.h3}>Login</div>
+                <button
+                  type="button"
+                  onClick={() => setTab("login")}
+                  className={`w-full flex items-center justify-center gap-2 text-sm font-semibold transition-colors ${
+                    isDark ? "text-blue-300 hover:text-blue-200" : "text-blue-600 hover:text-blue-700"
+                  }`}
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  Return to Login
+                </button>
+              </form>
+            )}
 
-            <div style={styles.label}>Email</div>
-            <input
-              name="email"
-              value={lForm.email}
-              onChange={onChangeLogin}
-              style={styles.input}
-              required
-            />
+            {tab === "forgotRequest" && (
+              <form onSubmit={handleForgotRequestOtp} className="space-y-6">
+                <InputField
+                  label="Account Email Address"
+                  name="email"
+                  type="email"
+                  placeholder="name@example.com"
+                  icon={Mail}
+                  value={forgotForm.email}
+                  onChange={onChangeForgot}
+                  required
+                  isDark={isDark}
+                />
 
-            <div style={styles.label}>Password</div>
-            <input
-              name="password"
-              type="password"
-              value={lForm.password}
-              onChange={onChangeLogin}
-              style={styles.input}
-              required
-            />
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-bold text-lg shadow-xl shadow-blue-500/20 transition-all disabled:opacity-50"
+                >
+                  {loading ? "Sending Process..." : "Send Reset Code"}
+                </button>
 
-            <button type="submit" disabled={loading} style={styles.btn}>
-              {loading ? "Please wait..." : "Login"}
-            </button>
+                <button
+                  type="button"
+                  onClick={() => setTab("login")}
+                  className={`w-full flex items-center justify-center gap-2 text-sm font-semibold transition-colors ${
+                    isDark ? "text-blue-300 hover:text-blue-200" : "text-blue-600 hover:text-blue-700"
+                  }`}
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  Cancel and Return
+                </button>
+              </form>
+            )}
 
-            <button
-              type="button"
-              onClick={() => {
-                setForgotForm((p) => ({
-                  ...p,
-                  email: String(lForm.email || "").trim().toLowerCase(),
-                }));
-                setTab("forgotRequest");
-                setMsg("");
-              }}
-              style={styles.forgotBtn}
-            >
-              Forgot Password?
-            </button>
+            {tab === "forgotReset" && (
+              <form onSubmit={handleForgotResetPassword} className="space-y-5">
+                <InputField
+                  label="Confirm Email Address"
+                  name="email"
+                  type="email"
+                  icon={Mail}
+                  value={forgotForm.email}
+                  onChange={onChangeForgot}
+                  required
+                  isDark={isDark}
+                />
 
-            <div style={{ marginTop: 10, fontSize: 12, opacity: 0.75 }}>
-              * Role will be detected automatically from backend.
-            </div>
-          </form>
-        )}
+                <InputField
+                  label="Reset Code (OTP)"
+                  name="code"
+                  placeholder="Enter 6-digit code"
+                  icon={KeyRound}
+                  value={forgotForm.code}
+                  onChange={onChangeForgot}
+                  required
+                  isDark={isDark}
+                />
 
-        {/* FORGOT REQUEST */}
-        {tab === "forgotRequest" && (
-          <form onSubmit={handleForgotRequestOtp} style={styles.form}>
-            <div style={styles.h3}>Forgot Password</div>
+                <div className={`grid grid-cols-2 gap-4 pt-5 mt-2 ${isDark ? "border-t border-white/10" : "border-t border-slate-200"}`}>
+                  <InputField
+                    label="New Password"
+                    name="new_password"
+                    type="password"
+                    placeholder="••••••••"
+                    icon={Lock}
+                    value={forgotForm.new_password}
+                    onChange={onChangeForgot}
+                    required
+                    isDark={isDark}
+                  />
 
-            <div style={styles.label}>Email</div>
-            <input
-              name="email"
-              value={forgotForm.email}
-              onChange={onChangeForgot}
-              style={styles.input}
-              required
-            />
+                  <InputField
+                    label="Confirm New"
+                    name="confirm_password"
+                    type="password"
+                    placeholder="••••••••"
+                    icon={Lock}
+                    value={forgotForm.confirm_password}
+                    onChange={onChangeForgot}
+                    required
+                    isDark={isDark}
+                  />
+                </div>
 
-            <button type="submit" disabled={loading} style={styles.btn}>
-              {loading ? "Sending OTP..." : "Send Reset OTP"}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setTab("login");
-                setMsg("");
-              }}
-              style={styles.backBtn}
-            >
-              Back to Login
-            </button>
-          </form>
-        )}
-
-        {/* FORGOT RESET */}
-        {tab === "forgotReset" && (
-          <form onSubmit={handleForgotResetPassword} style={styles.form}>
-            <div style={styles.h3}>Reset Password</div>
-
-            <div style={styles.label}>Email</div>
-            <input
-              name="email"
-              value={forgotForm.email}
-              onChange={onChangeForgot}
-              style={styles.input}
-              required
-            />
-
-            <div style={styles.label}>OTP Code</div>
-            <input
-              name="code"
-              value={forgotForm.code}
-              onChange={onChangeForgot}
-              style={styles.input}
-              required
-            />
-
-            <div style={styles.label}>New Password</div>
-            <input
-              name="new_password"
-              type="password"
-              value={forgotForm.new_password}
-              onChange={onChangeForgot}
-              style={styles.input}
-              required
-            />
-
-            <div style={styles.label}>Confirm New Password</div>
-            <input
-              name="confirm_password"
-              type="password"
-              value={forgotForm.confirm_password}
-              onChange={onChangeForgot}
-              style={styles.input}
-              required
-            />
-
-            <button type="submit" disabled={loading} style={styles.btn}>
-              {loading ? "Resetting..." : "Reset Password"}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setTab("forgotRequest");
-                setMsg("");
-              }}
-              style={styles.backBtn}
-            >
-              Back
-            </button>
-          </form>
-        )}
-
-        {msg ? <div style={styles.msg}>{msg}</div> : null}
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-bold text-lg shadow-xl shadow-blue-500/20 transition-all disabled:opacity-50"
+                >
+                  {loading ? "Updating Security..." : "Confirm & Update Password"}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

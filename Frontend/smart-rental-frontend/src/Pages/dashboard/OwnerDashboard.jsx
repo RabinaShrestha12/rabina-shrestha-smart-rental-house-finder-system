@@ -1,10 +1,31 @@
+// src/pages/dashboard/OwnerDashboard.jsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTheme } from "../../components/ThemeContext";
 import api from "../../api/axios";
 import { useAuth } from "../../auth/AuthContext";
 import Shell from "../../components/Shell";
 import Toast from "../../components/Toast";
 import LocationPicker from "../../components/LocationPicker";
+import {
+  Home,
+  Building2,
+  PlusCircle,
+  MessageSquare,
+  Star,
+  Bell,
+  CreditCard,
+  Wrench,
+  LogOut,
+  RefreshCw,
+  MapPin,
+  Send,
+  Image as ImageIcon,
+  Search,
+  Wallet,
+  UserRound,
+  ArrowLeft,
+} from "lucide-react";
 
 function kmOrM(meters) {
   if (meters == null || Number.isNaN(Number(meters))) return "";
@@ -35,9 +56,22 @@ function readStoredUser() {
   }
 }
 
+function formatDate(s) {
+  if (!s) return "";
+  try {
+    const d = new Date(s);
+    if (isNaN(d.getTime())) return String(s);
+    return d.toLocaleString();
+  } catch {
+    return String(s);
+  }
+}
+
 export default function OwnerDashboard() {
   const { role, email, logout, booting } = useAuth();
+  const { theme } = useTheme();
   const nav = useNavigate();
+  const isDark = theme === "dark";
 
   const storedUser = useMemo(() => readStoredUser(), []);
   const displayEmail =
@@ -57,107 +91,61 @@ export default function OwnerDashboard() {
     [displayEmail]
   );
 
-  const [theme, setTheme] = useState(
-    () => localStorage.getItem("owner_dashboard_theme") || "light"
-  );
-
-  useEffect(() => {
-    localStorage.setItem("owner_dashboard_theme", theme);
-  }, [theme]);
-
-  const isDark = theme === "dark";
-
   const ui = {
-    page: isDark
-      ? "min-h-screen bg-[radial-gradient(circle_at_top_left,_#0f172a_0%,_#111827_35%,_#020617_100%)] text-white"
-      : "min-h-screen bg-gradient-to-br from-white via-slate-50 to-sky-100 text-slate-900",
-
-    hero: isDark
-      ? "rounded-[30px] border border-white/10 bg-white/5 shadow-2xl backdrop-blur-xl"
-      : "rounded-[30px] border border-slate-200 bg-white/95 shadow-xl",
-
+    pageBg: isDark
+      ? "bg-[linear-gradient(180deg,#071120_0%,#0a1a30_45%,#0c2240_100%)]"
+      : "bg-[linear-gradient(180deg,#f6f8fc_0%,#eef3f9_100%)]",
     card: isDark
-      ? "rounded-[24px] border border-white/10 bg-white/5 shadow-lg"
-      : "rounded-[24px] border border-slate-200 bg-white shadow-md",
-
-    softCard: isDark
-      ? "rounded-2xl border border-white/10 bg-black/20"
-      : "rounded-2xl border border-slate-200 bg-slate-50",
-
+      ? "border border-white/10 bg-[#10294d]/95 shadow-[0_10px_30px_rgba(0,0,0,0.22)]"
+      : "border border-slate-200 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.06)]",
+    soft: isDark
+      ? "border border-white/10 bg-[#0d223f]"
+      : "border border-slate-200 bg-slate-50",
     input: isDark
-      ? "w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-white outline-none placeholder:text-slate-400 focus:border-blue-400/40"
-      : "w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-slate-900 outline-none placeholder:text-slate-400 focus:border-blue-500",
-
-    textarea: isDark
-      ? "w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-white outline-none placeholder:text-slate-400 focus:border-blue-400/40"
-      : "w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-slate-900 outline-none placeholder:text-slate-400 focus:border-blue-500",
-
-    button: isDark
-      ? "rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-slate-100 transition hover:bg-white/10"
-      : "rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100",
-
-    primaryButton: isDark
-      ? "rounded-2xl border border-blue-400/30 bg-blue-500/15 px-4 py-3 text-sm font-semibold text-blue-100 transition hover:bg-blue-500/20"
-      : "rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-100",
-
-    successButton: isDark
-      ? "rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-500/15"
-      : "rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100",
-
-    warningButton: isDark
-      ? "rounded-2xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-100 transition hover:bg-amber-500/15"
-      : "rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-700 transition hover:bg-amber-100",
-
-    dangerButton: isDark
-      ? "rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-100 transition hover:bg-red-500/15"
-      : "rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-100",
-
-    title: isDark ? "text-white" : "text-slate-900",
-    subtext: isDark ? "text-slate-300" : "text-slate-600",
+      ? "bg-[#16345c] border-white/10 text-white placeholder:text-slate-400"
+      : "bg-white border-slate-200 text-slate-900 placeholder:text-slate-400",
+    heading: isDark ? "text-white" : "text-slate-900",
+    sub: isDark ? "text-slate-300" : "text-slate-600",
     muted: isDark ? "text-slate-400" : "text-slate-500",
-    sectionTitle: isDark ? "text-white" : "text-slate-900",
-
     badgeBlue: isDark
       ? "border-blue-500/20 bg-blue-500/10 text-blue-100"
       : "border-blue-200 bg-blue-50 text-blue-700",
-
     badgeAmber: isDark
       ? "border-amber-500/20 bg-amber-500/10 text-amber-100"
       : "border-amber-200 bg-amber-50 text-amber-700",
-
     badgePurple: isDark
       ? "border-purple-500/20 bg-purple-500/10 text-purple-100"
       : "border-purple-200 bg-purple-50 text-purple-700",
-
     badgeGreen: isDark
       ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-100"
       : "border-emerald-200 bg-emerald-50 text-emerald-700",
-
-    badgeRed: isDark
-      ? "border-red-500/20 bg-red-500/10 text-red-100"
-      : "border-red-200 bg-red-50 text-red-700",
+    smallAction: isDark
+      ? "border border-white/10 bg-[#0d223f] text-slate-200 hover:bg-[#16345c]"
+      : "border border-slate-200 bg-slate-50 text-slate-700 hover:bg-white",
   };
 
   const [toast, setToast] = useState({ type: "info", msg: "" });
-
   const [profile, setProfile] = useState(null);
+
   const [showAddProperty, setShowAddProperty] = useState(false);
+  const [showReviews, setShowReviews] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [showPayments, setShowPayments] = useState(false);
+  const [activeTopPanel, setActiveTopPanel] = useState(null); // reviews | notifications | payments
+
   const [requests, setRequests] = useState([]);
   const [loadingMsgs, setLoadingMsgs] = useState(false);
 
-  const [showReviews, setShowReviews] = useState(false);
   const [reviews, setReviews] = useState([]);
   const [reviewsLoading, setReviewsLoading] = useState(false);
   const [reviewsError, setReviewsError] = useState("");
   const [reviewQuery, setReviewQuery] = useState("");
 
-  const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [notifLoading, setNotifLoading] = useState(false);
   const [notifError, setNotifError] = useState("");
   const [notifQuery, setNotifQuery] = useState("");
 
-  const [showPayments, setShowPayments] = useState(false);
   const [payments, setPayments] = useState([]);
   const [paymentsLoading, setPaymentsLoading] = useState(false);
   const [paymentsError, setPaymentsError] = useState("");
@@ -223,6 +211,12 @@ export default function OwnerDashboard() {
   const reviewInitRef = useRef(false);
   const seenReviewIdsRef = useRef(new Set());
 
+  const addPropertyRef = useRef(null);
+  const reviewsRef = useRef(null);
+  const notificationsRef = useRef(null);
+  const paymentsRef = useRef(null);
+  const topPanelRef = useRef(null);
+
   const arrify = (data) =>
     Array.isArray(data) ? data : Array.isArray(data?.results) ? data.results : [];
 
@@ -243,50 +237,26 @@ export default function OwnerDashboard() {
 
   const getBookingId = (b) => b?.id ?? b?.booking_id ?? b?.pk;
   const getStatus = (b) => (b?.status ?? b?.state ?? "pending").toLowerCase();
-
   const getTenantEmail = (b) =>
     b?.tenant_email ||
     b?.tenant?.email ||
     b?.tenant_username ||
     b?.tenant?.username ||
     "Tenant";
-
   const getTenantName = (b) =>
     b?.tenant_name ||
     b?.tenant?.username ||
     b?.tenant?.name ||
     b?.tenant_username ||
     "Tenant";
-
-  const getTenantPhone = (b) =>
-    b?.tenant_phone ||
-    b?.tenant?.phone ||
-    b?.phone ||
-    "";
-
-  const getTenantDisplay = (b) =>
-    getTenantEmail(b) || getTenantName(b) || "Tenant";
-
   const getListingTitle = (b) =>
     b?.listing_title ||
     b?.listing?.title ||
     b?.property_title ||
     b?.property?.title ||
     "Property";
-
   const getFirstMessage = (b) =>
     b?.first_message || b?.message || b?.text || b?.latest_message || "";
-
-  const formatDate = (s) => {
-    if (!s) return "";
-    try {
-      const d = new Date(s);
-      if (isNaN(d.getTime())) return String(s);
-      return d.toLocaleString();
-    } catch {
-      return String(s);
-    }
-  };
 
   const getReviewId = (r, idx) => r?.id ?? r?.review_id ?? r?.pk ?? `${idx}`;
   const getReviewRating = (r) =>
@@ -392,10 +362,10 @@ export default function OwnerDashboard() {
 
   const getNotifKindLabel = (n) => {
     const kind = getNotifKind(n);
-    if (kind === "booking") return "📅 Booking";
-    if (kind === "provider") return "🧰 Provider";
-    if (kind === "review") return "⭐ Review";
-    return "🔔 General";
+    if (kind === "booking") return "Booking";
+    if (kind === "provider") return "Provider";
+    if (kind === "review") return "Review";
+    return "General";
   };
 
   const getNotifKindClasses = (n) => {
@@ -435,19 +405,16 @@ export default function OwnerDashboard() {
         ? "New booking notification"
         : `${group.count} booking notifications`;
     }
-
     if (group.kind === "provider") {
       return group.count === 1
         ? "New service provider notification"
         : `${group.count} service provider notifications`;
     }
-
     if (group.kind === "review") {
       return group.count === 1
         ? "New review notification"
         : `${group.count} review notifications`;
     }
-
     return group.count === 1 ? "New notification" : `${group.count} notifications`;
   };
 
@@ -457,19 +424,16 @@ export default function OwnerDashboard() {
         group.count > 1 ? "s" : ""
       } to you.`;
     }
-
     if (group.kind === "provider") {
       return `${group.sender} sent ${group.count} provider notification${
         group.count > 1 ? "s" : ""
       } to you.`;
     }
-
     if (group.kind === "review") {
       return `${group.sender} sent ${group.count} review notification${
         group.count > 1 ? "s" : ""
       } to you.`;
     }
-
     return `${group.sender} sent ${group.count} notification${
       group.count > 1 ? "s" : ""
     } to you.`;
@@ -484,14 +448,20 @@ export default function OwnerDashboard() {
     p?.tenant?.email ||
     "Tenant";
   const getPaymentListing = (p) =>
-    p?.listing_title ||
-    p?.listing?.title ||
-    p?.property_title ||
-    "Property";
+    p?.listing_title || p?.listing?.title || p?.property_title || "Property";
   const getPaymentStatus = (p) =>
     String(p?.payment_status || p?.status || "PENDING").toUpperCase();
   const getPaymentDate = (p) =>
     p?.verified_at || p?.created_at || p?.payment_date || "";
+  const getPaymentAmount = (p) =>
+    p?.amount ??
+    p?.paid_amount ??
+    p?.rent_amount ??
+    p?.total_amount ??
+    p?.price ??
+    null;
+  const getOwnerPayoutStatus = (p) =>
+    String(p?.owner_payout_status || p?.payout_status || "NOT_PAID").toUpperCase();
 
   const isEmail = (v) =>
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || "").trim());
@@ -530,9 +500,7 @@ export default function OwnerDashboard() {
 
     const missing = missing360Sides();
     if (missing.length) {
-      errors.push(
-        `All 6 photos for 360° view required. Missing: ${missing.join(", ")}`
-      );
+      errors.push(`All 6 photos for 360° view required. Missing: ${missing.join(", ")}`);
     }
 
     const okImage = (f) => f && f.type && f.type.startsWith("image/");
@@ -545,13 +513,61 @@ export default function OwnerDashboard() {
     });
 
     if (!form.latitude || !form.longitude) {
-      errors.push(
-        "Please pick the property location on the map (latitude/longitude required)."
-      );
+      errors.push("Please pick the property location on the map.");
     }
 
     return { ok: errors.length === 0, errors };
   }, [form, coverImage, pano]);
+
+  const scrollToRef = (ref) => {
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        ref?.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      }, 120);
+    });
+  };
+
+  const openTopPanel = (panel) => {
+    setActiveTopPanel(panel);
+    setShowReviews(panel === "reviews");
+    setShowNotifications(panel === "notifications");
+    setShowPayments(panel === "payments");
+
+    if (panel === "reviews") {
+      const ids = (reviews || []).map((r, idx) => getReviewId(r, idx)).filter(Boolean);
+      if (ids.length) markReviewsSeen(ids);
+    }
+
+    scrollToRef(topPanelRef);
+  };
+
+  const closeTopPanel = () => {
+    setActiveTopPanel(null);
+    setShowReviews(false);
+    setShowNotifications(false);
+    setShowPayments(false);
+  };
+
+  const handleToggleAddProperty = () => {
+  const next = !showAddProperty;
+
+  setShowAddProperty(next);
+
+  if (next) {
+    setActiveTopPanel(null);
+    setShowReviews(false);
+    setShowNotifications(false);
+    setShowPayments(false);
+    scrollToRef(addPropertyRef);
+  }
+  };
+
+  const handleToggleReviews = () => openTopPanel("reviews");
+  const handleToggleNotifications = () => openTopPanel("notifications");
+  const handleTogglePayments = () => openTopPanel("payments");
 
   const markBookingsSeen = (ids = []) => {
     const merged = Array.from(new Set([...(seenBookingIds || []), ...ids])).filter(
@@ -638,9 +654,7 @@ export default function OwnerDashboard() {
       const list = arrify(data);
       setReviews(list);
 
-      const ids = list
-        .map((r, idx) => String(getReviewId(r, idx)))
-        .filter(Boolean);
+      const ids = list.map((r, idx) => String(getReviewId(r, idx))).filter(Boolean);
 
       if (!reviewInitRef.current) {
         seenReviewIdsRef.current = new Set(ids);
@@ -719,9 +733,7 @@ export default function OwnerDashboard() {
       setNotifications(list);
 
       const unread = list.filter((n) => isNotifUnread(n));
-      const unreadIds = unread
-        .map((n, idx) => String(getNotifId(n, idx)))
-        .filter(Boolean);
+      const unreadIds = unread.map((n, idx) => String(getNotifId(n, idx))).filter(Boolean);
 
       if (!notifInitRef.current) {
         seenNotifIdsRef.current = new Set(unreadIds);
@@ -768,9 +780,7 @@ export default function OwnerDashboard() {
       setPayments(list);
     } catch (err) {
       if (!silent) {
-        setPaymentsError(
-          err?.response?.data?.detail || "Failed to load payment records."
-        );
+        setPaymentsError(err?.response?.data?.detail || "Failed to load payment records.");
       }
       setPayments([]);
     } finally {
@@ -809,9 +819,7 @@ export default function OwnerDashboard() {
           })
         );
         return;
-      } catch {
-        // try next endpoint
-      }
+      } catch {}
     }
   };
 
@@ -842,10 +850,7 @@ export default function OwnerDashboard() {
     }
 
     if (group.kind === "review") {
-      const ids = (reviews || []).map((r, idx) => getReviewId(r, idx)).filter(Boolean);
-      markReviewsSeen(ids);
-      setShowReviews(true);
-      setShowNotifications(false);
+      openTopPanel("reviews");
       return;
     }
 
@@ -1101,9 +1106,14 @@ out center;
     nav("/", { replace: true });
   };
 
-  const goHome = () => {
-    nav("/");
-  };
+  useEffect(() => {
+    if (toast.msg) {
+      const t = setTimeout(() => {
+        setToast({ type: "info", msg: "" });
+      }, 2600);
+      return () => clearTimeout(t);
+    }
+  }, [toast]);
 
   useEffect(() => {
     setSeenBookingIds(loadSeenIds(bookingSeenKey));
@@ -1122,11 +1132,7 @@ out center;
     const token =
       localStorage.getItem("access") || localStorage.getItem("access_token");
     const savedUser = readStoredUser();
-    const savedRole = (
-      localStorage.getItem("role") ||
-      savedUser?.role ||
-      ""
-    )
+    const savedRole = (localStorage.getItem("role") || savedUser?.role || "")
       .toString()
       .toLowerCase();
 
@@ -1209,7 +1215,6 @@ out center;
       if (notifToastTimerRef.current) clearTimeout(notifToastTimerRef.current);
       if (reviewToastTimerRef.current) clearTimeout(reviewToastTimerRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [booting, role, nav]);
 
   useEffect(() => {
@@ -1225,6 +1230,11 @@ out center;
     if (showNotifications) loadNotifications(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showNotifications]);
+
+  useEffect(() => {
+    if (showPayments) loadPayments(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showPayments]);
 
   useEffect(() => {
     if (showReviews && reviews.length > 0) {
@@ -1272,7 +1282,7 @@ out center;
         headers: { "Content-Type": "multipart/form-data" },
       });
 
-      setToast({ type: "success", msg: "Property posted successfully! ✅" });
+      setToast({ type: "success", msg: "Property posted successfully." });
 
       setForm({
         title: "",
@@ -1339,7 +1349,7 @@ out center;
     list.sort((a, b) =>
       String(b?.created_at || "").localeCompare(String(a?.created_at || ""))
     );
-    return list.slice(0, 3);
+    return list.slice(0, 4);
   }, [requests]);
 
   const filteredReviews = useMemo(() => {
@@ -1362,7 +1372,9 @@ out center;
   const groupedNotifications = useMemo(() => {
     const list = [...(notifications || [])];
     list.sort((a, b) =>
-      String(getNotifCreatedAt(b) || "").localeCompare(String(getNotifCreatedAt(a) || ""))
+      String(getNotifCreatedAt(b) || "").localeCompare(
+        String(getNotifCreatedAt(a) || "")
+      )
     );
 
     const groups = new Map();
@@ -1414,37 +1426,150 @@ out center;
     );
   }, [groupedNotifications, notifQuery]);
 
-  const bookingNotifGroups = useMemo(
-    () => filteredNotifGroups.filter((g) => g.kind === "booking"),
-    [filteredNotifGroups]
-  );
+  const paymentSummary = useMemo(() => {
+    const total = (payments || []).length;
+    const complete = (payments || []).filter(
+      (p) => getPaymentStatus(p) === "COMPLETE"
+    ).length;
+    const pending = (payments || []).filter(
+      (p) => getPaymentStatus(p) === "PENDING"
+    ).length;
+    const rejected = total - complete - pending;
 
-  const providerNotifGroups = useMemo(
-    () => filteredNotifGroups.filter((g) => g.kind === "provider"),
-    [filteredNotifGroups]
-  );
+    return { total, complete, pending, rejected };
+  }, [payments]);
 
-  const reviewNotifGroups = useMemo(
-    () => filteredNotifGroups.filter((g) => g.kind === "review"),
-    [filteredNotifGroups]
-  );
+  const paymentBadge = (status) => {
+    if (status === "COMPLETE")
+      return isDark
+        ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-300"
+        : "border-emerald-200 bg-emerald-50 text-emerald-700";
+    if (status === "PENDING")
+      return isDark
+        ? "border-amber-500/20 bg-amber-500/10 text-amber-300"
+        : "border-amber-200 bg-amber-50 text-amber-700";
+    return isDark
+      ? "border-red-500/20 bg-red-500/10 text-red-300"
+      : "border-red-200 bg-red-50 text-red-700";
+  };
 
-  const otherNotifGroups = useMemo(
-    () => filteredNotifGroups.filter((g) => g.kind === "other"),
-    [filteredNotifGroups]
-  );
+ const QuickAction = ({
+  icon: Icon,
+  label,
+  subtitle,
+  onClick,
+  active = false,
+  count,
+}) => (
+  <button
+    onClick={onClick}
+    className={`group flex h-full min-h-[130px] flex-col justify-between rounded-3xl p-5 text-left transition-all duration-300 hover:-translate-y-1 ${
+      active
+        ? isDark
+          ? "border border-blue-400/30 bg-[#1a4678] shadow-[0_10px_30px_rgba(59,130,246,0.18)]"
+          : "border border-blue-200 bg-blue-100 shadow-[0_10px_24px_rgba(59,130,246,0.12)]"
+        : isDark
+        ? "border border-white/10 bg-[#10294d]/95 hover:bg-[#16345c] hover:shadow-[0_10px_26px_rgba(0,0,0,0.22)]"
+        : "border border-slate-200 bg-white hover:border-blue-200 hover:bg-blue-50 hover:shadow-[0_10px_24px_rgba(59,130,246,0.10)]"
+    }`}
+  >
+    <div className="flex items-start justify-between gap-3">
+      <div
+        className={`flex h-12 w-12 items-center justify-center rounded-2xl ${
+          isDark
+            ? "bg-blue-500/15 text-blue-300"
+            : active
+            ? "bg-blue-200 text-blue-700"
+            : "bg-blue-50 text-blue-600"
+        }`}
+      >
+        <Icon className="h-5 w-5" />
+      </div>
 
-  const sectionHeading = (title, right = null) => (
+      {count !== undefined ? (
+        <span
+          className={`inline-flex min-w-[28px] items-center justify-center rounded-full border px-2 py-1 text-[11px] font-extrabold ${
+            isDark
+              ? "border-blue-500/20 bg-blue-500/10 text-blue-100"
+              : "border-blue-200 bg-blue-50 text-blue-700"
+          }`}
+        >
+          {count}
+        </span>
+      ) : null}
+    </div>
+
+    <div>
+      <h3 className={`text-sm font-extrabold tracking-wide ${ui.heading}`}>
+        {label}
+      </h3>
+      <p className={`mt-1 text-xs leading-5 ${ui.sub}`}>{subtitle}</p>
+    </div>
+  </button>
+);
+
+  const StatCard = ({ label, value, icon: Icon, accent = "blue" }) => {
+    const accentMap = {
+      blue: isDark ? "bg-blue-500/15 text-blue-300" : "bg-blue-50 text-blue-600",
+      green: isDark ? "bg-emerald-500/15 text-emerald-300" : "bg-emerald-50 text-emerald-600",
+      amber: isDark ? "bg-amber-500/15 text-amber-300" : "bg-amber-50 text-amber-600",
+      violet: isDark ? "bg-violet-500/15 text-violet-300" : "bg-violet-50 text-violet-600",
+    };
+
+    return (
+      <div className={`rounded-3xl p-5 ${ui.card}`}>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className={`text-[11px] font-extrabold uppercase tracking-[0.18em] ${ui.muted}`}>
+              {label}
+            </p>
+            <h3 className={`mt-2 text-3xl font-black tracking-tight ${ui.heading}`}>
+              {value}
+            </h3>
+          </div>
+          <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${accentMap[accent]}`}>
+            <Icon className="h-5 w-5" />
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const SectionTitle = ({ title, right }) => (
     <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-      <h2 className={`text-lg font-bold ${ui.sectionTitle}`}>{title}</h2>
+      <h2 className={`text-xl font-black tracking-tight ${ui.heading}`}>{title}</h2>
       {right}
     </div>
   );
 
+  const FileField = ({ label, onChange, required = false }) => (
+    <div>
+      <label className={`mb-2 block text-sm font-semibold ${ui.heading}`}>
+        {label} {required ? <span className="text-red-500">*</span> : null}
+      </label>
+      <label
+        className={`flex min-h-[52px] cursor-pointer items-center gap-3 rounded-2xl border px-4 transition ${
+          isDark
+            ? "border-white/10 bg-[#16345c] hover:bg-[#1a3b67]"
+            : "border-slate-200 bg-white hover:bg-slate-50"
+        }`}
+      >
+        <ImageIcon className={`h-4 w-4 ${ui.muted}`} />
+        <span className={`text-sm ${ui.sub}`}>Choose image</span>
+        <input
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => onChange(e.target.files?.[0] || null)}
+        />
+      </label>
+    </div>
+  );
+
   const NearbyList = ({ title, items }) => (
-    <div className={`${ui.softCard} p-4`}>
+    <div className={`rounded-3xl p-4 ${ui.soft}`}>
       <div className="mb-3 flex items-center justify-between gap-2">
-        <div className={`text-sm font-semibold ${ui.sectionTitle}`}>{title}</div>
+        <div className={`text-sm font-semibold ${ui.heading}`}>{title}</div>
         <div className={`text-xs ${ui.muted}`}>{items.length}</div>
       </div>
 
@@ -1453,9 +1578,9 @@ out center;
       ) : (
         <div className="grid gap-3">
           {items.map((it) => (
-            <div key={it.id} className={`${ui.softCard} p-3`}>
-              <div className={`text-sm font-semibold ${ui.sectionTitle}`}>{it.name}</div>
-              <div className={`mt-1 text-xs ${ui.subtext}`}>
+            <div key={it.id} className={`rounded-2xl p-3 ${ui.card}`}>
+              <div className={`text-sm font-semibold ${ui.heading}`}>{it.name}</div>
+              <div className={`mt-1 text-xs ${ui.sub}`}>
                 {it.kind ? `Type: ${it.kind} • ` : ""}
                 Distance: {kmOrM(it.distance_m)}
               </div>
@@ -1466,566 +1591,541 @@ out center;
     </div>
   );
 
-  const NotificationSection = ({ title, items, emptyText }) => (
-    <div className={`${ui.softCard} p-4`}>
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <div className={`text-sm font-semibold ${ui.sectionTitle}`}>{title}</div>
-        <div className={`text-xs ${ui.muted}`}>{items.length}</div>
-      </div>
+  const renderFocusedTopPanel = () => {
+    if (!activeTopPanel) return null;
 
-      {items.length === 0 ? (
-        <div className={`text-sm ${ui.muted}`}>{emptyText}</div>
-      ) : (
-        <div className="grid gap-3">
-          {items.map((group) => {
-            const unread = group.unreadCount > 0;
+    if (activeTopPanel === "reviews") {
+      return (
+        <div ref={topPanelRef} className={`mt-8 rounded-[32px] p-6 lg:p-8 ${ui.card}`}>
+          <SectionTitle
+            title="Tenant Reviews Dashboard"
+            right={
+              <div className="flex w-full flex-col gap-3 md:w-auto md:flex-row md:items-center">
+                <div className="relative w-full md:w-[320px]">
+                  <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input
+                    value={reviewQuery}
+                    onChange={(e) => setReviewQuery(e.target.value)}
+                    placeholder="Search reviews"
+                    className={`h-12 w-full rounded-2xl border pl-11 pr-4 outline-none ${ui.input}`}
+                  />
+                </div>
+                <button
+                  onClick={closeTopPanel}
+                  className={`inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-bold transition ${ui.smallAction}`}
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Back
+                </button>
+              </div>
+            }
+          />
 
-            return (
-              <button
-                key={group.key}
-                onClick={() => openNotificationGroup(group)}
-                className={`rounded-2xl border p-4 text-left transition ${
-                  unread
-                    ? isDark
-                      ? "border-purple-500/20 bg-purple-500/10 hover:bg-purple-500/15"
-                      : "border-purple-200 bg-purple-50 hover:bg-purple-100"
-                    : isDark
-                    ? "border-white/10 bg-black/20 hover:bg-white/10"
-                    : "border-slate-200 bg-white hover:bg-slate-50"
-                }`}
-                title="Open notification"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <div className={`line-clamp-1 text-sm font-semibold ${ui.sectionTitle}`}>
-                        {getGroupedTitle(group)}
+          {reviewsLoading ? (
+            <div className={`rounded-2xl p-5 ${ui.soft}`}>
+              <div className={`text-sm ${ui.sub}`}>Loading reviews...</div>
+            </div>
+          ) : reviewsError ? (
+            <div
+              className={`rounded-2xl border p-5 text-sm ${
+                isDark
+                  ? "border-red-500/20 bg-red-500/10 text-red-300"
+                  : "border-red-200 bg-red-50 text-red-700"
+              }`}
+            >
+              {reviewsError}
+            </div>
+          ) : filteredReviews.length === 0 ? (
+            <div className={`rounded-2xl p-5 ${ui.soft}`}>
+              <div className={`text-sm ${ui.sub}`}>No reviews found.</div>
+            </div>
+          ) : (
+            <div className="grid gap-4">
+              {filteredReviews.map((review, idx) => (
+                <div key={getReviewId(review, idx)} className={`rounded-3xl p-5 ${ui.soft}`}>
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className={`text-lg font-black ${ui.heading}`}>
+                          {getReviewListingTitle(review)}
+                        </h3>
+                        {getReviewRating(review) != null ? (
+                          <span className={`rounded-full border px-3 py-1 text-xs font-bold ${ui.badgeAmber}`}>
+                            {starString(getReviewRating(review))} ({getReviewRating(review)})
+                          </span>
+                        ) : null}
                       </div>
-
-                      <span
-                        className={`rounded-full border px-2 py-[2px] text-[10px] font-bold ${getNotifKindClasses(
-                          group.latest
-                        )}`}
-                      >
-                        {getNotifKindLabel(group.latest)}
-                      </span>
-
-                      {unread ? (
-                        <span
-                          className={`rounded-full px-2 py-[2px] text-[10px] font-bold ${
-                            isDark
-                              ? "bg-purple-500/70 text-white"
-                              : "bg-purple-600 text-white"
-                          }`}
-                        >
-                          {group.unreadCount} NEW
-                        </span>
-                      ) : null}
+                      <p className={`mt-2 text-sm ${ui.sub}`}>
+                        Reviewed by: <span className="font-semibold">{getReviewTenant(review)}</span>
+                      </p>
+                      <p className={`mt-3 text-sm leading-7 ${ui.sub}`}>
+                        {getReviewComment(review) || "No comment provided."}
+                      </p>
                     </div>
 
-                    <div className={`mt-2 text-sm font-medium ${ui.subtext}`}>
-                      {group.sender}
-                    </div>
-
-                    <div className={`mt-1 whitespace-pre-wrap text-sm ${ui.subtext}`}>
-                      {getGroupedBody(group)}
-                    </div>
-                  </div>
-
-                  <div className="shrink-0 text-right">
-                    <div className={`text-[11px] ${ui.muted}`}>
-                      {formatDate(getNotifCreatedAt(group.latest))}
+                    <div className={`text-xs ${ui.muted}`}>
+                      {formatDate(getReviewCreatedAt(review))}
                     </div>
                   </div>
                 </div>
-              </button>
-            );
-          })}
+              ))}
+            </div>
+          )}
         </div>
-      )}
-    </div>
-  );
+      );
+    }
+
+    if (activeTopPanel === "notifications") {
+      return (
+        <div ref={topPanelRef} className={`mt-8 rounded-[32px] p-6 lg:p-8 ${ui.card}`}>
+          <SectionTitle
+            title="Notifications Dashboard"
+            right={
+              <div className="flex w-full flex-col gap-3 md:w-auto md:flex-row md:items-center">
+                <div className="relative w-full md:w-[320px]">
+                  <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input
+                    value={notifQuery}
+                    onChange={(e) => setNotifQuery(e.target.value)}
+                    placeholder="Search notifications"
+                    className={`h-12 w-full rounded-2xl border pl-11 pr-4 outline-none ${ui.input}`}
+                  />
+                </div>
+                <button
+                  onClick={closeTopPanel}
+                  className={`inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-bold transition ${ui.smallAction}`}
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Back
+                </button>
+              </div>
+            }
+          />
+
+          {notifLoading ? (
+            <div className={`rounded-2xl p-5 ${ui.soft}`}>
+              <div className={`text-sm ${ui.sub}`}>Loading notifications...</div>
+            </div>
+          ) : notifError ? (
+            <div
+              className={`rounded-2xl border p-5 text-sm ${
+                isDark
+                  ? "border-red-500/20 bg-red-500/10 text-red-300"
+                  : "border-red-200 bg-red-50 text-red-700"
+              }`}
+            >
+              {notifError}
+            </div>
+          ) : filteredNotifGroups.length === 0 ? (
+            <div className={`rounded-2xl p-5 ${ui.soft}`}>
+              <div className={`text-sm ${ui.sub}`}>No notifications found.</div>
+            </div>
+          ) : (
+            <div className="grid gap-4">
+              {filteredNotifGroups.map((group) => (
+                <button
+                  key={group.key}
+                  type="button"
+                  onClick={() => openNotificationGroup(group)}
+                  className={`rounded-3xl p-5 text-left transition hover:-translate-y-0.5 ${ui.soft}`}
+                >
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className={`text-lg font-black ${ui.heading}`}>
+                          {getGroupedTitle(group)}
+                        </h3>
+                        <span
+                          className={`rounded-full border px-3 py-1 text-xs font-bold ${getNotifKindClasses(group.latest)}`}
+                        >
+                          {getNotifKindLabel(group.latest)}
+                        </span>
+                        {group.unreadCount > 0 ? (
+                          <span className={`rounded-full border px-3 py-1 text-xs font-bold ${ui.badgeBlue}`}>
+                            {group.unreadCount} unread
+                          </span>
+                        ) : null}
+                      </div>
+
+                      <p className={`mt-2 text-sm ${ui.sub}`}>{getGroupedBody(group)}</p>
+
+                      <div className={`mt-3 text-xs ${ui.muted}`}>
+                        Latest: {getNotifTitle(group.latest)}
+                      </div>
+                    </div>
+
+                    <div className={`text-xs ${ui.muted}`}>
+                      {formatDate(getNotifCreatedAt(group.latest))}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    if (activeTopPanel === "payments") {
+      return (
+        <div ref={topPanelRef} className={`mt-8 rounded-[32px] p-6 lg:p-8 ${ui.card}`}>
+          <SectionTitle
+            title="Payment Dashboard"
+            right={
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  onClick={() => loadPayments(false)}
+                  className={`inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-bold transition ${ui.smallAction}`}
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Refresh
+                </button>
+                <button
+                  onClick={closeTopPanel}
+                  className={`inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-bold transition ${ui.smallAction}`}
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Back
+                </button>
+              </div>
+            }
+          />
+
+          <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-4">
+            <StatCard label="All Records" value={paymentSummary.total} icon={CreditCard} accent="blue" />
+            <StatCard label="Complete" value={paymentSummary.complete} icon={Wallet} accent="green" />
+            <StatCard label="Pending" value={paymentSummary.pending} icon={Bell} accent="amber" />
+            <StatCard label="Other" value={paymentSummary.rejected} icon={Wrench} accent="violet" />
+          </div>
+
+          {paymentsLoading ? (
+            <div className={`rounded-2xl p-5 ${ui.soft}`}>
+              <div className={`text-sm ${ui.sub}`}>Loading payment records...</div>
+            </div>
+          ) : paymentsError ? (
+            <div
+              className={`rounded-2xl border p-5 text-sm ${
+                isDark
+                  ? "border-red-500/20 bg-red-500/10 text-red-300"
+                  : "border-red-200 bg-red-50 text-red-700"
+              }`}
+            >
+              {paymentsError}
+            </div>
+          ) : payments.length === 0 ? (
+            <div className={`rounded-2xl p-5 ${ui.soft}`}>
+              <div className={`text-sm ${ui.sub}`}>No payment records found.</div>
+            </div>
+          ) : (
+            <div className="grid gap-4">
+              {payments.map((payment, idx) => {
+                const status = getPaymentStatus(payment);
+                const payout = getOwnerPayoutStatus(payment);
+                const amount = getPaymentAmount(payment);
+
+                return (
+                  <div key={getPaymentId(payment, idx)} className={`rounded-3xl p-5 ${ui.soft}`}>
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className={`text-lg font-black ${ui.heading}`}>
+                            {getPaymentListing(payment)}
+                          </h3>
+                          <span className={`rounded-full border px-3 py-1 text-xs font-bold ${paymentBadge(status)}`}>
+                            {status}
+                          </span>
+                          <span className={`rounded-full border px-3 py-1 text-xs font-bold ${ui.badgePurple}`}>
+                            Owner payout: {payout}
+                          </span>
+                        </div>
+
+                        <p className={`text-sm ${ui.sub}`}>
+                          Tenant: <span className="font-semibold">{getPaymentTenant(payment)}</span>
+                        </p>
+
+                        {amount != null ? (
+                          <p className={`text-sm ${ui.sub}`}>
+                            Amount: <span className="font-semibold">{amount}</span>
+                          </p>
+                        ) : null}
+
+                        <p className={`text-sm ${ui.sub}`}>
+                          Date: <span className="font-semibold">{formatDate(getPaymentDate(payment))}</span>
+                        </p>
+                      </div>
+
+                      <div className={`text-xs ${ui.muted}`}>
+                        Payment ID: {getPaymentId(payment, idx)}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    return null;
+  };
 
   return (
-    <Shell title="" subtitle="" right={null}>
+    <Shell
+      title="Owner Dashboard"
+      subtitle={`Welcome back, ${displayEmail}. Manage properties, requests, reviews, notifications, and payments.`}
+      right={
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => nav("/")}
+            className={`flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-bold transition ${
+              isDark
+                ? "bg-white/10 text-slate-200 hover:bg-white/15"
+                : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+            }`}
+          >
+            <Home className="h-4 w-4" />
+            Home
+          </button>
+
+          <button
+            onClick={handleLogout}
+            className={`flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-bold transition ${
+              isDark
+                ? "bg-red-500/10 text-red-300 hover:bg-red-500/20"
+                : "bg-red-50 text-red-600 hover:bg-red-100"
+            }`}
+          >
+            <LogOut className="h-4 w-4" />
+            Logout
+          </button>
+        </div>
+      }
+    >
       <Toast
         type={toast.type}
         message={toast.msg}
         onClose={() => setToast({ type: "info", msg: "" })}
       />
 
-      <div className={ui.page}>
-        <div className="mx-auto w-full max-w-[1750px] px-6 py-8 sm:px-8 lg:px-10">
-          <div className={`mb-8 p-8 sm:p-10 lg:p-12 ${ui.hero}`}>
-            <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-3">
-                  <div className="rounded-2xl bg-blue-600 px-4 py-2 text-sm font-bold text-white shadow-lg">
-                    Owner Panel
-                  </div>
-                  <div
-                    className={`rounded-2xl border px-4 py-2 text-sm font-semibold ${
+      <div className={`min-h-screen w-full ${ui.pageBg}`}>
+        <div className="mx-auto w-full max-w-[1680px] px-6 py-6 xl:px-8 2xl:px-10">
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.7fr_1fr]">
+            <div className={`rounded-[32px] p-7 ${ui.card}`}>
+              <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
+                <div className="max-w-3xl">
+                  <p className="mb-3 text-xs font-black uppercase tracking-[0.24em] text-blue-600">
+                    Smart Rental House Finder
+                  </p>
+                  <h1 className={`text-3xl font-black leading-tight xl:text-4xl ${ui.heading}`}>
+                    Owner control center for your entire rental workflow
+                  </h1>
+                  <p className={`mt-3 max-w-2xl text-sm leading-6 ${ui.sub}`}>
+                    Post new properties, review tenant requests, monitor notifications,
+                    manage service updates, and track payments in one professional dashboard.
+                  </p>
+
+                  {profile ? (
+                    <div className={`mt-4 flex flex-wrap items-center gap-3 text-sm ${ui.sub}`}>
+                      <span className={`rounded-full px-3 py-1 ${ui.soft}`}>
+                        <UserRound className="mr-2 inline h-4 w-4" />
+                        {profile?.username || profile?.email || displayEmail}
+                      </span>
+                      <span className={`rounded-full px-3 py-1 ${ui.soft}`}>
+                        Owner Account
+                      </span>
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    onClick={handleToggleAddProperty}
+                    className="inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-blue-700"
+                  >
+                    <PlusCircle className="h-4 w-4" />
+                    {showAddProperty ? "Close Add Property" : "Add Property"}
+                  </button>
+
+                  <button
+                    onClick={() => nav("/owner/my-properties")}
+                    className={`inline-flex items-center gap-2 rounded-2xl px-5 py-3 text-sm font-bold transition ${
                       isDark
-                        ? "border-white/10 bg-white/5 text-slate-200"
-                        : "border-slate-200 bg-slate-100 text-slate-700"
+                        ? "bg-white/10 text-white hover:bg-white/15"
+                        : "bg-slate-100 text-slate-800 hover:bg-slate-200"
                     }`}
                   >
-                    Dashboard Overview
-                  </div>
+                    <Building2 className="h-4 w-4" />
+                    My Properties
+                  </button>
                 </div>
-
-                <h1 className={`mt-4 text-3xl font-extrabold tracking-tight sm:text-4xl ${ui.title}`}>
-                  Owner Dashboard
-                </h1>
-
-                <p className={`mt-3 max-w-3xl text-sm sm:text-base ${ui.subtext}`}>
-                  Welcome <span className="font-semibold">{displayEmail}</span>. Manage
-                  your profile, properties, tenant requests, reviews, notifications,
-                  payments, and maintenance in one place.
-                </p>
-
-                <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                  <div className={`${ui.softCard} p-4`}>
-                    <div className={`text-xs font-semibold uppercase tracking-wide ${ui.muted}`}>
-                      Messages
-                    </div>
-                    <div className={`mt-2 text-2xl font-extrabold ${ui.title}`}>
-                      {loadingMsgs ? "..." : unreadBookingCount}
-                    </div>
-                    <div className={`mt-1 text-sm ${ui.subtext}`}>
-                      Unread tenant requests
-                    </div>
-                  </div>
-
-                  <div className={`${ui.softCard} p-4`}>
-                    <div className={`text-xs font-semibold uppercase tracking-wide ${ui.muted}`}>
-                      Reviews
-                    </div>
-                    <div className={`mt-2 text-2xl font-extrabold ${ui.title}`}>
-                      {reviewsLoading ? "..." : unreadReviewCount}
-                    </div>
-                    <div className={`mt-1 text-sm ${ui.subtext}`}>New tenant reviews</div>
-                  </div>
-
-                  <div className={`${ui.softCard} p-4`}>
-                    <div className={`text-xs font-semibold uppercase tracking-wide ${ui.muted}`}>
-                      Notifications
-                    </div>
-                    <div className={`mt-2 text-2xl font-extrabold ${ui.title}`}>
-                      {notifLoading ? "..." : unreadNotifCount}
-                    </div>
-                    <div className={`mt-1 text-sm ${ui.subtext}`}>Unread updates</div>
-                  </div>
-
-                  <div className={`${ui.softCard} p-4`}>
-                    <div className={`text-xs font-semibold uppercase tracking-wide ${ui.muted}`}>
-                      Payments
-                    </div>
-                    <div className={`mt-2 text-2xl font-extrabold ${ui.title}`}>
-                      {paymentsLoading ? "..." : completedPaymentCount}
-                    </div>
-                    <div className={`mt-1 text-sm ${ui.subtext}`}>Completed records</div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-3">
-                <button
-                  onClick={() => setTheme(isDark ? "light" : "dark")}
-                  className={ui.button}
-                >
-                  {isDark ? "☀️ Light Mode" : "🌙 Dark Mode"}
-                </button>
-
-                <button onClick={handleLogout} className={ui.dangerButton}>
-                  Logout
-                </button>
               </div>
             </div>
 
-            <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7">
-              <button onClick={goHome} className={ui.button}>
-                🏠 Home
-              </button>
+            <div className="grid grid-cols-2 gap-4">
+              <StatCard
+                label="Messages"
+                value={loadingMsgs ? "..." : unreadBookingCount}
+                icon={MessageSquare}
+                accent="blue"
+              />
+              <StatCard
+                label="Reviews"
+                value={reviewsLoading ? "..." : unreadReviewCount}
+                icon={Star}
+                accent="amber"
+              />
+              <StatCard
+                label="Notifications"
+                value={notifLoading ? "..." : unreadNotifCount}
+                icon={Wallet}
+                accent="violet"
+              />
+              <StatCard
+                label="Payments"
+                value={paymentsLoading ? "..." : completedPaymentCount}
+                icon={CreditCard}
+                accent="green"
+              />
+            </div>
+          </div>
 
-              <button
+          <div className="mt-8">
+            <SectionTitle title="Owner Tools Hub" />
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-8">
+              <QuickAction
+                icon={Home}
+                label="Home"
+                subtitle="Go to main landing page"
+                onClick={() => nav("/")}
+              />
+              <QuickAction
+                icon={Building2}
+                label="My Properties"
+                subtitle="View all properties you listed"
                 onClick={() => nav("/owner/my-properties")}
-                className={ui.button}
-              >
-                🏘️ My Properties
-              </button>
-
-              <button
-                onClick={() => setShowAddProperty((s) => !s)}
-                className={showAddProperty ? ui.primaryButton : ui.button}
-              >
-                {showAddProperty ? "✖ Close Add Property" : "➕ Add Property"}
-              </button>
-
-              <button
+              />
+              <QuickAction
+                icon={PlusCircle}
+                label="Add Property"
+                subtitle="Create a new property listing"
+                onClick={handleToggleAddProperty}
+                active={showAddProperty}
+              />
+              <QuickAction
+                icon={MessageSquare}
+                label="Messages"
+                subtitle="Open tenant booking requests"
                 onClick={() => {
                   markBookingsSeen(
                     (requests || []).map((r) => getBookingId(r)).filter(Boolean)
                   );
                   nav("/owner/messages");
                 }}
-                className={`${ui.button} flex items-center justify-center gap-2`}
-              >
-                <span>💬 Messages</span>
-                <span
-                  className={`inline-flex min-w-[28px] items-center justify-center rounded-full border px-2 py-1 text-[11px] font-extrabold ${ui.badgeBlue}`}
-                >
-                  {loadingMsgs ? "..." : unreadBookingCount}
-                </span>
-              </button>
-
-              <button
-                onClick={() => {
-                  const next = !showReviews;
-                  setShowReviews(next);
-
-                  if (!showReviews) {
-                    markReviewsSeen(
-                      (reviews || [])
-                        .map((r, idx) => getReviewId(r, idx))
-                        .filter(Boolean)
-                    );
-                  }
-                }}
-                className={`flex items-center justify-center gap-2 ${
-                  showReviews ? ui.primaryButton : ui.button
-                }`}
-              >
-                <span>⭐ Reviews</span>
-                <span
-                  className={`inline-flex min-w-[28px] items-center justify-center rounded-full border px-2 py-1 text-[11px] font-extrabold ${ui.badgeAmber}`}
-                >
-                  {reviewsLoading ? "..." : unreadReviewCount}
-                </span>
-              </button>
-
-              <button
-                onClick={() => setShowNotifications((s) => !s)}
-                className={`flex items-center justify-center gap-2 ${
-                  showNotifications ? ui.primaryButton : ui.button
-                }`}
-              >
-                <span>🔔 Notifications</span>
-                <span
-                  className={`inline-flex min-w-[28px] items-center justify-center rounded-full border px-2 py-1 text-[11px] font-extrabold ${ui.badgePurple}`}
-                >
-                  {notifLoading ? "..." : unreadNotifCount}
-                </span>
-              </button>
-
-              <button
-                onClick={() => setShowPayments((s) => !s)}
-                className={`flex items-center justify-center gap-2 ${
-                  showPayments ? ui.primaryButton : ui.successButton
-                }`}
-              >
-                <span>💰 Payments</span>
-                <span
-                  className={`inline-flex min-w-[28px] items-center justify-center rounded-full border px-2 py-1 text-[11px] font-extrabold ${ui.badgeGreen}`}
-                >
-                  {paymentsLoading ? "..." : completedPaymentCount}
-                </span>
-              </button>
-            </div>
-
-            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7">
-              <button
+                count={loadingMsgs ? "..." : unreadBookingCount}
+              />
+              <QuickAction
+                icon={Star}
+                label="Reviews"
+                subtitle="See tenant ratings and comments"
+                onClick={handleToggleReviews}
+                active={activeTopPanel === "reviews"}
+                count={reviewsLoading ? "..." : unreadReviewCount}
+              />
+              <QuickAction
+                icon={Wallet}
+                label="Notifications"
+                subtitle="Grouped alerts from the system"
+                onClick={handleToggleNotifications}
+                active={activeTopPanel === "notifications"}
+                count={notifLoading ? "..." : unreadNotifCount}
+              />
+              <QuickAction
+                icon={CreditCard}
+                label="Payments"
+                subtitle="Track verified payment records"
+                onClick={() => nav("/owner/booking-payments")}
+                count={paymentsLoading ? "..." : completedPaymentCount}
+              />
+              <QuickAction
+                icon={Wrench}
+                label="Maintenance"
+                subtitle="Open provider maintenance panel"
                 onClick={() => nav("/owner/maintenance")}
-                className={ui.successButton}
-              >
-                🧰 Maintenance
-              </button>
+              />
             </div>
           </div>
 
-          {showPayments ? (
-            <div className={`${ui.card} mb-6 p-6`}>
-              {sectionHeading("Payment Records")}
+          {renderFocusedTopPanel()}
 
-              {paymentsLoading ? (
-                <p className={`text-sm ${ui.subtext}`}>Loading payment records...</p>
-              ) : paymentsError ? (
-                <p className="text-sm text-red-500">{paymentsError}</p>
-              ) : payments.length === 0 ? (
-                <p className={`text-sm ${ui.subtext}`}>No payment records found.</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full overflow-hidden rounded-2xl border border-slate-200 dark:border-white/10">
-                    <thead
-                      className={
-                        isDark ? "bg-white/5 text-slate-200" : "bg-slate-50 text-slate-700"
-                      }
-                    >
-                      <tr>
-                        <th className="px-4 py-3 text-left text-sm font-semibold">Tenant</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold">Property</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold">Status</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold">Date</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {payments.map((p, idx) => {
-                        const status = getPaymentStatus(p);
-                        const badge =
-                          status === "COMPLETE"
-                            ? ui.badgeGreen
-                            : status === "REJECTED"
-                            ? ui.badgeRed
-                            : ui.badgeAmber;
-
-                        return (
-                          <tr
-                            key={getPaymentId(p, idx)}
-                            className={
-                              isDark
-                                ? "border-t border-white/10"
-                                : "border-t border-slate-200"
-                            }
-                          >
-                            <td className={`px-4 py-3 text-sm ${ui.subtext}`}>
-                              {getPaymentTenant(p)}
-                            </td>
-                            <td className={`px-4 py-3 text-sm ${ui.subtext}`}>
-                              {getPaymentListing(p)}
-                            </td>
-                            <td className="px-4 py-3 text-sm">
-                              <span
-                                className={`rounded-full border px-3 py-1 text-xs font-bold ${badge}`}
-                              >
-                                {status}
-                              </span>
-                            </td>
-                            <td className={`px-4 py-3 text-sm ${ui.subtext}`}>
-                              {formatDate(getPaymentDate(p))}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          ) : null}
-
-          {showNotifications ? (
-            <div className={`${ui.card} mb-6 p-6`}>
-              {sectionHeading(
-                "Notifications",
-                <input
-                  value={notifQuery}
-                  onChange={(e) => setNotifQuery(e.target.value)}
-                  placeholder="Search notifications..."
-                  className={`${ui.input} max-w-sm`}
-                />
-              )}
-
-              {notifLoading ? (
-                <p className={`text-sm ${ui.subtext}`}>Loading notifications...</p>
-              ) : notifError ? (
-                <p className="text-sm text-red-500">{notifError}</p>
-              ) : (
-                <div className="grid gap-4 xl:grid-cols-2">
-                  <NotificationSection
-                    title="Booking Notifications"
-                    items={bookingNotifGroups}
-                    emptyText="No booking notifications."
-                  />
-                  <NotificationSection
-                    title="Provider Notifications"
-                    items={providerNotifGroups}
-                    emptyText="No provider notifications."
-                  />
-                  <NotificationSection
-                    title="Review Notifications"
-                    items={reviewNotifGroups}
-                    emptyText="No review notifications."
-                  />
-                  <NotificationSection
-                    title="Other Notifications"
-                    items={otherNotifGroups}
-                    emptyText="No general notifications."
-                  />
-                </div>
-              )}
-            </div>
-          ) : null}
-
-          {showReviews ? (
-            <div className={`${ui.card} mb-6 p-6`}>
-              {sectionHeading(
-                "Reviews",
-                <input
-                  value={reviewQuery}
-                  onChange={(e) => setReviewQuery(e.target.value)}
-                  placeholder="Search reviews..."
-                  className={`${ui.input} max-w-sm`}
-                />
-              )}
-
-              {reviewsLoading ? (
-                <p className={`text-sm ${ui.subtext}`}>Loading reviews...</p>
-              ) : reviewsError ? (
-                <p className="text-sm text-red-500">{reviewsError}</p>
-              ) : filteredReviews.length === 0 ? (
-                <p className={`text-sm ${ui.subtext}`}>No reviews found.</p>
-              ) : (
-                <div className="grid gap-4 lg:grid-cols-2">
-                  {filteredReviews.map((r, idx) => (
-                    <div key={getReviewId(r, idx)} className={`${ui.softCard} p-4`}>
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <div className={`text-base font-semibold ${ui.sectionTitle}`}>
-                            {getReviewListingTitle(r)}
-                          </div>
-                          <div className={`mt-1 text-sm ${ui.subtext}`}>
-                            From: {getReviewTenant(r)}
-                          </div>
-                        </div>
-
-                        <div className="text-right">
-                          <div className="text-base font-bold text-amber-500">
-                            {starString(getReviewRating(r))}
-                          </div>
-                          <div className={`mt-1 text-xs ${ui.muted}`}>
-                            {formatDate(getReviewCreatedAt(r))}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className={`mt-3 whitespace-pre-wrap text-sm ${ui.subtext}`}>
-                        {getReviewComment(r) || "—"}
-                      </div>
-
-                      {r?.owner_reply ? (
-                        <div className={`${ui.softCard} mt-3 p-3`}>
-                          <div className={`text-xs font-semibold ${ui.sectionTitle}`}>
-                            Owner reply
-                          </div>
-                          <div className={`mt-1 whitespace-pre-wrap text-sm ${ui.subtext}`}>
-                            {String(r.owner_reply)}
-                          </div>
-                        </div>
-                      ) : null}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ) : null}
-
-          <div className="grid gap-6 lg:grid-cols-2">
-            <div className={`${ui.card} p-6`}>
-              {sectionHeading("My Profile")}
-
-              {!profile ? (
-                <p className={`text-sm ${ui.subtext}`}>Loading...</p>
-              ) : (
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className={`${ui.softCard} p-4`}>
-                    <div className={`text-xs font-semibold uppercase ${ui.muted}`}>Owner ID</div>
-                    <div className={`mt-1 text-sm font-medium ${ui.subtext}`}>
-                      {profile.id ?? "-"}
-                    </div>
-                  </div>
-
-                  <div className={`${ui.softCard} p-4`}>
-                    <div className={`text-xs font-semibold uppercase ${ui.muted}`}>Username</div>
-                    <div className={`mt-1 text-sm font-medium ${ui.subtext}`}>
-                      {profile.username ?? "-"}
-                    </div>
-                  </div>
-
-                  <div className={`${ui.softCard} p-4`}>
-                    <div className={`text-xs font-semibold uppercase ${ui.muted}`}>Email</div>
-                    <div className={`mt-1 text-sm font-medium ${ui.subtext}`}>
-                      {profile.email ?? displayEmail ?? "-"}
-                    </div>
-                  </div>
-
-                  <div className={`${ui.softCard} p-4`}>
-                    <div className={`text-xs font-semibold uppercase ${ui.muted}`}>Phone</div>
-                    <div className={`mt-1 text-sm font-medium ${ui.subtext}`}>
-                      {profile.phone ?? "-"}
-                    </div>
-                  </div>
-
-                  <div className={`${ui.softCard} p-4 sm:col-span-2`}>
-                    <div className={`text-xs font-semibold uppercase ${ui.muted}`}>Address</div>
-                    <div className={`mt-1 text-sm font-medium ${ui.subtext}`}>
-                      {profile.address ?? "-"}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className={`${ui.card} p-6`}>
-              {sectionHeading(
-                "Latest Tenant Requests",
-                <button
-                  onClick={() => {
-                    markBookingsSeen(
-                      (requests || []).map((r) => getBookingId(r)).filter(Boolean)
-                    );
-                    nav("/owner/messages");
-                  }}
-                  className={ui.button}
-                >
-                  View All
-                </button>
-              )}
+          <div className={`mt-8 grid grid-cols-1 gap-6 ${activeTopPanel ? "xl:grid-cols-1" : "xl:grid-cols-[1.2fr_1fr]"}`}>
+            <div className={`rounded-[32px] p-6 ${ui.card}`}>
+              <SectionTitle
+                title="Latest Booking Requests"
+                right={
+                  <button
+                    onClick={() => {
+                      markBookingsSeen(
+                        (requests || []).map((r) => getBookingId(r)).filter(Boolean)
+                      );
+                      nav("/owner/messages");
+                    }}
+                    className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-bold transition ${ui.smallAction}`}
+                  >
+                    <MessageSquare className="h-4 w-4" />
+                    Open inbox
+                  </button>
+                }
+              />
 
               {loadingMsgs ? (
-                <p className={`text-sm ${ui.subtext}`}>Loading requests...</p>
+                <div className={`rounded-2xl p-5 ${ui.soft}`}>
+                  <div className={`text-sm ${ui.sub}`}>Loading booking requests...</div>
+                </div>
               ) : latestRequests.length === 0 ? (
-                <p className={`text-sm ${ui.subtext}`}>No requests yet.</p>
+                <div className={`rounded-2xl p-5 ${ui.soft}`}>
+                  <div className={`text-sm ${ui.sub}`}>No booking requests available.</div>
+                </div>
               ) : (
-                <div className="grid gap-3">
-                  {latestRequests.map((b, idx) => {
-                    const st = getStatus(b);
-                    const badge =
-                      st === "accepted"
+                <div className="grid gap-4">
+                  {latestRequests.map((req, idx) => {
+                    const bookingId = getBookingId(req);
+                    const status = getStatus(req);
+
+                    const statusClasses =
+                      status === "accepted"
                         ? ui.badgeGreen
-                        : st === "rejected"
-                        ? ui.badgeRed
+                        : status === "rejected"
+                        ? (isDark
+                            ? "border-red-500/20 bg-red-500/10 text-red-300"
+                            : "border-red-200 bg-red-50 text-red-700")
                         : ui.badgeAmber;
 
                     return (
-                      <div key={getBookingId(b) || idx} className={`${ui.softCard} p-4`}>
-                        <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div key={bookingId || idx} className={`rounded-3xl p-5 ${ui.soft}`}>
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                           <div>
-                            <div className={`text-base font-semibold ${ui.sectionTitle}`}>
-                              {getListingTitle(b)}
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className={`text-lg font-black ${ui.heading}`}>
+                                {getListingTitle(req)}
+                              </h3>
+                              <span className={`rounded-full border px-3 py-1 text-xs font-bold ${statusClasses}`}>
+                                {status}
+                              </span>
                             </div>
-                            <div className={`mt-1 text-sm ${ui.subtext}`}>
-                              {getTenantDisplay(b)}
-                            </div>
-                            {getTenantPhone(b) ? (
-                              <div className={`mt-1 text-sm ${ui.subtext}`}>
-                                {getTenantPhone(b)}
-                              </div>
-                            ) : null}
+
+                            <p className={`mt-3 text-sm ${ui.sub}`}>
+                              Tenant: {getTenantName(req)} • {getTenantEmail(req)}
+                            </p>
+
+                            <p className={`mt-4 text-sm leading-7 ${ui.sub}`}>
+                              {getFirstMessage(req) || "No message preview available."}
+                            </p>
                           </div>
 
-                          <span
-                            className={`rounded-full border px-3 py-1 text-xs font-bold ${badge}`}
-                          >
-                            {st.toUpperCase()}
-                          </span>
-                        </div>
-
-                        <div className={`mt-3 text-sm ${ui.subtext}`}>
-                          {getFirstMessage(b) || "No message"}
-                        </div>
-
-                        <div className={`mt-3 text-xs ${ui.muted}`}>
-                          {formatDate(b?.created_at)}
+                          <div className={`text-xs ${ui.muted}`}>
+                            {formatDate(req?.created_at)}
+                          </div>
                         </div>
                       </div>
                     );
@@ -2033,294 +2133,312 @@ out center;
                 </div>
               )}
             </div>
+
+            {!activeTopPanel && (
+              <div className={`rounded-[32px] p-6 ${ui.card}`}>
+                <SectionTitle
+                  title="Dashboard Summary"
+                  right={
+                    <button
+                      onClick={() => {
+                        loadNotifications(false);
+                        loadReviews(false);
+                        loadPayments(false);
+                      }}
+                      className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-bold transition ${ui.smallAction}`}
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                      Refresh
+                    </button>
+                  }
+                />
+
+                <div className="grid gap-4">
+                  <div className={`rounded-3xl p-5 ${ui.soft}`}>
+                    <div className={`mb-2 text-xs font-bold uppercase tracking-[0.18em] ${ui.muted}`}>
+                      Owner Account
+                    </div>
+                    <div className={`text-base font-bold ${ui.heading}`}>{displayEmail}</div>
+                    <div className={`mt-1 text-sm ${ui.sub}`}>
+                      Manage your rentals, messages, and records professionally.
+                    </div>
+                  </div>
+
+                  <div className={`rounded-3xl p-5 ${ui.soft}`}>
+                    <div className={`mb-2 text-xs font-bold uppercase tracking-[0.18em] ${ui.muted}`}>
+                      Actions Available
+                    </div>
+                    <div className={`text-sm leading-7 ${ui.sub}`}>
+                      Post new property listings, open tenant messages, review ratings,
+                      inspect grouped notifications, and monitor completed payment records.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
-          {showAddProperty ? (
-            <div className={`${ui.card} mt-6 p-6`}>
-              {sectionHeading("Add Property")}
+          {showAddProperty && (
+            <div ref={addPropertyRef} className={`mt-10 rounded-[32px] p-6 lg:p-8 ${ui.card}`}>
+              <SectionTitle
+                title="Add New Property"
+                right={
+                  <button
+                    onClick={() => setShowAddProperty(false)}
+                    className={`rounded-2xl px-4 py-2 text-sm font-bold transition ${ui.smallAction}`}
+                  >
+                    Close
+                  </button>
+                }
+              />
 
-              {!validation.ok ? (
+              {!validation.ok && (
                 <div
-                  className={`mb-4 rounded-2xl border p-4 ${
+                  className={`mb-6 rounded-2xl border p-4 text-sm ${
                     isDark
-                      ? "border-red-500/20 bg-red-500/10"
-                      : "border-red-200 bg-red-50"
+                      ? "border-amber-500/20 bg-amber-500/10 text-amber-200"
+                      : "border-amber-200 bg-amber-50 text-amber-700"
                   }`}
                 >
-                  <div className="text-sm font-semibold text-red-600">Please fix these:</div>
-                  <ul className="mt-2 space-y-1 text-sm text-red-600">
-                    {validation.errors.map((e, i) => (
-                      <li key={i}>• {e}</li>
-                    ))}
-                  </ul>
+                  {validation.errors[0]}
                 </div>
-              ) : null}
+              )}
 
               <form onSubmit={submitProperty} className="grid gap-6">
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
                   <div>
-                    <label className={`mb-2 block text-sm font-semibold ${ui.sectionTitle}`}>
-                      Title
+                    <label className={`mb-2 block text-sm font-semibold ${ui.heading}`}>
+                      Property Title
                     </label>
                     <input
                       name="title"
                       value={form.title}
                       onChange={onChange}
-                      className={ui.input}
-                      placeholder="Property title"
+                      placeholder="Enter property title"
+                      className={`h-12 w-full rounded-2xl border px-4 outline-none ${ui.input}`}
                     />
                   </div>
 
                   <div>
-                    <label className={`mb-2 block text-sm font-semibold ${ui.sectionTitle}`}>
+                    <label className={`mb-2 block text-sm font-semibold ${ui.heading}`}>
                       Property Type
                     </label>
                     <select
                       name="property_type"
                       value={form.property_type}
                       onChange={onChange}
-                      className={ui.input}
+                      className={`h-12 w-full rounded-2xl border px-4 outline-none ${ui.input}`}
                     >
                       <option value="house">House</option>
                       <option value="apartment">Apartment</option>
-                      <option value="flat">Flat</option>
                       <option value="room">Room</option>
+                      <option value="flat">Flat</option>
                     </select>
                   </div>
 
-                  <div className="md:col-span-2">
-                    <label className={`mb-2 block text-sm font-semibold ${ui.sectionTitle}`}>
-                      Description
-                    </label>
-                    <textarea
-                      name="description"
-                      value={form.description}
-                      onChange={onChange}
-                      rows={4}
-                      className={ui.textarea}
-                      placeholder="Describe your property..."
-                    />
-                  </div>
-
-                  <div className="md:col-span-2">
-                    <label className={`mb-2 block text-sm font-semibold ${ui.sectionTitle}`}>
-                      Location
-                    </label>
-                    <input
-                      name="location"
-                      value={form.location}
-                      onChange={onChange}
-                      className={ui.input}
-                      placeholder="Property location"
-                    />
-                    {geoLoading ? (
-                      <div className={`mt-2 text-xs ${ui.muted}`}>Detecting address...</div>
-                    ) : null}
-                    {place.display ? (
-                      <div className={`mt-2 text-xs ${ui.subtext}`}>
-                        Detected: {place.display}
-                      </div>
-                    ) : null}
-                  </div>
-
                   <div>
-                    <label className={`mb-2 block text-sm font-semibold ${ui.sectionTitle}`}>
+                    <label className={`mb-2 block text-sm font-semibold ${ui.heading}`}>
                       Price Per Month
                     </label>
                     <input
                       name="price_per_month"
                       value={form.price_per_month}
                       onChange={onChange}
-                      type="number"
-                      className={ui.input}
-                      placeholder="Monthly rent"
+                      placeholder="Enter monthly price"
+                      className={`h-12 w-full rounded-2xl border px-4 outline-none ${ui.input}`}
                     />
                   </div>
 
                   <div>
-                    <label className={`mb-2 block text-sm font-semibold ${ui.sectionTitle}`}>
+                    <label className={`mb-2 block text-sm font-semibold ${ui.heading}`}>
                       Electricity Bill
                     </label>
                     <input
                       name="electricity_bill"
                       value={form.electricity_bill}
                       onChange={onChange}
-                      className={ui.input}
-                      placeholder="Electricity bill"
+                      placeholder="Optional"
+                      className={`h-12 w-full rounded-2xl border px-4 outline-none ${ui.input}`}
                     />
                   </div>
 
                   <div>
-                    <label className={`mb-2 block text-sm font-semibold ${ui.sectionTitle}`}>
-                      Contact Number
+                    <label className={`mb-2 block text-sm font-semibold ${ui.heading}`}>
+                      Owner Contact Number
                     </label>
                     <input
                       name="owner_contact_number"
                       value={form.owner_contact_number}
                       onChange={onChange}
-                      className={ui.input}
-                      placeholder="Phone number"
+                      placeholder="Enter contact number"
+                      className={`h-12 w-full rounded-2xl border px-4 outline-none ${ui.input}`}
                     />
                   </div>
 
                   <div>
-                    <label className={`mb-2 block text-sm font-semibold ${ui.sectionTitle}`}>
-                      Contact Email
+                    <label className={`mb-2 block text-sm font-semibold ${ui.heading}`}>
+                      Owner Contact Email
                     </label>
                     <input
                       name="owner_contact_email"
                       value={form.owner_contact_email}
                       onChange={onChange}
-                      className={ui.input}
-                      placeholder="Email address"
+                      placeholder="Enter contact email"
+                      className={`h-12 w-full rounded-2xl border px-4 outline-none ${ui.input}`}
                     />
-                  </div>
-
-                  <div>
-                    <label className={`mb-2 block text-sm font-semibold ${ui.sectionTitle}`}>
-                      Latitude
-                    </label>
-                    <input
-                      name="latitude"
-                      value={form.latitude}
-                      onChange={onChange}
-                      className={ui.input}
-                      placeholder="Latitude"
-                    />
-                  </div>
-
-                  <div>
-                    <label className={`mb-2 block text-sm font-semibold ${ui.sectionTitle}`}>
-                      Longitude
-                    </label>
-                    <input
-                      name="longitude"
-                      value={form.longitude}
-                      onChange={onChange}
-                      className={ui.input}
-                      placeholder="Longitude"
-                    />
-                  </div>
-                </div>
-
-                <div className={`${ui.softCard} p-4`}>
-                  <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <div className={`text-base font-semibold ${ui.sectionTitle}`}>
-                        Pick Property Location
-                      </div>
-                      <div className={`text-sm ${ui.subtext}`}>
-                        Click on the map to set latitude and longitude.
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={clearPicked}
-                        className={ui.button}
-                      >
-                        Clear Picked Location
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-white/10">
-                    <LocationPicker value={picked} onPick={onPick} />
-                  </div>
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div>
-                    <label className={`mb-2 block text-sm font-semibold ${ui.sectionTitle}`}>
-                      Cover Image
-                    </label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => setCoverImage(e.target.files?.[0] || null)}
-                      className={ui.input}
-                    />
-                    {coverImage ? (
-                      <div className={`mt-2 text-xs ${ui.subtext}`}>{coverImage.name}</div>
-                    ) : null}
-                  </div>
-
-                  <div>
-                    <label className={`mb-2 block text-sm font-semibold ${ui.sectionTitle}`}>
-                      Nearby Search Radius
-                    </label>
-                    <input
-                      type="range"
-                      min="500"
-                      max="5000"
-                      step="100"
-                      value={radius}
-                      onChange={(e) => setRadius(Number(e.target.value))}
-                      className="w-full"
-                    />
-                    <div className={`mt-2 text-xs ${ui.subtext}`}>
-                      Radius: {kmOrM(radius)}
-                    </div>
-                    {nearbyLoading ? (
-                      <div className={`mt-1 text-xs ${ui.muted}`}>Loading nearby places...</div>
-                    ) : null}
                   </div>
                 </div>
 
                 <div>
-                  <div className={`mb-3 text-base font-semibold ${ui.sectionTitle}`}>
-                    360° Images
+                  <label className={`mb-2 block text-sm font-semibold ${ui.heading}`}>
+                    Description
+                  </label>
+                  <textarea
+                    name="description"
+                    value={form.description}
+                    onChange={onChange}
+                    rows={5}
+                    placeholder="Describe your property"
+                    className={`w-full rounded-2xl border px-4 py-3 outline-none ${ui.input}`}
+                  />
+                </div>
+
+                <div>
+                  <label className={`mb-2 block text-sm font-semibold ${ui.heading}`}>
+                    Location
+                  </label>
+                  <input
+                    name="location"
+                    value={form.location}
+                    onChange={onChange}
+                    placeholder="Pick from map or enter location"
+                    className={`h-12 w-full rounded-2xl border px-4 outline-none ${ui.input}`}
+                  />
+                </div>
+
+                <div className={`rounded-3xl p-4 ${ui.soft}`}>
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <h3 className={`text-base font-black ${ui.heading}`}>Pick Property Location</h3>
+                      <p className={`mt-1 text-sm ${ui.sub}`}>
+                        Click on the map to select the property.
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap gap-3">
+                      <button
+                        type="button"
+                        onClick={clearPicked}
+                        className={`rounded-2xl px-4 py-2 text-sm font-bold transition ${ui.smallAction}`}
+                      >
+                        Clear
+                      </button>
+                    </div>
                   </div>
-                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                    {["front", "back", "left", "right", "up", "down"].map((side) => (
-                      <div key={side}>
-                        <label className={`mb-2 block text-sm font-semibold capitalize ${ui.sectionTitle}`}>
-                          {side}
-                        </label>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={(e) => onPanoChange(side, e.target.files?.[0] || null)}
-                          className={ui.input}
-                        />
-                        {pano[side] ? (
-                          <div className={`mt-2 text-xs ${ui.subtext}`}>{pano[side].name}</div>
-                        ) : null}
+
+                  <LocationPicker onPick={onPick} picked={picked} />
+
+                  <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div className={`rounded-2xl p-4 ${ui.card}`}>
+                      <div className={`text-sm font-semibold ${ui.heading}`}>Latitude</div>
+                      <div className={`mt-1 text-sm ${ui.sub}`}>{form.latitude || "-"}</div>
+                    </div>
+
+                    <div className={`rounded-2xl p-4 ${ui.card}`}>
+                      <div className={`text-sm font-semibold ${ui.heading}`}>Longitude</div>
+                      <div className={`mt-1 text-sm ${ui.sub}`}>{form.longitude || "-"}</div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4">
+                    <div className={`rounded-2xl p-4 ${ui.card}`}>
+                      <div className={`text-sm font-semibold ${ui.heading}`}>
+                        Reverse Geocoding
                       </div>
-                    ))}
+                      <div className={`mt-2 text-sm ${ui.sub}`}>
+                        {geoLoading ? "Detecting address..." : place.display || "No address yet."}
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                <div className="grid gap-4 xl:grid-cols-3">
-                  <NearbyList title="Schools" items={nearby.schools} />
-                  <NearbyList title="Colleges / Universities" items={nearby.colleges} />
-                  <NearbyList title="Hospitals / Clinics" items={nearby.hospitals} />
-                  <NearbyList title="Markets" items={nearby.markets} />
-                  <NearbyList title="Bus Stops" items={nearby.bus} />
-                  <NearbyList title="ATMs" items={nearby.atms} />
+                <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+                  <FileField label="Cover Image" required onChange={setCoverImage} />
+                  <FileField label="360 Front" required onChange={(f) => onPanoChange("front", f)} />
+                  <FileField label="360 Back" required onChange={(f) => onPanoChange("back", f)} />
+                  <FileField label="360 Left" required onChange={(f) => onPanoChange("left", f)} />
+                  <FileField label="360 Right" required onChange={(f) => onPanoChange("right", f)} />
+                  <FileField label="360 Up" required onChange={(f) => onPanoChange("up", f)} />
+                  <FileField label="360 Down" required onChange={(f) => onPanoChange("down", f)} />
+                </div>
+
+                <div className={`rounded-3xl p-5 ${ui.soft}`}>
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <h3 className={`text-base font-black ${ui.heading}`}>Nearby Facilities</h3>
+                      <p className={`mt-1 text-sm ${ui.sub}`}>
+                        Nearby places are shown based on selected map location.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <MapPin className={`h-4 w-4 ${ui.muted}`} />
+                      <select
+                        value={radius}
+                        onChange={(e) => setRadius(Number(e.target.value))}
+                        className={`h-11 rounded-2xl border px-4 outline-none ${ui.input}`}
+                      >
+                        <option value={500}>500 m</option>
+                        <option value={800}>800 m</option>
+                        <option value={1200}>1.2 km</option>
+                        <option value={2000}>2 km</option>
+                        <option value={3000}>3 km</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {nearbyLoading ? (
+                    <div className={`rounded-2xl p-4 ${ui.card}`}>
+                      <div className={`text-sm ${ui.sub}`}>Loading nearby places...</div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+                      <NearbyList title="Schools" items={nearby.schools} />
+                      <NearbyList title="Colleges" items={nearby.colleges} />
+                      <NearbyList title="Hospitals" items={nearby.hospitals} />
+                      <NearbyList title="Markets" items={nearby.markets} />
+                      <NearbyList title="Bus Stops" items={nearby.bus} />
+                      <NearbyList title="ATMs" items={nearby.atms} />
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex flex-wrap gap-3">
                   <button
                     type="submit"
                     disabled={posting}
-                    className={posting ? ui.warningButton : ui.primaryButton}
+                    className="inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
                   >
+                    <Send className="h-4 w-4" />
                     {posting ? "Posting..." : "Post Property"}
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setShowAddProperty(false)}
-                    className={ui.button}
+                    className={`rounded-2xl px-5 py-3 text-sm font-bold transition ${ui.smallAction}`}
                   >
                     Cancel
                   </button>
                 </div>
               </form>
             </div>
-          ) : null}
+          )}
+
+          {/* Hidden refs kept for compatibility with your existing logic */}
+          <div ref={reviewsRef} className="h-0 w-0 overflow-hidden" />
+          <div ref={notificationsRef} className="h-0 w-0 overflow-hidden" />
+          <div ref={paymentsRef} className="h-0 w-0 overflow-hidden" />
         </div>
       </div>
     </Shell>
