@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import html2canvas from "html2canvas";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Shell from "../../components/Shell";
 import api from "../../api/axios";
+import Shell from "../../components/Shell";
 import { useTheme } from "../../components/ThemeContext";
 
 function makeId(prefix = "id") {
@@ -49,28 +50,15 @@ export default function VirtualFurniturePage() {
   const [catalogSearch, setCatalogSearch] = useState("");
 
   const [toast, setToast] = useState("");
-
-  useEffect(() => {
-    loadFurniture();
-  }, []);
-
-  useEffect(() => {
-    placedItemsRef.current = placedItems;
-  }, [placedItems]);
-
-  useEffect(() => {
-    if (!toast) return;
-    const timer = setTimeout(() => setToast(""), 2500);
-    return () => clearTimeout(timer);
-  }, [toast]);
-
-  useEffect(() => {
-    return () => {
-      if (roomUrlRef.current) {
-        URL.revokeObjectURL(roomUrlRef.current);
-      }
-    };
-  }, []);
+  
+  // Saved room images state
+  const [savedRoomImages, setSavedRoomImages] = useState([]);
+  const [loadingSavedImages, setLoadingSavedImages] = useState(false);
+  const [showSavedImagesModal, setShowSavedImagesModal] = useState(false);
+  const [savingRoomImage, setSavingRoomImage] = useState(false);
+  const [roomImageName, setRoomImageName] = useState("");
+  const [editingImageId, setEditingImageId] = useState(null);
+  const [editingImageName, setEditingImageName] = useState("");
 
   const axiosErr = (e, fallback) =>
     e?.response?.data?.detail ||
@@ -93,6 +81,195 @@ export default function VirtualFurniturePage() {
       setToast(axiosErr(e, "Failed to load furniture."));
     } finally {
       setLoadingCatalog(false);
+    }
+  };
+
+  const loadSavedRoomImages = async () => {
+    setLoadingSavedImages(true);
+    try {
+      const res = await api.get("tenant/virtual-furniture/room-images/");
+      setSavedRoomImages(Array.isArray(res.data) ? res.data : res.data?.results || []);
+    } catch (e) {
+      console.error("Failed to load saved room images:", axiosErr(e, ""));
+    } finally {
+      setLoadingSavedImages(false);
+    }
+  };
+
+  useEffect(() => {
+    loadFurniture();
+    loadSavedRoomImages();
+  }, []);
+
+  useEffect(() => {
+    placedItemsRef.current = placedItems;
+  }, [placedItems]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(""), 2500);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
+  useEffect(() => {
+    return () => {
+      if (roomUrlRef.current) {
+        URL.revokeObjectURL(roomUrlRef.current);
+      }
+    };
+  }, []);
+
+  // Save current room layout as image
+  const saveRoomLayout = async () => {
+    if (!roomImage) {
+      setToast("Please upload a room image first.");
+      return;
+    }
+
+    if (!roomImageName.trim()) {
+      setToast("Please enter a name for this room layout.");
+      return;
+    }
+
+    setSavingRoomImage(true);
+    try {
+      // Capture the room preview area with all furniture
+      if (!roomRef.current) {
+        setToast("Room preview not available.");
+        return;
+      }
+
+      const canvas = await html2canvas(roomRef.current, {
+        backgroundColor: null,
+        scale: 1.5,
+        logging: false,
+        useCORS: true,
+        allowTaint: true,
+      });
+
+      // Convert canvas to blob
+      canvas.toBlob(async (blob) => {
+        if (!blob) {
+          setToast("Failed to capture room image.");
+          return;
+        }
+
+        try {
+          const formData = new FormData();
+          formData.append("image", blob, `${roomImageName.trim()}.png`);
+          formData.append("image_name", roomImageName.trim());
+
+          // Include furniture layout data as JSON
+          const layoutData = {
+            roomImage: roomImage,
+            placedItems: placedItems,
+            createdAt: new Date().toISOString(),
+          };
+          formData.append("layout_data", JSON.stringify(layoutData));
+
+          const res = await api.post(
+            "tenant/virtual-furniture/room-images/",
+            formData,
+            {
+              headers: {
+                "Content-Type": "multipart/form-data",
+              },
+            }
+          );
+
+          setSavedRoomImages((prev) => [res.data, ...prev]);
+          setRoomImageName("");
+          setToast(`Room layout saved as "${roomImageName.trim()}" with ${placedItems.length} furniture items`);
+        } catch (e) {
+          setToast(axiosErr(e, "Failed to save room image."));
+        } finally {
+          setSavingRoomImage(false);
+        }
+      });
+    } catch (e) {
+      setToast(axiosErr(e, "Failed to capture room layout."));
+      setSavingRoomImage(false);
+    }
+  };
+
+  // Load a saved room image
+  const loadSavedRoomImage = (savedImage) => {
+    try {
+      // Check if layout data exists (new format with furniture)
+      if (savedImage.layout_data) {
+        const layoutData = JSON.parse(savedImage.layout_data);
+        setRoomImage(layoutData.roomImage);
+        setPlacedItems(layoutData.placedItems || []);
+        setToast(`Loaded room layout: "${savedImage.image_name}" with ${layoutData.placedItems?.length || 0} furniture items`);
+      } else {
+        // Legacy format - just load the room image
+        setRoomImage(savedImage.image);
+        setPlacedItems([]);
+        setToast(`Loaded room layout: "${savedImage.image_name}"`);
+      }
+      setSelectedPlacedId(null);
+      setShowSavedImagesModal(false);
+    } catch (e) {
+      console.error("Error loading saved room layout:", e);
+      // Fallback to legacy loading
+      setRoomImage(savedImage.image);
+      setPlacedItems([]);
+      setSelectedPlacedId(null);
+      setShowSavedImagesModal(false);
+      setToast(`Loaded room layout: "${savedImage.image_name}"`);
+    }
+  };
+
+  // Delete a saved room image
+  const deleteSavedRoomImage = async (imageId) => {
+    if (!window.confirm("Are you sure you want to delete this saved room layout?")) {
+      return;
+    }
+
+    try {
+      await api.delete(`tenant/virtual-furniture/room-images/${imageId}/`);
+      setSavedRoomImages((prev) => prev.filter((img) => img.id !== imageId));
+      setToast("Room layout deleted successfully.");
+    } catch (e) {
+      setToast(axiosErr(e, "Failed to delete room image."));
+    }
+  };
+
+  // Start editing room image name
+  const startEditingImageName = (imageId, currentName) => {
+    setEditingImageId(imageId);
+    setEditingImageName(currentName);
+  };
+
+  // Update room image name
+  const updateRoomImageName = async (imageId) => {
+    if (!editingImageName.trim()) {
+      setToast("Please enter a valid name.");
+      return;
+    }
+
+    try {
+      const formData = new FormData();
+      formData.append("image_name", editingImageName.trim());
+
+      const res = await api.put(
+        `tenant/virtual-furniture/room-images/${imageId}/`,
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        }
+      );
+
+      setSavedRoomImages((prev) =>
+        prev.map((img) => (img.id === imageId ? res.data : img))
+      );
+      setEditingImageId(null);
+      setEditingImageName("");
+      setToast("Room layout name updated.");
+    } catch (e) {
+      setToast(axiosErr(e, "Failed to update room image name."));
     }
   };
 
@@ -612,6 +789,17 @@ export default function VirtualFurniturePage() {
       right={
         <div className="flex flex-wrap items-center gap-2">
           <button
+            onClick={() => setShowSavedImagesModal(true)}
+            className={`rounded-2xl border px-4 py-2 text-sm font-medium transition ${
+              isDark
+                ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/20"
+                : "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+            }`}
+          >
+            📷 View Saved ({savedRoomImages.length})
+          </button>
+
+          <button
             onClick={() => nav("/tenant")}
             className={`rounded-2xl border px-4 py-2 text-sm font-medium transition ${
               isDark
@@ -767,6 +955,47 @@ export default function VirtualFurniturePage() {
                   Use Room Image Path
                 </button>
               </div>
+            </div>
+
+            <div className={`${softCardClass} p-5`}>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className={`text-lg font-semibold ${isDark ? "text-white" : "text-slate-900"}`}>
+                    Save Room Layout
+                  </div>
+                  <div className={`mt-1 text-sm ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                    Capture and save your current room design.
+                  </div>
+                </div>
+                <div
+                  className={`rounded-full border px-3 py-1 text-xs font-medium ${
+                    isDark
+                      ? "border-purple-400/20 bg-purple-500/10 text-purple-200"
+                      : "border-purple-200 bg-purple-50 text-purple-700"
+                  }`}
+                >
+                  Save
+                </div>
+              </div>
+
+              <input
+                value={roomImageName}
+                onChange={(e) => setRoomImageName(e.target.value)}
+                placeholder="Enter layout name (e.g., 'Living Room - April 2026')"
+                className={`${inputClass} mt-4`}
+              />
+
+              <button
+                onClick={saveRoomLayout}
+                disabled={savingRoomImage || !roomImage}
+                className={`mt-3 w-full rounded-2xl border px-4 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                  isDark
+                    ? "border-purple-400/20 bg-purple-500/10 text-purple-100 hover:bg-purple-500/20"
+                    : "border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100"
+                }`}
+              >
+                {savingRoomImage ? "Saving..." : `💾 Save Layout (${placedItems.length} items)`}
+              </button>
             </div>
 
             <div className="mt-6">
@@ -1518,6 +1747,219 @@ export default function VirtualFurniturePage() {
           </main>
         </div>
       </div>
+
+      {/* Saved Room Images Modal */}
+      {showSavedImagesModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div
+            className={`w-full max-w-4xl max-h-[90vh] overflow-auto rounded-3xl border ${
+              isDark
+                ? "border-white/10 bg-slate-950 shadow-2xl shadow-black/50"
+                : "border-slate-200 bg-white shadow-2xl"
+            }`}
+          >
+            <div
+              className={`sticky top-0 border-b px-6 py-4 ${
+                isDark ? "border-white/10 bg-slate-950/95" : "border-slate-200 bg-white/95"
+              }`}
+            >
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <h2
+                    className={`text-2xl font-bold tracking-tight ${
+                      isDark ? "text-white" : "text-slate-900"
+                    }`}
+                  >
+                    Saved Room Layouts
+                  </h2>
+                  <p
+                    className={`mt-1 text-sm ${isDark ? "text-slate-400" : "text-slate-500"}`}
+                  >
+                    View, load, update, or delete your saved room designs.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowSavedImagesModal(false)}
+                  className={`flex h-10 w-10 items-center justify-center rounded-2xl border text-lg transition ${
+                    isDark
+                      ? "border-white/10 bg-white/[0.05] text-slate-300 hover:bg-white/[0.1]"
+                      : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
+                  }`}
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6">
+              {loadingSavedImages ? (
+                <div
+                  className={`rounded-2xl border p-8 text-center ${
+                    isDark
+                      ? "border-white/10 bg-slate-900/40"
+                      : "border-slate-200 bg-slate-50"
+                  }`}
+                >
+                  <div className={isDark ? "text-slate-400" : "text-slate-500"}>
+                    Loading saved layouts...
+                  </div>
+                </div>
+              ) : savedRoomImages.length === 0 ? (
+                <div
+                  className={`rounded-2xl border p-8 text-center ${
+                    isDark
+                      ? "border-dashed border-white/10 bg-slate-900/40"
+                      : "border-dashed border-slate-200 bg-slate-50"
+                  }`}
+                >
+                  <div className="text-4xl mb-3">🏠</div>
+                  <div className={`text-lg font-semibold ${isDark ? "text-white" : "text-slate-900"}`}>
+                    No saved room layouts yet
+                  </div>
+                  <div className={`mt-2 text-sm ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                    Create your first room design and save it to see it here.
+                  </div>
+                </div>
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {savedRoomImages.map((savedImage) => (
+                    <div
+                      key={savedImage.id}
+                      className={`overflow-hidden rounded-2xl border transition hover:scale-[1.02] ${
+                        isDark
+                          ? "border-white/10 bg-slate-900/60"
+                          : "border-slate-200 bg-slate-50"
+                      }`}
+                    >
+                      <div className="relative h-40 overflow-hidden bg-gradient-to-br from-slate-900 to-slate-950">
+                        <img
+                          src={savedImage.image}
+                          alt={savedImage.image_name}
+                          className="h-full w-full object-cover"
+                          onError={(e) => {
+                            e.currentTarget.onerror = null;
+                            e.currentTarget.src = "/no-image.png";
+                          }}
+                        />
+                      </div>
+
+                      <div className="p-4">
+                        {editingImageId === savedImage.id ? (
+                          <div className="space-y-2">
+                            <input
+                              autoFocus
+                              value={editingImageName}
+                              onChange={(e) => setEditingImageName(e.target.value)}
+                              className={inputClass}
+                              placeholder="Enter layout name"
+                            />
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() =>
+                                  updateRoomImageName(savedImage.id)
+                                }
+                                className={`flex-1 rounded-2xl border px-3 py-2 text-sm font-medium transition ${
+                                  isDark
+                                    ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/20"
+                                    : "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                                }`}
+                              >
+                                Save
+                              </button>
+                              <button
+                                onClick={() => setEditingImageId(null)}
+                                className={`flex-1 rounded-2xl border px-3 py-2 text-sm font-medium transition ${
+                                  isDark
+                                    ? "border-slate-400/20 bg-slate-500/10 text-slate-100 hover:bg-slate-500/20"
+                                    : "border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200"
+                                }`}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <div
+                              className={`truncate text-base font-semibold ${
+                                isDark ? "text-white" : "text-slate-900"
+                              }`}
+                              title={savedImage.image_name}
+                            >
+                              {savedImage.image_name}
+                            </div>
+                            <div
+                              className={`mt-1 text-xs ${
+                                isDark ? "text-slate-400" : "text-slate-500"
+                              }`}
+                            >
+                              Saved{" "}
+                              {new Date(savedImage.created_at).toLocaleDateString()}
+                              {savedImage.layout_data && (
+                                <span className="ml-2">
+                                  •{" "}
+                                  {(() => {
+                                    try {
+                                      const layout = JSON.parse(savedImage.layout_data);
+                                      return `${layout.placedItems?.length || 0} items`;
+                                    } catch {
+                                      return "";
+                                    }
+                                  })()}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="mt-4 grid grid-cols-2 gap-2">
+                              <button
+                                onClick={() => loadSavedRoomImage(savedImage)}
+                                className={`rounded-2xl border px-3 py-2 text-sm font-medium transition ${
+                                  isDark
+                                    ? "border-cyan-400/20 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-500/20"
+                                    : "border-cyan-200 bg-cyan-50 text-cyan-700 hover:bg-cyan-100"
+                                }`}
+                              >
+                                📂 Load
+                              </button>
+                              <button
+                                onClick={() =>
+                                  startEditingImageName(
+                                    savedImage.id,
+                                    savedImage.image_name
+                                  )
+                                }
+                                className={`rounded-2xl border px-3 py-2 text-sm font-medium transition ${
+                                  isDark
+                                    ? "border-blue-400/20 bg-blue-500/10 text-blue-100 hover:bg-blue-500/20"
+                                    : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+                                }`}
+                              >
+                                ✏️ Rename
+                              </button>
+                              <button
+                                onClick={() =>
+                                  deleteSavedRoomImage(savedImage.id)
+                                }
+                                className={`col-span-2 rounded-2xl border px-3 py-2 text-sm font-medium transition ${
+                                  isDark
+                                    ? "border-red-400/20 bg-red-500/10 text-red-100 hover:bg-red-500/20"
+                                    : "border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+                                }`}
+                              >
+                                🗑️ Delete
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </Shell>
   );
-}
+} 

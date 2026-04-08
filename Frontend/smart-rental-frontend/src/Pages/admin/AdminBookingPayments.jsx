@@ -2,25 +2,35 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import Shell from "../../components/Shell";
+import { useTheme } from "../../components/ThemeContext";
 import { 
-  Building2, Users, Receipt, CheckCircle2, 
+  Building2, Users, Receipt, CheckCircle2,
   AlertCircle, DollarSign, Wallet, ArrowRightLeft,
-  RefreshCw, ChevronRight, Hash
+  RefreshCw, ChevronRight, Hash, LayoutDashboard
 } from "lucide-react";
 
 export default function AdminBookingPayments() {
   const nav = useNavigate();
+  const { isDark } = useTheme();
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [noteMap, setNoteMap] = useState({});
   const [processingId, setProcessingId] = useState(null);
   const [toast, setToast] = useState({ type: "info", msg: "" });
 
+  // Theme Constants
+  const cardBg = isDark ? "bg-white/5 border-white/10 backdrop-blur-md" : "bg-white border-neutral-100 shadow-sm";
+  const headerText = isDark ? "text-white" : "text-neutral-900";
+  const mutedText = isDark ? "text-slate-400" : "text-neutral-400";
+  const inputText = isDark ? "text-slate-200" : "text-neutral-700";
+  const inputFill = isDark ? "bg-white/5 border-white/10" : "bg-neutral-50 border-neutral-200";
+
   const fetchPayments = async () => {
     setLoading(true);
     try {
       const res = await api.get("/admin/booking-payments/");
-      setPayments(res.data || []);
+      const list = Array.isArray(res.data) ? res.data : (res.data?.results || []);
+      setPayments(list);
     } catch (err) {
       setToast({ type: "error", msg: "Failed to synchronize payment records." });
     } finally {
@@ -29,6 +39,12 @@ export default function AdminBookingPayments() {
   };
 
   useEffect(() => { fetchPayments(); }, []);
+
+  useEffect(() => {
+    if (!toast.msg) return;
+    const t = setTimeout(() => setToast({ type: "info", msg: "" }), 4000);
+    return () => clearTimeout(t);
+  }, [toast]);
 
   const markOwnerPaid = async (id) => {
     setProcessingId(id);
@@ -46,14 +62,16 @@ export default function AdminBookingPayments() {
   };
 
   const StatPanel = ({ title, value, sub, icon: Icon, color = "blue" }) => (
-    <div className="bg-white rounded-[32px] p-8 border border-neutral-100 shadow-sm flex items-center gap-6">
-       <div className={`w-14 h-14 bg-${color}-50 text-${color}-600 rounded-2xl flex items-center justify-center shrink-0`}>
+    <div className={`rounded-[32px] p-8 border flex items-center gap-6 ${cardBg}`}>
+       <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 ${
+         isDark ? `bg-${color}-500/10 text-${color}-400` : `bg-${color}-50 text-${color}-600`
+       }`}>
           <Icon className="w-7 h-7" />
        </div>
        <div>
-          <div className="text-[10px] font-black uppercase tracking-widest text-neutral-400 mb-1">{title}</div>
-          <div className="text-3xl font-black text-neutral-900 leading-none mb-1">{value}</div>
-          {sub && <div className="text-xs font-bold text-neutral-400">{sub}</div>}
+          <div className={`text-[10px] font-black uppercase tracking-widest mb-1 ${mutedText}`}>{title}</div>
+          <div className={`text-3xl font-black leading-none mb-1 ${headerText}`}>{value}</div>
+          {sub && <div className={`text-xs font-bold ${mutedText}`}>{sub}</div>}
        </div>
     </div>
   );
@@ -67,137 +85,167 @@ export default function AdminBookingPayments() {
       title="Financial Ledger"
       subtitle="Monitor transactional flow, platform revenue, and owner payouts."
       right={(
-        <button onClick={() => nav("/admin/dashboard")} className="p-3 bg-neutral-100 hover:bg-neutral-200 text-neutral-600 rounded-2xl transition-all">
-          <ChevronRight className="w-5 h-5 rotate-180" />
+        <button 
+          onClick={() => nav("/admin")} 
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl transition-all shadow-lg font-black text-[10px] uppercase tracking-widest ${
+            isDark 
+              ? "bg-blue-600 hover:bg-blue-700 text-white shadow-blue-900/20" 
+              : "bg-neutral-900 hover:bg-black text-white shadow-neutral-900/10"
+          }`}
+        >
+          <LayoutDashboard className="w-4 h-4" />
+          Dashboard
         </button>
       )}
     >
-      <div className="max-w-7xl mx-auto space-y-8">
+      <div className="max-w-7xl mx-auto space-y-8 pb-20">
 
         {toast.msg && (
-          <div className={`p-4 rounded-[24px] border flex items-center gap-3 text-sm font-bold shadow-sm transition-all ${
-            toast.type === "success" ? "bg-emerald-50 border-emerald-100 text-emerald-600" : "bg-red-50 border-red-100 text-red-600"
+          <div className={`p-4 rounded-[24px] border flex items-center gap-3 text-sm font-bold shadow-sm transition-all animate-in fade-in slide-in-from-top-4 ${
+            toast.type === "success" 
+              ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500" 
+              : "bg-red-500/10 border-red-500/20 text-red-500"
           }`}>
              {toast.type === "success" ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
              {toast.msg}
           </div>
         )}
 
-        {/* Action Belt */}
-        <div className="flex items-center justify-between p-6 bg-white border border-neutral-100 shadow-sm rounded-[32px]">
-           <button onClick={fetchPayments} className="px-6 py-3 bg-neutral-900 text-white rounded-[20px] font-black text-[10px] uppercase tracking-widest hover:bg-black transition-all flex items-center gap-2 shadow-lg shadow-neutral-900/10">
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Sync Ledger
-           </button>
-           <div className="px-4 py-2 bg-neutral-50 rounded-full border border-neutral-200 text-neutral-400 text-[10px] font-black uppercase tracking-widest">
-              Live Gateway Active
-           </div>
-        </div>
-
         {/* Global Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-           <StatPanel title="Processing Queue" value={pendingPayouts} sub="Awaiting manual owner disbursement" icon={Wallet} color="amber" />
-           <StatPanel title="Gross Volume" value={`Rs ${totalVolume.toLocaleString()}`} sub="Total transaction volume" icon={ArrowRightLeft} color="blue" />
-           <StatPanel title="Captured Revenue" value={`Rs ${platformRevenue.toLocaleString()}`} sub="Platform commission generated" icon={DollarSign} color="emerald" />
+        <div className="grid md:grid-cols-3 gap-6">
+           <StatPanel 
+             title="Gross Volume" 
+             value={`Rs ${totalVolume.toLocaleString()}`} 
+             sub="Total transaction flow"
+             icon={ArrowRightLeft}
+             color="blue"
+           />
+           <StatPanel 
+             title="Platform Revenue" 
+             value={`Rs ${platformRevenue.toLocaleString()}`} 
+             sub="20% platform share"
+             icon={Wallet}
+             color="emerald"
+           />
+           <StatPanel 
+             title="Pending Payouts" 
+             value={pendingPayouts} 
+             sub="Due to property owners"
+             icon={Receipt}
+             color="amber"
+           />
         </div>
 
-        {/* Payments Ledger */}
-        <div className="bg-white border border-neutral-100 rounded-[40px] shadow-sm p-8">
-           <div className="flex items-center justify-between mb-8 px-2">
-              <h2 className="text-xl font-black text-neutral-900 tracking-tight flex items-center gap-3">
-                 <Receipt className="w-6 h-6 text-blue-600" /> Transaction Register
-              </h2>
-              <span className="text-[10px] font-black uppercase tracking-widest text-neutral-400 bg-neutral-50 px-3 py-1 rounded-full">{payments.length} Records</span>
+        {/* Sync Action */}
+        <div className={`flex items-center justify-between p-6 border shadow-sm rounded-[32px] ${cardBg}`}>
+           <div className="flex items-center gap-4">
+              <div className={`p-3 rounded-xl ${isDark ? 'bg-white/5' : 'bg-neutral-50'}`}>
+                 <RefreshCw className={`w-5 h-5 text-blue-500 ${loading ? 'animate-spin' : ''}`} />
+              </div>
+              <div>
+                 <div className={`text-sm font-black ${headerText}`}>Transaction Synchronization</div>
+                 <p className={`text-[11px] font-medium ${mutedText}`}>Keep records aligned with payment gateway</p>
+              </div>
            </div>
+           <button 
+             onClick={fetchPayments} 
+             className={`px-6 py-3 rounded-[20px] font-black text-[10px] uppercase tracking-widest transition-all ${
+               isDark ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-500/10' : 'bg-neutral-900 hover:bg-black text-white'
+             }`}
+           >
+              Sync Ledger
+           </button>
+        </div>
 
+        {/* List of Payments */}
+        <div className="space-y-6">
            {loading ? (
-             <div className="space-y-4">
-                {[1,2,3,4].map(i => <div key={i} className="h-32 bg-neutral-50 border border-neutral-100 rounded-[24px] animate-pulse" />)}
-             </div>
+              <div className="space-y-4">
+                 {[1,2,3].map(i => <div key={i} className={`h-64 rounded-[40px] border animate-pulse ${cardBg}`} />)}
+              </div>
            ) : payments.length === 0 ? (
-             <div className="text-center py-20 text-neutral-400">
-                <Receipt className="w-12 h-12 mx-auto mb-4 opacity-20" />
-                <div className="font-bold">No Transactions Processed</div>
-             </div>
+              <div className={`py-40 flex flex-col items-center text-center ${mutedText}`}>
+                 <Receipt className="w-20 h-20 opacity-10 mb-6" />
+                 <h3 className="text-sm font-black uppercase tracking-widest">No Transactions Found</h3>
+              </div>
            ) : (
-             <div className="space-y-6">
-                {payments.map((p) => {
-                   const isPaid = p.payment_status === "COMPLETE";
-                   const needsPayout = isPaid && p.owner_payout_status !== "paid";
-                   
-                   return (
-                     <div key={p.id} className={`p-6 rounded-[32px] border transition-all ${
-                       needsPayout ? 'bg-amber-50/30 border-amber-200 shadow-sm' : 'bg-neutral-50/50 border-neutral-100 hover:border-neutral-200'
-                     }`}>
-                        <div className="flex flex-col lg:flex-row gap-8 justify-between">
-                           
-                           {/* Details Section */}
-                           <div className="flex-1 space-y-6">
-                              <div className="flex items-start justify-between gap-4">
-                                 <div>
-                                    <div className="flex items-center gap-2 mb-1">
-                                       <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${
-                                         isPaid ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-red-50 text-red-600 border-red-100'
-                                       }`}>
-                                         Tenant: {p.payment_status}
-                                       </span>
-                                       <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${
-                                         p.owner_payout_status === 'paid' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-amber-50 text-amber-600 border-amber-100'
-                                       }`}>
-                                         Owner: {p.owner_payout_status}
-                                       </span>
-                                    </div>
-                                    <h3 className="text-lg font-black text-neutral-900 flex items-center gap-2 mt-2">
-                                       <Building2 className="w-4 h-4 text-blue-500" /> {p.listing_title}
-                                    </h3>
-                                 </div>
-                                 <div className="text-right">
-                                    <div className="text-[10px] font-black uppercase tracking-widest text-neutral-400 mb-1">Total Authorized</div>
-                                    <div className="text-2xl font-black text-neutral-900">Rs {p.amount}</div>
-                                 </div>
-                              </div>
+              payments.map((p) => {
+                 const needsPayout = p.payment_status === "COMPLETE" && p.owner_payout_status !== "paid";
+                 const isPaid = p.payment_status === "COMPLETE";
 
-                              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                 <div className="bg-white p-4 rounded-[20px] border border-neutral-100">
-                                    <div className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-neutral-400 mb-2">
-                                       <Users className="w-3.5 h-3.5 text-blue-400" /> Tenant
-                                    </div>
-                                    <div className="text-xs font-bold text-neutral-900 break-all">{p.tenant_name}</div>
-                                 </div>
-                                 <div className="bg-white p-4 rounded-[20px] border border-neutral-100">
-                                    <div className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-neutral-400 mb-2">
-                                       <Building2 className="w-3.5 h-3.5 text-blue-400" /> Owner
-                                    </div>
-                                    <div className="text-xs font-bold text-neutral-900 break-all">{p.owner_name}</div>
-                                 </div>
-                                 <div className="bg-white p-4 rounded-[20px] border border-neutral-100 border-l-4 border-l-emerald-500">
-                                    <div className="text-[9px] font-black uppercase tracking-widest text-neutral-400 mb-2">Platform Cut ({p.admin_share_percent}%)</div>
-                                    <div className="text-base font-black text-emerald-600">Rs {p.admin_share_amount}</div>
-                                 </div>
-                                 <div className="bg-white p-4 rounded-[20px] border border-neutral-100 border-l-4 border-l-amber-500">
-                                    <div className="text-[9px] font-black uppercase tracking-widest text-neutral-400 mb-2">Owner Cut ({p.owner_share_percent}%)</div>
-                                    <div className="text-base font-black text-amber-600">Rs {p.owner_share_amount}</div>
-                                 </div>
-                              </div>
-
-                              <div className="flex items-center gap-4 text-xs font-bold text-neutral-400 bg-white px-4 py-2.5 rounded-full border border-neutral-100 inline-flex">
-                                 <div className="flex items-center gap-1.5"><Hash className="w-3.5 h-3.5" /> TXN: {p.transaction_uuid}</div>
-                                 <div className="w-1 h-1 bg-neutral-200 rounded-full" />
-                                 <div>REF: {p.ref_id || 'N/A'}</div>
-                              </div>
-                           </div>
-
-                           {/* Actions Section */}
-                           {needsPayout && (
-                             <div className="lg:w-[320px] bg-white rounded-[24px] border border-amber-100 p-6 flex flex-col justify-between shadow-sm">
+                 return (
+                    <div key={p.id} className={`rounded-[40px] border shadow-sm p-8 transition-all hover:shadow-xl ${cardBg}`}>
+                       <div className="flex flex-col lg:flex-row gap-8">
+                          <div className="flex-1 space-y-6">
+                             {/* Header Row */}
+                             <div className="flex items-center justify-between">
                                 <div>
-                                   <div className="text-[10px] font-black uppercase tracking-widest text-amber-600 mb-3 flex items-center gap-2">
+                                   <div className="flex items-center gap-2 mb-2">
+                                      <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${
+                                        isPaid ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-red-500/10 text-red-500 border-red-500/20'
+                                      }`}>
+                                        Payment: {p.payment_status}
+                                      </span>
+                                      <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${
+                                        p.owner_payout_status === 'paid' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-amber-500/10 text-amber-500 border-amber-500/20'
+                                      }`}>
+                                        Payout: {p.owner_payout_status}
+                                      </span>
+                                   </div>
+                                   <h3 className={`text-xl font-black flex items-center gap-2 ${headerText}`}>
+                                      <Building2 className="w-5 h-5 text-blue-500" /> {p.listing_title || `Property #${p.listing}`}
+                                   </h3>
+                                </div>
+                                <div className="text-right">
+                                   <div className={`text-[10px] font-black uppercase tracking-widest mb-1 ${mutedText}`}>Transaction Total</div>
+                                   <div className={`text-3xl font-black ${headerText}`}>Rs {Number(p.amount).toLocaleString()}</div>
+                                </div>
+                             </div>
+
+                             {/* Breakdown Grid */}
+                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <div className={`p-4 rounded-[20px] border ${isDark ? 'bg-white/5 border-white/5' : 'bg-white border-neutral-100'}`}>
+                                   <div className={`flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest mb-2 ${mutedText}`}>
+                                      <Users className="w-3.5 h-3.5 text-blue-400" /> Tenant
+                                   </div>
+                                   <div className={`text-xs font-bold break-all ${headerText}`}>{p.tenant_name || 'N/A'}</div>
+                                </div>
+                                <div className={`p-4 rounded-[20px] border ${isDark ? 'bg-white/5 border-white/5' : 'bg-white border-neutral-100'}`}>
+                                   <div className={`flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest mb-2 ${mutedText}`}>
+                                      <Building2 className="w-3.5 h-3.5 text-blue-400" /> Owner
+                                   </div>
+                                   <div className={`text-xs font-bold break-all ${headerText}`}>{p.owner_name || 'N/A'}</div>
+                                </div>
+                                <div className={`p-4 rounded-[20px] border border-l-4 border-l-emerald-500 ${isDark ? 'bg-white/5 border-white/5' : 'bg-white border-neutral-100'}`}>
+                                   <div className={`text-[9px] font-black uppercase tracking-widest mb-2 ${mutedText}`}>Platform Revenue</div>
+                                   <div className="text-base font-black text-emerald-500">Rs {Number(p.admin_share_amount).toLocaleString()}</div>
+                                </div>
+                                <div className={`p-4 rounded-[20px] border border-l-4 border-l-amber-500 ${isDark ? 'bg-white/5 border-white/5' : 'bg-white border-neutral-100'}`}>
+                                   <div className={`text-[9px] font-black uppercase tracking-widest mb-2 ${mutedText}`}>Owner Payout</div>
+                                   <div className="text-base font-black text-amber-500">Rs {Number(p.owner_share_amount).toLocaleString()}</div>
+                                </div>
+                             </div>
+
+                             {/* Metadata */}
+                             <div className={`flex flex-wrap items-center gap-4 text-[10px] font-bold px-4 py-2.5 rounded-full border border-dashed ${isDark ? 'bg-white/5 border-white/10 text-slate-400' : 'bg-neutral-50 border-neutral-200 text-neutral-400'}`}>
+                                <div className="flex items-center gap-1.5"><Hash className="w-3.5 h-3.5" /> TXN: {p.transaction_uuid}</div>
+                                <div className={`w-1 h-1 rounded-full ${isDark ? 'bg-white/20' : 'bg-neutral-300'}`} />
+                                <div className="flex items-center gap-1.5"><ChevronRight className="w-3.5 h-3.5" /> REF: {p.ref_id || 'N/A'}</div>
+                             </div>
+                          </div>
+
+                          {/* Actions Section */}
+                          {needsPayout && (
+                             <div className={`lg:w-[320px] rounded-[32px] border p-6 flex flex-col justify-between shadow-sm ${isDark ? 'bg-amber-500/5 border-amber-500/20' : 'bg-amber-50 border-amber-100'}`}>
+                                <div>
+                                   <div className="text-[10px] font-black uppercase tracking-widest text-amber-500 mb-3 flex items-center gap-2">
                                       <Wallet className="w-4 h-4" /> Action Required
                                    </div>
                                    <textarea 
-                                     placeholder="e.g. Wire transfer ref #8483"
+                                     placeholder="e.g. Bank transfer ID #123"
                                      value={noteMap[p.id] || ""}
                                      onChange={(e) => setNoteMap(prev => ({ ...prev, [p.id]: e.target.value }))}
-                                     className="w-full bg-neutral-50 border border-neutral-200 rounded-2xl p-4 text-sm font-medium focus:ring-4 focus:ring-amber-500/10 focus:border-amber-500 outline-none resize-none h-24 mb-4"
+                                     className={`w-full border rounded-2xl p-4 text-sm font-medium focus:ring-4 focus:ring-amber-500/10 focus:border-amber-500 outline-none resize-none h-24 mb-4 ${inputFill} ${isDark ? 'text-slate-200' : 'text-neutral-700'}`}
                                    />
                                 </div>
                                 <button 
@@ -208,13 +256,11 @@ export default function AdminBookingPayments() {
                                   {processingId === p.id ? "Processing..." : "Log Disbursement"}
                                 </button>
                              </div>
-                           )}
-
-                        </div>
-                     </div>
-                   )
-                })}
-             </div>
+                          )}
+                       </div>
+                    </div>
+                 )
+              })
            )}
         </div>
       </div>

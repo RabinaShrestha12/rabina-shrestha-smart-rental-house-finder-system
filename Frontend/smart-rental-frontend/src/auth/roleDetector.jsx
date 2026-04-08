@@ -1,4 +1,3 @@
-// src/auth/roleDetector.js
 import api from "../api/axios";
 
 export function normalizeRole(r) {

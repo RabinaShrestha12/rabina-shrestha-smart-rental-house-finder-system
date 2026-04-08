@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import api from "../../api/axios";
 import { useAuth } from "../../auth/AuthContext";
-import { useTheme } from "../../components/ThemeContext";
 import Shell from "../../components/Shell";
+import { useTheme } from "../../components/ThemeContext";
 import Toast from "../../components/Toast";
 
 function normalizeRole(v) {
@@ -344,6 +344,9 @@ export default function ProviderChat() {
   const [text, setText] = useState("");
   const [selectedImage, setSelectedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState("");
+  const [editingMessageId, setEditingMessageId] = useState(null);
+  const [editingMessageImageUrl, setEditingMessageImageUrl] = useState("");
+  const [removeEditingImage, setRemoveEditingImage] = useState(false);
 
   const bottomRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -615,6 +618,7 @@ export default function ProviderChat() {
 
     setSelectedImage(file);
     setImagePreview(URL.createObjectURL(file));
+    setRemoveEditingImage(false);
   };
 
   const clearSelectedImage = () => {
@@ -624,7 +628,106 @@ export default function ProviderChat() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
+  const resetEditState = () => {
+    setEditingMessageId(null);
+    setEditingMessageImageUrl("");
+    setRemoveEditingImage(false);
+    setText("");
+    clearSelectedImage();
+  };
+
+  const startEditMessage = (message) => {
+    setEditingMessageId(getMsgId(message));
+    setText(getMsgText(message));
+    setEditingMessageImageUrl(getMsgImage(message));
+    setRemoveEditingImage(false);
+    setSelectedImage(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    if (textareaRef.current) textareaRef.current.focus();
+  };
+
+  const updateMessage = async () => {
+    const messageId = editingMessageId;
+    if (!messageId) {
+      showToast("error", "No message selected for editing.");
+      return;
+    }
+
+    if (!text.trim() && !selectedImage && !editingMessageImageUrl && !removeEditingImage) {
+      showToast("error", "Message cannot be empty. Add text or choose an image.");
+      return;
+    }
+
+    setSending(true);
+    try {
+      const formData = new FormData();
+      formData.append("text", text.trim());
+      formData.append("message", text.trim());
+      formData.append("body", text.trim());
+      formData.append("content", text.trim());
+
+      if (selectedImage) {
+        formData.append("image", selectedImage);
+      } else if (removeEditingImage) {
+        formData.append("remove_image", "true");
+      }
+
+      const updateUrl = isProviderView
+        ? `provider/maintenance/messages/${messageId}/update/`
+        : `booking-messages/${messageId}/update/`;
+
+      await api.patch(updateUrl, formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      showToast("success", "Message updated ✅");
+      resetEditState();
+      await loadMessages(false);
+    } catch (e) {
+      showToast(
+        "error",
+        e?.response?.data?.detail || e?.response?.data?.error || "Failed to update message."
+      );
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const deleteMessage = async (messageId) => {
+    if (!messageId) return;
+    const confirmed = window.confirm("Delete this message permanently?");
+    if (!confirmed) return;
+
+    setSending(true);
+    try {
+      const deleteUrl = isProviderView
+        ? `provider/maintenance/messages/${messageId}/delete/`
+        : `booking-messages/${messageId}/delete/`;
+
+      await api.delete(deleteUrl);
+      showToast("success", "Message deleted ✅");
+      if (editingMessageId === messageId) {
+        resetEditState();
+      }
+      await loadMessages(false);
+    } catch (e) {
+      showToast(
+        "error",
+        e?.response?.data?.detail || e?.response?.data?.error || "Failed to delete message."
+      );
+    } finally {
+      setSending(false);
+    }
+  };
+
   const sendMessage = async () => {
+    if (editingMessageId) {
+      await updateMessage();
+      return;
+    }
+
     const clean = String(text || "").trim();
 
     if (!clean && !selectedImage) {
@@ -665,10 +768,16 @@ export default function ProviderChat() {
     }
   };
 
-  const handleComposerKeyDown = (e) => {
+  const handleComposerKeyDown = async (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      if (!sending) sendMessage();
+      if (!sending) {
+        if (editingMessageId) {
+          await updateMessage();
+        } else {
+          await sendMessage();
+        }
+      }
     }
   };
 
@@ -890,6 +999,27 @@ export default function ProviderChat() {
                           {getMsgText(m) ? (
                             <div style={styles.messageText}>{getMsgText(m)}</div>
                           ) : null}
+
+                          {mine ? (
+                            <div style={styles.messageActionRow}>
+                              <button
+                                type="button"
+                                style={styles.actionButton}
+                                onClick={() => startEditMessage(m)}
+                                disabled={sending}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                style={styles.deleteButton}
+                                onClick={() => deleteMessage(getMsgId(m))}
+                                disabled={sending}
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          ) : null}
                         </div>
                       </div>
                     </div>
@@ -900,7 +1030,15 @@ export default function ProviderChat() {
             </div>
 
             <div style={styles.composerSection}>
-              <div style={styles.composerTitle}>Send Message</div>
+              <div style={styles.composerTitle}>
+                {editingMessageId ? "Edit Message" : "Send Message"}
+              </div>
+
+              {editingMessageId ? (
+                <div style={styles.editBanner}>
+                  Editing message #{editingMessageId}. Your changes will update the selected message.
+                </div>
+              ) : null}
 
               {imagePreview ? (
                 <div style={styles.previewBox}>
@@ -916,6 +1054,30 @@ export default function ProviderChat() {
                     </button>
                   </div>
                   <img src={imagePreview} alt="preview" style={styles.previewImage} />
+                </div>
+              ) : null}
+
+              {editingMessageId && editingMessageImageUrl && !selectedImage ? (
+                <div style={styles.editBannerAlt}>
+                  <div style={styles.editBannerContent}>
+                    <div>Original attached image is kept unless replaced.</div>
+                    <button
+                      type="button"
+                      style={styles.removeImageBtnInline}
+                      onClick={() => setRemoveEditingImage((prev) => !prev)}
+                      disabled={sending}
+                    >
+                      {removeEditingImage ? "Undo remove" : "Remove image"}
+                    </button>
+                  </div>
+                  <img
+                    src={editingMessageImageUrl}
+                    alt="existing attachment"
+                    style={styles.editingImagePreview}
+                    onError={(e) => {
+                      e.currentTarget.style.display = "none";
+                    }}
+                  />
                 </div>
               ) : null}
 
@@ -958,12 +1120,16 @@ export default function ProviderChat() {
                     type="button"
                     style={styles.clearBtn}
                     onClick={() => {
+                      if (editingMessageId) {
+                        resetEditState();
+                        return;
+                      }
                       setText("");
                       clearSelectedImage();
                     }}
                     disabled={sending}
                   >
-                    Clear
+                    {editingMessageId ? "Cancel" : "Clear"}
                   </button>
 
                   <button
@@ -972,7 +1138,7 @@ export default function ProviderChat() {
                     onClick={sendMessage}
                     disabled={sending}
                   >
-                    {sending ? "Sending..." : "Send"}
+                    {sending ? "Sending..." : editingMessageId ? "Update" : "Send"}
                   </button>
                 </div>
               </div>
@@ -1370,6 +1536,36 @@ function getStyles(isDark) {
       wordBreak: "break-word",
     },
 
+    messageActionRow: {
+      marginTop: 12,
+      display: "flex",
+      justifyContent: "flex-end",
+      gap: 8,
+      flexWrap: "wrap",
+    },
+
+    actionButton: {
+      borderRadius: 20,
+      border: "1px solid rgba(255,255,255,0.5)",
+      background: "rgba(255,255,255,0.15)",
+      color: "#f8fbff",
+      padding: "8px 14px",
+      fontSize: 13,
+      cursor: "pointer",
+      transition: "background 0.2s ease",
+    },
+
+    deleteButton: {
+      borderRadius: 20,
+      border: "1px solid rgba(248,113,113,0.3)",
+      background: "rgba(248,113,113,0.12)",
+      color: "#fee2e2",
+      padding: "8px 14px",
+      fontSize: 13,
+      cursor: "pointer",
+      transition: "background 0.2s ease",
+    },
+
     imageWrap: {
       marginTop: 10,
     },
@@ -1397,6 +1593,58 @@ function getStyles(isDark) {
       fontWeight: 900,
       color: isDark ? "#ffffff" : "#17304c",
       marginBottom: 10,
+    },
+
+    editBanner: {
+      marginBottom: 12,
+      borderRadius: 18,
+      padding: "14px 16px",
+      background: isDark ? "#204263" : "#fffbeb",
+      color: isDark ? "#e0f2fe" : "#92400e",
+      border: isDark ? "1px solid rgba(96,165,250,0.18)" : "1px solid #fde68a",
+      fontSize: 13,
+      lineHeight: 1.6,
+    },
+
+    editBannerAlt: {
+      marginBottom: 12,
+      borderRadius: 18,
+      padding: "14px 16px",
+      background: isDark ? "rgba(255,255,255,0.06)" : "#f8fafc",
+      color: isDark ? "#dbeafe" : "#1f2937",
+      border: isDark ? "1px solid rgba(96,165,250,0.12)" : "1px solid #d1d5db",
+      fontSize: 13,
+      lineHeight: 1.6,
+      display: "flex",
+      flexDirection: "column",
+      gap: 10,
+    },
+
+    editBannerContent: {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 10,
+      flexWrap: "wrap",
+      width: "100%",
+    },
+
+    editingImagePreview: {
+      width: "100%",
+      maxWidth: 260,
+      borderRadius: 16,
+      border: isDark ? "1px solid rgba(255,255,255,0.12)" : "1px solid rgba(148,163,184,0.3)",
+      objectFit: "cover",
+    },
+
+    removeImageBtnInline: {
+      borderRadius: 999,
+      border: isDark ? "1px solid rgba(248,113,113,0.3)" : "1px solid #fecaca",
+      background: isDark ? "rgba(248,113,113,0.14)" : "#fee2e2",
+      color: isDark ? "#fee2e2" : "#b91c1c",
+      padding: "8px 12px",
+      fontSize: 12,
+      cursor: "pointer",
     },
 
     textarea: {

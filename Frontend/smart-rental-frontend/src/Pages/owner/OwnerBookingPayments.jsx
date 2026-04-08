@@ -1,18 +1,18 @@
+import {
+  ArrowLeft,
+  Banknote,
+  CheckCircle2,
+  Clock3,
+  CreditCard,
+  LayoutDashboard,
+  RefreshCw,
+  Search,
+  Wallet,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import { useTheme } from "../../components/ThemeContext";
-import {
-  ArrowLeft,
-  CreditCard,
-  RefreshCw,
-  LayoutDashboard,
-  Search,
-  Wallet,
-  CheckCircle2,
-  Clock3,
-  BadgeDollarSign,
-} from "lucide-react";
 
 export default function OwnerBookingPayments() {
   const nav = useNavigate();
@@ -23,6 +23,61 @@ export default function OwnerBookingPayments() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState("");
+  const [seenPaymentIds, setSeenPaymentIds] = useState([]);
+
+  const getStoredOwnerEmail = () => {
+    const email = localStorage.getItem("email");
+    if (email) return email;
+    const username = localStorage.getItem("username");
+    if (username) return username;
+
+    const userJson = localStorage.getItem("user");
+    if (userJson) {
+      try {
+        const parsed = JSON.parse(userJson);
+        return parsed?.email || parsed?.username || null;
+      } catch {
+        return userJson;
+      }
+    }
+
+    return null;
+  };
+
+  const ownerEmail = getStoredOwnerEmail() || "owner";
+  const paymentSeenKey = `owner_seen_payments_${ownerEmail}`;
+
+  const getPaymentId = (p, idx) => p?.id ?? p?.payment_id ?? p?.pk ?? `${idx || 0}`;
+
+  const loadSeenPaymentIds = () => {
+    try {
+      const raw = localStorage.getItem(paymentSeenKey);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const saveSeenPaymentIds = (ids = []) => {
+    try {
+      localStorage.setItem(paymentSeenKey, JSON.stringify(ids));
+    } catch {}
+  };
+
+  const markPaymentsSeen = (list = []) => {
+    const ids = Array.isArray(list)
+      ? list.map((item, idx) => getPaymentId(item, idx)).filter(Boolean)
+      : [];
+    const merged = Array.from(new Set([...(loadSeenPaymentIds() || []), ...ids])).filter(
+      Boolean
+    );
+    setSeenPaymentIds(merged);
+    saveSeenPaymentIds(merged);
+  };
+
+  useEffect(() => {
+    setSeenPaymentIds(loadSeenPaymentIds());
+  }, []);
 
   const fetchPayments = async (silent = false) => {
     try {
@@ -37,6 +92,7 @@ export default function OwnerBookingPayments() {
         : [];
 
       setPayments(list);
+      markPaymentsSeen(list);
     } catch (err) {
       console.error("Failed to load owner booking payments:", err);
       setPayments([]);
@@ -465,7 +521,7 @@ export default function OwnerBookingPayments() {
                   : "border-slate-300 bg-slate-50"
               }`}
             >
-              <BadgeDollarSign
+              <Banknote
                 className={`mx-auto h-10 w-10 ${
                   isDark ? "text-blue-200/60" : "text-slate-400"
                 }`}

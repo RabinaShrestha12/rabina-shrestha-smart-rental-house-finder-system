@@ -11,10 +11,7 @@ from ...serializers import ListingSerializer
 
 
 def haversine_km(lat1, lng1, lat2, lng2):
-    """
-    Returns great-circle distance between two points in KM.
-    """
-    R = 6371.0  # Earth radius in KM
+    R = 6371.0
 
     lat1 = radians(lat1)
     lng1 = radians(lng1)
@@ -30,31 +27,20 @@ def haversine_km(lat1, lng1, lat2, lng2):
 
 
 def normalize_text(s: str) -> str:
-    """
-    Normalize user text so searches match even if user types:
-    'itahari, dhulabari' vs 'itahari dhulabari.' etc.
-    """
     s = (s or "").strip().lower()
-    # turn punctuation into spaces
     s = re.sub(r"[.,;:_/\\\-]+", " ", s)
-    # collapse multiple spaces
     s = re.sub(r"\s+", " ", s).strip()
     return s
 
 
 def split_location_terms(location: str):
-    """
-    Break location into multiple terms:
-    'itahari, dhulabari' -> ['itahari', 'dhulabari']
-    Also handles extra spaces/punctuation.
-    """
     if not location:
         return []
-    # split by comma first
+
     parts = [p.strip() for p in location.split(",") if p.strip()]
     if not parts:
         parts = [location.strip()]
-    # normalize each term
+
     out = []
     for p in parts:
         n = normalize_text(p)
@@ -67,12 +53,12 @@ class PublicListingListView(generics.ListAPIView):
     serializer_class = ListingSerializer
 
     def get_queryset(self):
-        qs = Listing.objects.filter(is_available=True).order_by("-created_at")
+        # ✅ show all listings, including booked ones
+        qs = Listing.objects.select_related("owner").order_by("-created_at")
 
         raw_q = self.request.query_params.get("q", "")
         raw_location = self.request.query_params.get("location", "")
 
-        # Support both param names: type OR property_type
         raw_ptype = self.request.query_params.get("type", "")
         if not raw_ptype:
             raw_ptype = self.request.query_params.get("property_type", "")
@@ -81,7 +67,6 @@ class PublicListingListView(generics.ListAPIView):
         ptype = normalize_text(raw_ptype)
         loc_terms = split_location_terms(raw_location)
 
-        #  Search keyword: title OR description OR location
         if q:
             qs = qs.filter(
                 Q(title__icontains=q) |
@@ -89,13 +74,9 @@ class PublicListingListView(generics.ListAPIView):
                 Q(location__icontains=q)
             )
 
-        # Location: require ALL terms to appear somewhere in location string
-        # Example: "itahari, dhulabari" -> must contain "itahari" AND "dhulabari"
         for term in loc_terms:
             qs = qs.filter(location__icontains=term)
 
-        # Type: ignore if empty or "all"
-        # also accept "Apartment" from frontend (we normalize to lowercase)
         if ptype and ptype != "all":
             qs = qs.filter(property_type__iexact=ptype)
 
@@ -108,7 +89,8 @@ class PublicListingListView(generics.ListAPIView):
 
 
 class PublicListingDetailView(generics.RetrieveAPIView):
-    queryset = Listing.objects.filter(is_available=True)
+    # ✅ allow details of all listings, even booked ones
+    queryset = Listing.objects.select_related("owner").all()
     serializer_class = ListingSerializer
     lookup_field = "pk"
 
@@ -117,10 +99,6 @@ class PublicListingDetailView(generics.RetrieveAPIView):
         ctx["request"] = self.request
         return ctx
 
-
-
-# Nearby Listings API (Map + Distance Filter)
-# GET /api/public/listings/nearby/?lat=...&lng=...&radius_km=...
 
 class PublicListingNearbyView(generics.ListAPIView):
     serializer_class = ListingSerializer
@@ -147,13 +125,12 @@ class PublicListingNearbyView(generics.ListAPIView):
         if radius > 200:
             radius = 200
 
+        # ✅ show all listings with coordinates
         qs = Listing.objects.filter(
-            is_available=True,
             latitude__isnull=False,
             longitude__isnull=False,
         ).order_by("-created_at")
 
-        # Optional filters for nearby endpoint too
         raw_q = self.request.query_params.get("q", "")
         raw_location = self.request.query_params.get("location", "")
         raw_ptype = self.request.query_params.get("type", "")

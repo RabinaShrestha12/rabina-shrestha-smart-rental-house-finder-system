@@ -582,6 +582,7 @@ class RoommateChatMessage(models.Model):
     )
     text = models.TextField()
     image = models.ImageField(upload_to="chat_images/roommate/", null=True, blank=True)
+    is_read = models.BooleanField(default=False)
 
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -737,27 +738,37 @@ class TenantExpense(models.Model):
         return f"{self.tenant.email} - {self.title} - {self.amount}"
     
 
+from django.conf import settings
+from django.db import models
 
-class VirtualFurnitureDesign(models.Model):
+
+class TenantRoomImageSave(models.Model):
     tenant = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name="virtual_furniture_designs",
+        related_name="saved_room_images",
     )
-    title = models.CharField(max_length=255)
-    room_image = models.ImageField(
-        upload_to="virtual_furniture/rooms/",
-        null=True,
-        blank=True,
-    )
-    room_image_path = models.CharField(max_length=500, blank=True, default="")
-    placed_items = models.JSONField(default=list, blank=True)
-    notes = models.TextField(blank=True, default="")
+    image = models.ImageField(upload_to="tenant_room_history/")
+    image_name = models.CharField(max_length=255)
+    layout_data = models.TextField(blank=True, null=True, help_text="JSON data containing furniture layout information")
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ["-updated_at"]
+        ordering = ["-created_at"]
 
     def __str__(self):
-        return f"{self.title} - {self.tenant_id}"
+        return f"{self.tenant.email} - {self.image_name}"
+
+class ContactMessage(models.Model):
+    name = models.CharField(max_length=120)
+    email = models.EmailField()
+    phone = models.CharField(max_length=30)
+    subject = models.CharField(max_length=200, blank=True, default="")
+    message = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.name} - {self.email}"

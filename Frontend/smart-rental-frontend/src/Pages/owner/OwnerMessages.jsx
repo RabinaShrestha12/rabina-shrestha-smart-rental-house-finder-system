@@ -1,23 +1,23 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import {
+  ArrowLeft,
+  CheckCircle2,
+  Clock3,
+  Home,
+  ImageIcon,
+  MessageSquare,
+  RefreshCw,
+  Send,
+  User,
+  X,
+  XCircle,
+} from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import { useAuth } from "../../auth/AuthContext";
-import { useTheme } from "../../components/ThemeContext";
 import Shell from "../../components/Shell";
+import { useTheme } from "../../components/ThemeContext";
 import Toast from "../../components/Toast";
-import {
-  RefreshCw,
-  MessageSquare,
-  CheckCircle2,
-  XCircle,
-  Send,
-  ImageIcon,
-  User,
-  X,
-  Clock3,
-  Home,
-  ArrowLeft,
-} from "lucide-react";
 
 function getBackendBaseUrl() {
   return import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
@@ -87,6 +87,9 @@ export default function OwnerMessages() {
   const [sending, setSending] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
   const [previewUrl, setPreviewUrl] = useState("");
+  const [editingMessageId, setEditingMessageId] = useState(null);
+  const [editingMessageImageUrl, setEditingMessageImageUrl] = useState("");
+  const [removeEditingImage, setRemoveEditingImage] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
 
   useEffect(() => {
@@ -198,6 +201,7 @@ export default function OwnerMessages() {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setSelectedImage(file);
     setPreviewUrl(URL.createObjectURL(file));
+    setRemoveEditingImage(false);
   };
 
   const clearSelectedImage = () => {
@@ -207,7 +211,94 @@ export default function OwnerMessages() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
+  const resetEditState = () => {
+    setEditingMessageId(null);
+    setEditingMessageImageUrl("");
+    setRemoveEditingImage(false);
+    setReply("");
+    clearSelectedImage();
+  };
+
+  const startEditMessage = (message) => {
+    setEditingMessageId(message?.id ?? null);
+    setReply(getMsgText(message));
+    setEditingMessageImageUrl(getMsgImage(message));
+    setRemoveEditingImage(false);
+    setSelectedImage(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    if (textareaRef.current) textareaRef.current.focus();
+  };
+
+  const updateMessage = async () => {
+    const messageId = editingMessageId;
+    if (!messageId) {
+      setToast({ type: "error", msg: "No message selected for editing." });
+      return;
+    }
+
+    if (!reply.trim() && !selectedImage && !editingMessageImageUrl && !removeEditingImage) {
+      setToast({ type: "error", msg: "Message cannot be empty. Add text or choose an image." });
+      return;
+    }
+
+    setSending(true);
+    try {
+      const formData = new FormData();
+      formData.append("text", reply.trim());
+      formData.append("message", reply.trim());
+
+      if (selectedImage) {
+        formData.append("image", selectedImage);
+      }
+
+      if (removeEditingImage) {
+        formData.append("remove_image", "true");
+      }
+
+      await api.patch(`booking-messages/${messageId}/update/`, formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      setToast({ type: "success", msg: "Message updated successfully." });
+      resetEditState();
+      await loadChat(getBookingId(active), { showLoader: false });
+      await loadInbox(getBookingId(active));
+    } catch (e) {
+      setToast({ type: "error", msg: "Failed to update message." });
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const deleteMessage = async (messageId) => {
+    if (!messageId) return;
+    const confirmed = window.confirm("Delete this message permanently?");
+    if (!confirmed) return;
+
+    setChatLoading(true);
+    try {
+      await api.delete(`booking-messages/${messageId}/delete/`);
+      setToast({ type: "success", msg: "Message deleted successfully." });
+      if (editingMessageId === messageId) {
+        resetEditState();
+      }
+      await loadChat(getBookingId(active), { showLoader: false });
+      await loadInbox(getBookingId(active));
+    } catch (e) {
+      setToast({ type: "error", msg: "Failed to delete message." });
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
   const sendReply = async () => {
+    if (editingMessageId) {
+      await updateMessage();
+      return;
+    }
+
     const bookingId = getBookingId(active);
     if (!bookingId || (!reply.trim() && !selectedImage)) return;
 
@@ -765,6 +856,25 @@ export default function OwnerMessages() {
                                     {text}
                                   </p>
                                 ) : null}
+
+                                {ownerMsg && (
+                                  <div className="mt-4 flex items-center justify-end gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => startEditMessage(m)}
+                                      className="rounded-full border border-slate-300 bg-slate-50 px-3 py-1 text-[11px] text-slate-700 transition hover:bg-slate-100"
+                                    >
+                                      Edit
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => deleteMessage(m?.id)}
+                                      className="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-[11px] text-red-700 transition hover:bg-red-100"
+                                    >
+                                      Delete
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -849,7 +959,7 @@ export default function OwnerMessages() {
 
                     <button
                       onClick={sendReply}
-                      disabled={sending || (!reply.trim() && !selectedImage)}
+                      disabled={sending || (!reply.trim() && !selectedImage && !editingMessageId)}
                       className={`inline-flex h-[132px] items-center justify-center gap-3 rounded-[26px] px-6 text-sm font-black uppercase tracking-[0.18em] text-white shadow-lg transition disabled:cursor-not-allowed disabled:opacity-50 ${
                         isDark
                           ? "bg-sky-500 shadow-sky-900/30 hover:bg-sky-400"
@@ -861,11 +971,67 @@ export default function OwnerMessages() {
                       ) : (
                         <>
                           <Send className="h-5 w-5" />
-                          Send Reply
+                          {editingMessageId ? "Update" : "Send Reply"}
                         </>
                       )}
                     </button>
                   </div>
+
+                  {editingMessageId ? (
+                    <div className="mt-4 rounded-2xl border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
+                      Editing message #{editingMessageId}. Your changes will update the selected message.
+                      {editingMessageImageUrl && !selectedImage && !removeEditingImage ? (
+                        <div className="mt-2 text-xs text-yellow-700">
+                          Existing image will be kept. Choose a new image to replace it, or click Remove image.
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  {selectedImage && (
+                    <div
+                      className={`mb-4 inline-flex items-start gap-3 rounded-2xl border p-3 ${
+                        isDark
+                          ? "border-blue-300/15 bg-[#17395f]"
+                          : "border-neutral-200 bg-neutral-50"
+                      }`}
+                    >
+                      <img
+                        src={previewUrl}
+                        className="h-20 w-20 rounded-2xl object-cover"
+                        alt="Preview"
+                      />
+                      <div className="flex flex-col gap-2">
+                        <div className={`text-sm font-semibold ${isDark ? "text-white" : "text-neutral-800"}`}>
+                          Image selected
+                        </div>
+                        <button
+                          onClick={clearSelectedImage}
+                          className={`inline-flex items-center gap-1 rounded-xl border px-3 py-1.5 text-xs font-bold ${
+                            isDark
+                              ? "border-red-400/25 bg-red-500/10 text-red-200 hover:bg-red-500/15"
+                              : "border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+                          }`}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {editingMessageId && editingMessageImageUrl && !selectedImage && (
+                    <div className="mt-3 flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                      <div>Original attached image will be kept unless replaced.</div>
+                      <button
+                        type="button"
+                        onClick={() => setRemoveEditingImage((prev) => !prev)}
+                        className="rounded-full border border-red-200 bg-red-50 px-2 py-1 text-[11px] text-red-700 transition hover:bg-red-100"
+                      >
+                        {removeEditingImage ? "Undo remove" : "Remove image"}
+                      </button>
+                    </div>
+                  )}
 
                   <p className={`mt-3 text-xs ${isDark ? "text-blue-200/65" : "text-neutral-500"}`}>
                     Press Enter to send. Press Shift + Enter for a new line.

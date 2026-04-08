@@ -1,10 +1,20 @@
-// src/pages/dashboard/OwnerListingDetail.jsx
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import api from "../../api/axios";
 import Shell from "../../components/Shell";
 import Toast from "../../components/Toast";
 import ListingMapPanel from "../../components/ListingMapPanel";
+import { useTheme } from "../../components/ThemeContext";
+import {
+  ArrowLeft,
+  Home,
+  MapPin,
+  Phone,
+  Mail,
+  Zap,
+  Wallet,
+  Building2,
+} from "lucide-react";
 
 const BACKEND = "http://127.0.0.1:8000";
 
@@ -12,8 +22,9 @@ function toImageSrc(value) {
   if (!value) return "/no-image.png";
   const s = String(value).trim();
   if (s.startsWith("http://") || s.startsWith("https://")) return s;
-  if (s.startsWith("/media/http://") || s.startsWith("/media/https://"))
+  if (s.startsWith("/media/http://") || s.startsWith("/media/https://")) {
     return s.replace(/^\/media\//, "");
+  }
   if (s.startsWith("/")) return `${BACKEND}${s}`;
   return `${BACKEND}/${s}`;
 }
@@ -21,6 +32,8 @@ function toImageSrc(value) {
 export default function OwnerListingDetail() {
   const { id } = useParams();
   const nav = useNavigate();
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
 
   const [toast, setToast] = useState({ type: "info", msg: "" });
   const [row, setRow] = useState(null);
@@ -30,16 +43,7 @@ export default function OwnerListingDetail() {
     (async () => {
       try {
         setLoading(true);
-
-        // ✅ If your axios baseURL already ends with /api/,
-        // then DO NOT start with "/" otherwise it becomes wrong URL.
-        // Use one of these depending on your axios config:
-        // 1) api.get(`owner/my-listings/${id}/`)
-        // 2) api.get(`/owner/my-listings/${id}/`)
-        //
-        // I am using the safer one (no leading slash):
         const res = await api.get(`owner/my-listings/${id}/`);
-
         const data = res.data?.data || res.data;
         setRow(data);
       } catch (err) {
@@ -55,17 +59,49 @@ export default function OwnerListingDetail() {
     })();
   }, [id]);
 
+  const wrapperClass = isDark
+    ? "rounded-[32px] border border-blue-400/15 bg-gradient-to-br from-[#0f2947] via-[#12345c] to-[#0b223d] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.35)]"
+    : "rounded-[32px] border border-blue-100 bg-gradient-to-br from-white via-[#f8fbff] to-[#eef6ff] p-6 shadow-[0_20px_60px_rgba(37,99,235,0.10)]";
+
+  const softCard = isDark
+    ? "rounded-2xl border border-blue-300/10 bg-[#0b2038] shadow-sm"
+    : "rounded-2xl border border-slate-200 bg-white shadow-sm";
+
+  const statCard = isDark
+    ? "rounded-2xl border border-blue-300/10 bg-[#102a47] p-4"
+    : "rounded-2xl border border-blue-100 bg-[#f8fbff] p-4";
+
+  const headingText = isDark ? "text-white" : "text-slate-900";
+  const subText = isDark ? "text-blue-100/80" : "text-slate-500";
+  const normalText = isDark ? "text-slate-200" : "text-slate-700";
+  const mutedText = isDark ? "text-slate-300" : "text-slate-600";
+
   return (
     <Shell
       title="My Property Detail"
       subtitle={`Listing ID: ${id}`}
       right={
-        <button
-          onClick={() => nav("/owner")}
-          className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm hover:bg-white/10 transition"
-        >
-          Back
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => nav(-1)}
+            className={`inline-flex h-11 items-center gap-2 rounded-2xl border px-4 text-sm font-semibold transition ${
+              isDark
+                ? "border-blue-400/20 bg-[#12345c] text-blue-100 hover:bg-[#163d6d]"
+                : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+            }`}
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back
+          </button>
+
+          <button
+            onClick={() => nav("/owner")}
+            className="inline-flex h-11 items-center gap-2 rounded-2xl border border-blue-200 bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-500"
+          >
+            <Home className="h-4 w-4" />
+            Dashboard
+          </button>
+        </div>
       }
     >
       <Toast
@@ -75,71 +111,131 @@ export default function OwnerListingDetail() {
       />
 
       {loading ? (
-        <p className="text-slate-300">Loading...</p>
+        <div
+          className={`rounded-3xl p-8 text-sm font-medium ${
+            isDark ? "bg-[#10243d] text-slate-300" : "bg-white text-slate-600"
+          }`}
+        >
+          Loading...
+        </div>
       ) : !row ? (
-        <p className="text-slate-300">No data found.</p>
+        <div
+          className={`rounded-3xl p-8 text-sm font-medium ${
+            isDark ? "bg-[#10243d] text-slate-300" : "bg-white text-slate-600"
+          }`}
+        >
+          No data found.
+        </div>
       ) : (
-        <div className="rounded-3xl border border-white/10 bg-black/20 p-6">
-          {/* Cover */}
-          <img
-            src={toImageSrc(row.image || row.cover_image || row.image_url)}
-            alt="cover"
-            className="w-full max-h-[360px] object-cover rounded-2xl border border-white/10"
-            onError={(e) => {
-              e.currentTarget.onerror = null;
-              e.currentTarget.src = "/no-image.png";
-            }}
-          />
+        <div className={wrapperClass}>
+          <div className={softCard}>
+            <img
+              src={toImageSrc(row.image || row.cover_image || row.image_url)}
+              alt="cover"
+              className="h-[260px] w-full rounded-2xl object-cover md:h-[340px] xl:h-[380px]"
+              onError={(e) => {
+                e.currentTarget.onerror = null;
+                e.currentTarget.src = "/no-image.png";
+              }}
+            />
+          </div>
 
-          {/* Title */}
-          <h2 className="mt-4 text-xl font-semibold text-white">
-            {row.title || "Untitled"}
-          </h2>
-          <p className="mt-1 text-slate-200">{row.location || "-"}</p>
+          <div className="mt-5">
+            <h2 className={`text-2xl font-black tracking-tight md:text-3xl ${headingText}`}>
+              {row.title || "Untitled"}
+            </h2>
 
-          {/* Basic info */}
-          <div className="mt-4 grid md:grid-cols-2 gap-3 text-slate-200 text-sm">
-            <div>
-              <b>Type:</b> {row.property_type || "-"}
-            </div>
-
-            <div>
-              <b>Price/month:</b>{" "}
-              {row.price_per_month != null ? `$${row.price_per_month}` : "-"}
-            </div>
-
-            <div>
-              <b>Electricity:</b> {row.electricity_bill || "-"}
-            </div>
-
-            <div>
-              <b>Contact:</b> {row.owner_contact_number || "-"}
-            </div>
-
-            <div>
-              <b>Email:</b> {row.owner_contact_email || "-"}
-            </div>
-
-            {/* ✅ show coords if exists */}
-            <div>
-              <b>Coordinates:</b>{" "}
-              {row.latitude && row.longitude ? `${row.latitude}, ${row.longitude}` : "-"}
+            <div className={`mt-2 flex flex-wrap items-center gap-2 text-sm ${subText}`}>
+              <MapPin className="h-4 w-4 text-blue-500" />
+              <span>{row.location || "-"}</span>
             </div>
           </div>
 
-          {/* Description */}
-          <div className="mt-4 text-slate-200 text-sm">
-            <b>Description:</b>
-            <div className="mt-1 text-slate-300 whitespace-pre-wrap">
+          <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className={statCard}>
+              <div className="mb-2 flex items-center gap-2">
+                <Building2 className="h-4 w-4 text-blue-500" />
+                <span className={`text-xs font-bold uppercase tracking-[0.18em] ${subText}`}>
+                  Property Type
+                </span>
+              </div>
+              <p className={`text-base font-bold capitalize ${normalText}`}>
+                {row.property_type || "-"}
+              </p>
+            </div>
+
+            <div className={statCard}>
+              <div className="mb-2 flex items-center gap-2">
+                <Wallet className="h-4 w-4 text-blue-500" />
+                <span className={`text-xs font-bold uppercase tracking-[0.18em] ${subText}`}>
+                  Price Per Month
+                </span>
+              </div>
+              <p className={`text-base font-bold ${normalText}`}>
+                {row.price_per_month != null ? `Rs ${row.price_per_month}` : "-"}
+              </p>
+            </div>
+
+            <div className={statCard}>
+              <div className="mb-2 flex items-center gap-2">
+                <Zap className="h-4 w-4 text-amber-500" />
+                <span className={`text-xs font-bold uppercase tracking-[0.18em] ${subText}`}>
+                  Electricity Bill
+                </span>
+              </div>
+              <p className={`text-base font-bold ${normalText}`}>
+                {row.electricity_bill || "-"}
+              </p>
+            </div>
+
+            <div className={statCard}>
+              <div className="mb-2 flex items-center gap-2">
+                <Phone className="h-4 w-4 text-emerald-500" />
+                <span className={`text-xs font-bold uppercase tracking-[0.18em] ${subText}`}>
+                  Contact Number
+                </span>
+              </div>
+              <p className={`text-base font-bold ${normalText}`}>
+                {row.owner_contact_number || "-"}
+              </p>
+            </div>
+
+            <div className={statCard}>
+              <div className="mb-2 flex items-center gap-2">
+                <Mail className="h-4 w-4 text-pink-500" />
+                <span className={`text-xs font-bold uppercase tracking-[0.18em] ${subText}`}>
+                  Contact Email
+                </span>
+              </div>
+              <p className={`break-all text-base font-bold ${normalText}`}>
+                {row.owner_contact_email || "-"}
+              </p>
+            </div>
+
+            <div className={statCard}>
+              <div className="mb-2 flex items-center gap-2">
+                <MapPin className="h-4 w-4 text-violet-500" />
+                <span className={`text-xs font-bold uppercase tracking-[0.18em] ${subText}`}>
+                  Coordinates
+                </span>
+              </div>
+              <p className={`text-base font-bold ${normalText}`}>
+                {row.latitude && row.longitude ? `${row.latitude}, ${row.longitude}` : "-"}
+              </p>
+            </div>
+          </div>
+
+          <div className={`mt-6 ${softCard} p-5`}>
+            <h3 className={`text-lg font-black ${headingText}`}>Description</h3>
+            <div className={`mt-3 whitespace-pre-wrap text-sm leading-7 ${mutedText}`}>
               {row.description || "-"}
             </div>
           </div>
 
-          {/* 360 Photos */}
           <div className="mt-6">
-            <h3 className="text-white font-semibold">360 Photos</h3>
+            <h3 className={`text-lg font-black ${headingText}`}>360 Photos</h3>
 
-            <div className="mt-3 grid md:grid-cols-3 gap-3">
+            <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {[
                 "pano_front",
                 "pano_back",
@@ -148,17 +244,19 @@ export default function OwnerListingDetail() {
                 "pano_up",
                 "pano_down",
               ].map((k) => (
-                <div
-                  key={k}
-                  className="rounded-2xl border border-white/10 bg-white/5 p-3"
-                >
-                  <div className="text-xs text-slate-300 mb-2">
+                <div key={k} className={`${softCard} p-3`}>
+                  <div
+                    className={`mb-3 text-xs font-bold uppercase tracking-[0.18em] ${
+                      isDark ? "text-blue-200/80" : "text-slate-500"
+                    }`}
+                  >
                     {k.replace("pano_", "").toUpperCase()}
                   </div>
+
                   <img
                     src={toImageSrc(row[k])}
                     alt={k}
-                    className="w-full h-32 object-cover rounded-xl border border-white/10"
+                    className="h-40 w-full rounded-xl object-cover"
                     onError={(e) => {
                       e.currentTarget.onerror = null;
                       e.currentTarget.src = "/no-image.png";
@@ -169,9 +267,11 @@ export default function OwnerListingDetail() {
             </div>
           </div>
 
-          {/* ✅ MAP + Nearby Services */}
           <div className="mt-6">
-            <ListingMapPanel listing={row} />
+            <div className={`${softCard} p-4`}>
+              <h3 className={`mb-4 text-lg font-black ${headingText}`}>Location Map</h3>
+              <ListingMapPanel listing={row} />
+            </div>
           </div>
         </div>
       )}

@@ -26,7 +26,8 @@ from .models import (
     RoommateChatThread,
     FurnitureItem,
     TenantExpense,
-    VirtualFurnitureDesign,
+    TenantRoomImageSave,
+    ContactMessage,
 )
 
 User = get_user_model()
@@ -573,9 +574,8 @@ class MaintenanceRequestSerializer(serializers.ModelSerializer):
         source="assigned_provider.id", read_only=True, default=None
     )
     assigned_provider_name = serializers.CharField(
-        source="assigned_provider.user.username", read_only=True, default=None
+    source="assigned_provider.username", read_only=True, default=None
     )
-
     owner_username = serializers.CharField(source="owner.username", read_only=True)
     owner_email = serializers.EmailField(source="owner.email", read_only=True)
 
@@ -654,11 +654,18 @@ class RoommateProfileSerializer(serializers.ModelSerializer):
 class RoommateChatThreadSerializer(serializers.ModelSerializer):
     other_user_id = serializers.SerializerMethodField()
     other_username = serializers.SerializerMethodField()
-    last_message = serializers.SerializerMethodField()  # ✅ add this
+    last_message = serializers.SerializerMethodField()
+    unread_count = serializers.SerializerMethodField()
 
     class Meta:
         model = RoommateChatThread
-        fields = ["id", "created_at", "other_user_id", "other_username", "last_message"]
+        fields = ["id", "created_at", "other_user_id", "other_username", "last_message", "unread_count"]
+
+    def get_unread_count(self, obj):
+        user = self.context.get("request").user
+        if not user or not user.is_authenticated:
+            return 0
+        return obj.messages.filter(is_read=False).exclude(sender=user).count()
 
     def _other(self, obj):
         me = self.context["request"].user
@@ -844,74 +851,25 @@ class TenantExpenseSerializer(serializers.ModelSerializer):
         return value.strip()
 
 
-
-
-class VirtualFurnitureDesignSerializer(serializers.ModelSerializer):
-    room_image_url = serializers.SerializerMethodField()
+class TenantRoomImageSaveSerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
 
     class Meta:
-        model = VirtualFurnitureDesign
-        fields = [
-            "id",
-            "title",
-            "room_image",
-            "room_image_url",
-            "room_image_path",
-            "placed_items",
-            "notes",
-            "created_at",
-            "updated_at",
-        ]
-        read_only_fields = ["id", "room_image_url", "created_at", "updated_at"]
+        model = TenantRoomImageSave
+        fields = ["id", "image", "image_url", "image_name", "layout_data", "created_at"]
+        read_only_fields = ["id", "created_at", "image_url"]
 
-    def get_room_image_url(self, obj):
+    def get_image_url(self, obj):
         request = self.context.get("request")
-        if obj.room_image:
-            url = obj.room_image.url
-            if request is not None:
-                return request.build_absolute_uri(url)
-            return url
-        return ""
-
-    def validate_placed_items(self, value):
-        if not isinstance(value, list):
-            raise serializers.ValidationError("placed_items must be a list.")
-        return value
+        if obj.image and hasattr(obj.image, "url"):
+            if request:
+                return request.build_absolute_uri(obj.image.url)
+            return obj.image.url
+        return None
 
 
-class VirtualFurnitureDesignCreateUpdateSerializer(serializers.ModelSerializer):
-    placed_items = serializers.JSONField(required=False)
-
+class ContactMessageSerializer(serializers.ModelSerializer):
     class Meta:
-        model = VirtualFurnitureDesign
-        fields = [
-            "id",
-            "title",
-            "room_image",
-            "room_image_path",
-            "placed_items",
-            "notes",
-        ]
-        read_only_fields = ["id"]
-
-    def to_internal_value(self, data):
-        mutable = data.copy()
-
-        raw_placed_items = mutable.get("placed_items")
-
-        if raw_placed_items in [None, ""]:
-            mutable["placed_items"] = []
-        elif isinstance(raw_placed_items, str):
-            try:
-                mutable["placed_items"] = json.loads(raw_placed_items)
-            except json.JSONDecodeError:
-                raise serializers.ValidationError(
-                    {"placed_items": "Invalid JSON format for placed_items."}
-                )
-
-        return super().to_internal_value(mutable)
-
-    def validate_placed_items(self, value):
-        if not isinstance(value, list):
-            raise serializers.ValidationError("placed_items must be a list.")
-        return value
+        model = ContactMessage
+        fields = ["id", "name", "email", "phone", "subject", "message", "created_at"]
+        read_only_fields = ["id", "created_at"]

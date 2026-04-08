@@ -1,4 +1,3 @@
-// src/pages/tenant/Chats.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "../../api/axios";

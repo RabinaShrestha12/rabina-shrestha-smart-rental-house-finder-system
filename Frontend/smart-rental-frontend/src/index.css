@@ -42,7 +42,7 @@
 }
 
 [data-theme="dark"] {
-  --bg-color: #0f2747;
+  --bg-color: #071120;
   --surface-color: #10294d;
   --card-bg: #16345c;
   --card-bg-soft: #1b3d69;
@@ -304,6 +304,18 @@ table {
   width: 100%;
   max-width: 1280px;
   margin: 0 auto;
+}
+
+.premium-bg {
+  background: radial-gradient(circle at top, rgba(59, 130, 246, 0.08), transparent 26%),
+              radial-gradient(circle at right, rgba(16, 185, 129, 0.06), transparent 22%),
+              linear-gradient(180deg, #f8fbff 0%, #eef4ff 100%);
+}
+
+[data-theme="dark"] .premium-bg {
+  background: radial-gradient(circle at top, rgba(59, 130, 246, 0.15), transparent 28%),
+              radial-gradient(circle at right, rgba(34, 197, 94, 0.10), transparent 24%),
+              linear-gradient(180deg, #071120 0%, #020617 100%);
 }
 
 /* =========================

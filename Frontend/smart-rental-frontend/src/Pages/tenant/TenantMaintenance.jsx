@@ -1,4 +1,3 @@
-// src/pages/tenant/TenantMaintenance.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import api from "../../api/axios";
 import Shell from "../../components/Shell";

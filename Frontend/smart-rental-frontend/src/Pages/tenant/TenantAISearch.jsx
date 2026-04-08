@@ -1,4 +1,3 @@
-// src/pages/tenant/TenantAISearch.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
@@ -25,7 +24,7 @@ import {
   Calendar,
   RefreshCw,
   AlertCircle,
-  DollarSign,
+  Banknote,
   LocateFixed,
   Navigation,
   Compass,
@@ -233,7 +232,6 @@ export default function TenantAISearch() {
       };
 
       const res = await api.post("/tenant/ai/suggest/", payload);
-
       const normalized = normalizeResults(res.data);
 
       setResults(normalized);
@@ -291,66 +289,56 @@ export default function TenantAISearch() {
       }
     >
       <div className="max-w-7xl mx-auto space-y-8">
-        {/* Search Section */}
+        {/* FIXED BLUE AI SEARCH BOX */}
         <div
-          className={`rounded-[36px] p-6 md:p-8 shadow-xl relative overflow-hidden border ${
-            isDark
-              ? "bg-gradient-to-br from-[#17365d] via-[#153255] to-[#102746] border-blue-400/10 shadow-blue-950/20"
-              : "bg-white border-neutral-200 shadow-neutral-200/50"
-          }`}
+          className="rounded-[36px] p-6 md:p-8 relative overflow-hidden"
+          style={{
+            background:
+              "linear-gradient(135deg, #2454b8 0%, #2f6fe4 55%, #1f56c5 100%)",
+            border: "1px solid rgba(147, 197, 253, 0.35)",
+            boxShadow: "0 20px 40px rgba(37, 99, 235, 0.28)",
+          }}
         >
           <div
-            className={`absolute top-0 right-0 w-64 h-64 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl ${
-              isDark ? "bg-sky-400/10" : "bg-blue-500/10"
-            }`}
+            className="absolute top-0 right-0 w-64 h-64 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl"
+            style={{ background: "rgba(103, 232, 249, 0.22)" }}
           />
 
           <div className="relative z-10 grid grid-cols-1 xl:grid-cols-[1fr_210px] gap-6">
             <div className="space-y-5">
               <div className="relative group">
-                <MapPin
-                  className={`absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 transition-colors ${
-                    isDark
-                      ? "text-blue-200/60 group-focus-within:text-sky-300"
-                      : "text-neutral-500 group-focus-within:text-blue-500"
-                  }`}
-                />
+                <MapPin className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-blue-100/80 group-focus-within:text-white transition-colors" />
                 <input
                   value={place}
                   onChange={(e) => setPlace(e.target.value)}
                   placeholder="Search by place, college, office or landmark (e.g. Itahari International College)"
-                  className={`w-full pl-14 pr-5 py-5 rounded-[24px] text-base font-medium focus:outline-none focus:ring-4 transition-all ${
-                    isDark
-                      ? "bg-white/10 border border-blue-200/10 text-white placeholder:text-blue-100/45 focus:ring-sky-500/15 focus:border-sky-300/40"
-                      : "bg-neutral-50 border border-neutral-200 text-neutral-900 placeholder:text-neutral-400 focus:ring-blue-500/10 focus:border-blue-400"
-                  }`}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !loading) runAISearch();
+                  }}
+                  className="w-full pl-14 pr-5 py-5 rounded-[24px] text-base font-medium focus:outline-none focus:ring-4 text-white placeholder:text-blue-50/75"
+                  style={{
+                    background: "#3b82f6",
+                    border: "1px solid rgba(255,255,255,0.25)",
+                    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)",
                   }}
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                 <div
-                  className={`rounded-2xl px-4 py-4 border ${
-                    isDark
-                      ? "bg-white/10 border-blue-200/10"
-                      : "bg-neutral-50 border-neutral-200"
-                  }`}
+                  className="rounded-2xl px-4 py-4"
+                  style={{
+                    background: "#3b82f6",
+                    border: "1px solid rgba(255,255,255,0.25)",
+                  }}
                 >
-                  <label
-                    className={`block text-[10px] font-black uppercase tracking-widest mb-2 ${
-                      isDark ? "text-blue-100/60" : "text-neutral-500"
-                    }`}
-                  >
+                  <label className="block text-[10px] font-black uppercase tracking-widest mb-2 text-blue-50/85">
                     Radius
                   </label>
                   <select
                     value={radiusKm}
                     onChange={(e) => setRadiusKm(Number(e.target.value))}
-                    className={`w-full bg-transparent font-bold text-sm focus:outline-none ${
-                      isDark ? "text-white" : "text-neutral-900"
-                    }`}
+                    className="w-full bg-transparent font-bold text-sm focus:outline-none text-white"
                   >
                     {[1, 2, 5, 10, 15, 30].map((v) => (
                       <option key={v} value={v} className="text-neutral-900">
@@ -361,25 +349,19 @@ export default function TenantAISearch() {
                 </div>
 
                 <div
-                  className={`rounded-2xl px-4 py-4 border ${
-                    isDark
-                      ? "bg-white/10 border-blue-200/10"
-                      : "bg-neutral-50 border-neutral-200"
-                  }`}
+                  className="rounded-2xl px-4 py-4"
+                  style={{
+                    background: "#3b82f6",
+                    border: "1px solid rgba(255,255,255,0.25)",
+                  }}
                 >
-                  <label
-                    className={`block text-[10px] font-black uppercase tracking-widest mb-2 ${
-                      isDark ? "text-blue-100/60" : "text-neutral-500"
-                    }`}
-                  >
+                  <label className="block text-[10px] font-black uppercase tracking-widest mb-2 text-blue-50/85">
                     Type
                   </label>
                   <select
                     value={propertyType}
                     onChange={(e) => setPropertyType(e.target.value)}
-                    className={`w-full bg-transparent font-bold text-sm focus:outline-none ${
-                      isDark ? "text-white" : "text-neutral-900"
-                    }`}
+                    className="w-full bg-transparent font-bold text-sm focus:outline-none text-white"
                   >
                     <option value="all" className="text-neutral-900">
                       All
@@ -397,67 +379,87 @@ export default function TenantAISearch() {
                 </div>
 
                 <div
-                  className={`rounded-2xl px-4 py-4 flex items-center gap-2 border ${
-                    isDark
-                      ? "bg-white/10 border-blue-200/10"
-                      : "bg-neutral-50 border-neutral-200"
-                  }`}
+                  className="rounded-2xl px-4 py-4 flex items-center gap-2"
+                  style={{
+                    background: "#3b82f6",
+                    border: "1px solid rgba(255,255,255,0.25)",
+                  }}
                 >
-                  <DollarSign
-                    className={`w-4 h-4 ${
-                      isDark ? "text-blue-100/60" : "text-neutral-500"
-                    }`}
-                  />
+                  <Banknote className="w-4 h-4 text-blue-50/85" />
                   <input
                     type="number"
                     min="0"
                     value={minPrice}
                     onChange={(e) => setMinPrice(e.target.value)}
                     placeholder="Min Price"
-                    className={`bg-transparent font-bold text-sm w-full outline-none ${
-                      isDark
-                        ? "text-white placeholder:text-blue-100/45"
-                        : "text-neutral-900 placeholder:text-neutral-400"
-                    }`}
+                    className="bg-transparent font-bold text-sm w-full outline-none text-white placeholder:text-blue-50/70"
                   />
                 </div>
 
                 <div
-                  className={`rounded-2xl px-4 py-4 flex items-center gap-2 border ${
-                    isDark
-                      ? "bg-white/10 border-blue-200/10"
-                      : "bg-neutral-50 border-neutral-200"
-                  }`}
+                  className="rounded-2xl px-4 py-4 flex items-center gap-2"
+                  style={{
+                    background: "#3b82f6",
+                    border: "1px solid rgba(255,255,255,0.25)",
+                  }}
                 >
-                  <DollarSign
-                    className={`w-4 h-4 ${
-                      isDark ? "text-blue-100/60" : "text-neutral-500"
-                    }`}
-                  />
+                  <Banknote className="w-4 h-4 text-blue-50/85" />
                   <input
                     type="number"
                     min="0"
                     value={maxPrice}
                     onChange={(e) => setMaxPrice(e.target.value)}
                     placeholder="Max Price"
-                    className={`bg-transparent font-bold text-sm w-full outline-none ${
-                      isDark
-                        ? "text-white placeholder:text-blue-100/45"
-                        : "text-neutral-900 placeholder:text-neutral-400"
-                    }`}
+                    className="bg-transparent font-bold text-sm w-full outline-none text-white placeholder:text-blue-50/70"
                   />
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-3">
+                <input
+                  type="number"
+                  step="any"
+                  value={geo.lat ?? ""}
+                  onChange={(e) =>
+                    setGeo((prev) => ({
+                      ...prev,
+                      lat: e.target.value === "" ? null : Number(e.target.value),
+                    }))
+                  }
+                  placeholder="Latitude"
+                  className="px-4 py-4 rounded-2xl font-medium outline-none text-white placeholder:text-blue-100"
+                  style={{
+                    background: "#3b82f6",
+                    border: "1px solid rgba(255,255,255,0.25)",
+                  }}
+                />
+
+                <input
+                  type="number"
+                  step="any"
+                  value={geo.lng ?? ""}
+                  onChange={(e) =>
+                    setGeo((prev) => ({
+                      ...prev,
+                      lng: e.target.value === "" ? null : Number(e.target.value),
+                    }))
+                  }
+                  placeholder="Longitude"
+                  className="px-4 py-4 rounded-2xl font-medium outline-none text-white placeholder:text-blue-100"
+                  style={{
+                    background: "#3b82f6",
+                    border: "1px solid rgba(255,255,255,0.25)",
+                  }}
+                />
+
                 <button
                   type="button"
                   onClick={handleUseMyLocation}
-                  className={`px-4 py-3 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all flex items-center gap-2 border ${
-                    isDark
-                      ? "bg-white/10 hover:bg-white/15 text-blue-50 border-blue-200/15"
-                      : "bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200"
-                  }`}
+                  className="px-4 py-4 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 text-white"
+                  style={{
+                    background: "#1d4ed8",
+                    border: "1px solid rgba(255,255,255,0.30)",
+                  }}
                 >
                   {detecting ? (
                     <RefreshCw className="w-4 h-4 animate-spin" />
@@ -466,18 +468,6 @@ export default function TenantAISearch() {
                   )}
                   Use My Location
                 </button>
-
-                {geo.lat != null && geo.lng != null && (
-                  <span
-                    className={`px-4 py-3 rounded-2xl text-xs font-bold uppercase tracking-widest ${
-                      isDark
-                        ? "bg-emerald-500/15 text-emerald-300 border border-emerald-400/20"
-                        : "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                    }`}
-                  >
-                    Current location detected
-                  </span>
-                )}
               </div>
             </div>
 
@@ -485,11 +475,11 @@ export default function TenantAISearch() {
               <button
                 onClick={runAISearch}
                 disabled={loading || (!cleanPlace && !(geo.lat && geo.lng))}
-                className={`h-full min-h-[72px] rounded-[24px] font-black text-sm uppercase tracking-[0.18em] shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${
-                  isDark
-                    ? "bg-sky-400 hover:bg-sky-300 text-slate-950 shadow-sky-900/20"
-                    : "bg-blue-600 hover:bg-blue-700 text-white shadow-blue-600/20"
-                }`}
+                className="h-full min-h-[110px] rounded-[24px] font-black text-sm uppercase tracking-[0.18em] shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-white"
+                style={{
+                  background: "#1e40af",
+                  border: "1px solid rgba(255,255,255,0.20)",
+                }}
               >
                 {loading ? (
                   <RefreshCw className="w-5 h-5 animate-spin" />
@@ -504,11 +494,11 @@ export default function TenantAISearch() {
               <button
                 onClick={clearFilters}
                 type="button"
-                className={`py-4 rounded-[20px] font-black text-xs uppercase tracking-widest transition-all border ${
-                  isDark
-                    ? "bg-white/10 hover:bg-white/15 text-white border-blue-200/15"
-                    : "bg-neutral-100 hover:bg-neutral-200 text-neutral-700 border-neutral-200"
-                }`}
+                className="py-4 rounded-[20px] font-black text-xs uppercase tracking-widest text-white"
+                style={{
+                  background: "#2563eb",
+                  border: "1px solid rgba(255,255,255,0.30)",
+                }}
               >
                 Clear
               </button>
@@ -565,7 +555,6 @@ export default function TenantAISearch() {
         )}
 
         <div className="grid grid-cols-1 xl:grid-cols-[1.2fr_0.9fr] gap-6">
-          {/* Map */}
           <div
             className={`rounded-[28px] overflow-hidden border shadow-sm relative min-h-[580px] ${
               isDark
@@ -663,7 +652,6 @@ export default function TenantAISearch() {
             </MapContainer>
           </div>
 
-          {/* Cleaner List */}
           <div className="space-y-4">
             <div className="flex items-center justify-between gap-4">
               <h2

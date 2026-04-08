@@ -2,6 +2,18 @@
 import React, { useEffect, useRef, useState } from "react";
 import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import L from "leaflet";
+import { useTheme } from "./ThemeContext";
+import {
+  MapPin,
+  Navigation,
+  School,
+  GraduationCap,
+  Hospital,
+  ShoppingCart,
+  Bus,
+  CreditCard,
+  ChevronRight,
+} from "lucide-react";
 
 // Fix marker icon issue
 import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
@@ -71,6 +83,9 @@ function normalizeOverpassElement(el) {
 }
 
 export default function ListingMapPanel({ listing }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+
   const lat = toNum(listing?.latitude);
   const lng = toNum(listing?.longitude);
 
@@ -89,6 +104,19 @@ export default function ListingMapPanel({ listing }) {
   });
 
   const inFlight = useRef({ nominatim: null, overpass: null });
+
+  const ui = {
+    card: isDark
+      ? "bg-gradient-to-br from-[#2454b8] via-[#2b63c7] to-[#1f56c5] border border-blue-200/20 shadow-lg shadow-blue-900/20"
+      : "bg-white border border-neutral-100 shadow-sm",
+    input: isDark
+      ? "bg-[#2b63c7] border-blue-100/20 text-white focus:border-blue-200"
+      : "bg-white border-neutral-200 text-neutral-900 focus:border-blue-500",
+    text: isDark ? "text-white" : "text-neutral-900",
+    subText: isDark ? "text-blue-100/80" : "text-neutral-500",
+    mutedText: isDark ? "text-blue-100/60" : "text-neutral-400",
+    divider: isDark ? "border-blue-100/10" : "border-neutral-100",
+  };
 
   async function reverseGeocode() {
     if (lat == null || lng == null) return;
@@ -220,9 +248,12 @@ out center;
         const highway = t.highway;
 
         if (amenity === "school") schools.push(it);
-        else if (amenity === "college" || amenity === "university") colleges.push(it);
-        else if (amenity === "hospital" || amenity === "clinic") hospitals.push(it);
-        else if (shop === "supermarket" || amenity === "marketplace") markets.push(it);
+        else if (amenity === "college" || amenity === "university")
+          colleges.push(it);
+        else if (amenity === "hospital" || amenity === "clinic")
+          hospitals.push(it);
+        else if (shop === "supermarket" || amenity === "marketplace")
+          markets.push(it);
         else if (highway === "bus_stop") bus.push(it);
         else if (amenity === "atm") atms.push(it);
       }
@@ -262,209 +293,226 @@ out center;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [radius]);
 
-  const styles = {
-    section: {
-      marginTop: 18,
-      border: "1px solid #e5e7eb",
-      borderRadius: 12,
-      padding: 16,
-      background: "#fff",
-    },
-    headerRow: {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: 10,
-      flexWrap: "wrap",
-      marginBottom: 10,
-    },
-    title: { margin: 0, fontSize: 18 },
-    sub: { margin: "6px 0 0", fontSize: 13, color: "#6b7280" },
-
-    chipRow: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" },
-    select: {
-      padding: "6px 10px",
-      borderRadius: 10,
-      border: "1px solid #d1d5db",
-      background: "#fff",
-      fontWeight: 700,
-    },
-    linkBtn: {
-      padding: "7px 10px",
-      borderRadius: 10,
-      border: "1px solid #d1d5db",
-      background: "#fff",
-      textDecoration: "none",
-      color: "#111827",
-      fontWeight: 800,
-    },
-
-    mapWrap: { borderRadius: 12, overflow: "hidden", border: "1px solid #e5e7eb" },
-
-    card: {
-      border: "1px solid #e5e7eb",
-      borderRadius: 12,
-      padding: 12,
-      background: "#fff",
-      marginTop: 12,
-    },
-    cardTitle: { margin: 0, fontSize: 14, fontWeight: 900 },
-    metaGrid: {
-      marginTop: 10,
-      display: "grid",
-      gridTemplateColumns: "1fr 1fr",
-      gap: 10,
-      fontSize: 13,
-      color: "#111827",
-    },
-    muted: { color: "#6b7280" },
-
-    nearbyGrid: {
-      marginTop: 12,
-      display: "grid",
-      gridTemplateColumns: "repeat(2, 1fr)",
-      gap: 12,
-    },
-    block: { border: "1px solid #e5e7eb", borderRadius: 12, padding: 12 },
-    blockHead: { fontSize: 13, fontWeight: 900, margin: 0 },
-    item: {
-      marginTop: 10,
-      padding: 10,
-      borderRadius: 12,
-      border: "1px solid #e5e7eb",
-      background: "#f9fafb",
-    },
-    itemName: { fontWeight: 900, fontSize: 13, margin: 0, color: "#111827" },
-    itemMeta: { marginTop: 4, fontSize: 12, color: "#6b7280" },
-
-    note: { marginTop: 10, fontSize: 12, color: "#6b7280" },
-  };
-
-  const Block = ({ title, items }) => (
-    <div style={styles.block}>
-      <p style={styles.blockHead}>{title}</p>
-      {items.length === 0 ? (
-        <p style={{ marginTop: 8, fontSize: 13, color: "#6b7280" }}>No results.</p>
-      ) : (
-        items.map((it) => (
-          <div key={it.id} style={styles.item}>
-            <p style={styles.itemName}>{it.name}</p>
-            <div style={styles.itemMeta}>
-              {it.kind ? `Type: ${it.kind} • ` : ""}Distance: {kmOrM(it.distance_m)}
+  const Block = ({ title, items, icon: Icon }) => (
+    <div className={`p-4 rounded-2xl border transition-all ${ui.card}`}>
+      <div className="flex items-center gap-2 mb-4">
+        <Icon className={`w-4 h-4 ${isDark ? "text-blue-100" : "text-blue-600"}`} />
+        <h4 className={`text-xs font-black uppercase tracking-wider ${ui.text}`}>
+          {title}
+        </h4>
+      </div>
+      <div className="flex flex-col gap-2">
+        {items.length === 0 ? (
+          <p className={`text-xs font-medium italic ${ui.subText}`}>
+            No results in this area.
+          </p>
+        ) : (
+          items.map((it) => (
+            <div
+              key={it.id}
+              className={`p-3 rounded-xl border transition-all hover:translate-x-1 ${
+                isDark
+                  ? "bg-[#3a74d6] border-blue-100/15"
+                  : "bg-neutral-50 border-neutral-100"
+              }`}
+            >
+              <p className={`text-[13px] font-bold truncate ${ui.text}`}>{it.name}</p>
+              <div
+                className={`mt-1 text-[11px] font-semibold flex items-center gap-1 ${ui.subText}`}
+              >
+                {it.kind && (
+                  <>
+                    <span className="capitalize">
+                      {it.kind.replace(/_/g, " ")}
+                    </span>{" "}
+                    •
+                  </>
+                )}
+                {kmOrM(it.distance_m)} away
+              </div>
             </div>
-          </div>
-        ))
-      )}
+          ))
+        )}
+      </div>
     </div>
   );
 
   if (lat == null || lng == null) {
     return (
-      <div style={styles.section}>
-        <div style={styles.headerRow}>
-          <h3 style={styles.title}>📍 Map Location</h3>
-        </div>
-        <p style={styles.sub}>Owner did not set map coordinates for this listing.</p>
+      <div
+        className={`p-8 text-center rounded-3xl border border-dashed ${
+          isDark
+            ? "border-blue-100/20 bg-gradient-to-br from-[#2454b8] via-[#2b63c7] to-[#1f56c5]"
+            : "border-slate-200 bg-slate-50"
+        }`}
+      >
+        <MapPin className="w-12 h-12 mx-auto mb-4 opacity-20" />
+        <h3 className={`text-xl font-bold mb-2 ${ui.text}`}>
+          Location coordinates not set
+        </h3>
+        <p className={ui.subText}>
+          The owner hasn't provided map coordinates for this property.
+        </p>
       </div>
     );
   }
 
   return (
-    <div style={styles.section}>
-      <div style={styles.headerRow}>
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h3 style={styles.title}>📍 Map Location</h3>
-          <p style={styles.sub}>
-            Click the marker to view quick info. Nearby services loads automatically.
+          <h3 className={`text-2xl font-black flex items-center gap-2 ${ui.text}`}>
+            <Navigation className="w-6 h-6 text-blue-500" /> Neighborhood Explorer
+          </h3>
+          <p className={`mt-1 text-sm font-medium ${ui.subText}`}>
+            Discover what's around your potential new home.
           </p>
         </div>
 
-        <div style={styles.chipRow}>
-          <span style={{ fontSize: 12, color: "#6b7280", fontWeight: 800 }}>Radius</span>
-          <select
-            value={radius}
-            onChange={(e) => setRadius(Number(e.target.value))}
-            style={styles.select}
+        <div className="flex flex-wrap items-center gap-3">
+          <div
+            className={`flex items-center gap-2 px-3 py-2 rounded-xl border ${
+              isDark
+                ? "bg-[#2b63c7] border-blue-100/15"
+                : "bg-slate-500/5 border-white/5"
+            }`}
           >
-            <option value={800}>800 m</option>
-            <option value={1200}>1.2 km</option>
-            <option value={2000}>2 km</option>
-            <option value={3000}>3 km</option>
-          </select>
+            <span className={`text-xs font-black uppercase tracking-wider ${ui.subText}`}>
+              Scan:
+            </span>
+            <select
+              value={radius}
+              onChange={(e) => setRadius(Number(e.target.value))}
+              className={`text-xs font-bold bg-transparent outline-none cursor-pointer ${ui.text}`}
+            >
+              <option value={800}>800 Meters</option>
+              <option value={1200}>1.2 Kilometers</option>
+              <option value={2000}>2.0 Kilometers</option>
+              <option value={3000}>3.0 Kilometers</option>
+            </select>
+          </div>
 
           <a
-            style={styles.linkBtn}
             target="_blank"
             rel="noreferrer"
             href={`https://www.google.com/maps?q=${lat},${lng}`}
+            className={`flex items-center gap-2 px-4 py-2 text-xs font-black uppercase tracking-wider rounded-xl transition-all ${
+              isDark
+                ? "bg-[#3a74d6] text-white hover:bg-[#4a84e6]"
+                : "bg-blue-50 text-blue-600 hover:bg-blue-100"
+            }`}
           >
-            Open in Google Maps
+            Google Maps <ChevronRight className="w-3.5 h-3.5" />
           </a>
         </div>
       </div>
 
-      <div style={styles.mapWrap}>
-        <MapContainer center={[lat, lng]} zoom={16} style={{ height: 360, width: "100%" }}>
+      <div
+        className={`rounded-[30px] overflow-hidden border shadow-2xl relative ${
+          isDark
+            ? "bg-gradient-to-br from-[#2454b8] via-[#2b63c7] to-[#1f56c5] border-blue-100/15"
+            : "border-white/5"
+        }`}
+      >
+        <MapContainer center={[lat, lng]} zoom={16} style={{ height: 400, width: "100%" }}>
           <TileLayer
             attribution="&copy; OpenStreetMap contributors"
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            url={
+              isDark
+                ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+                : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            }
           />
 
           <Marker position={[lat, lng]}>
             <Popup>
-              <div style={{ minWidth: 220 }}>
-                <div style={{ fontWeight: 900 }}>{listing?.title || "Property"}</div>
-                <div style={{ fontSize: 12, marginTop: 6 }}>
-                  {listing?.location || ""}
+              <div className="min-w-[180px] p-2">
+                <div className="font-black text-slate-900">
+                  {listing?.title || "Property"}
                 </div>
-                <div style={{ fontSize: 12, marginTop: 6, opacity: 0.85 }}>
-                  {address?.road ? `Road: ${address.road}` : "Road not available"}
+                <div className="mt-2 text-xs text-slate-500 font-medium">
+                  {listing?.location || "Address not specified"}
                 </div>
               </div>
             </Popup>
           </Marker>
         </MapContainer>
-      </div>
 
-      {/* Address */}
-      <div style={styles.card}>
-        <p style={styles.cardTitle}>
-          🧭 Address {addrLoading ? <span style={styles.muted}>(loading...)</span> : null}
-        </p>
-
-        {!address && !addrLoading ? (
-          <p style={{ marginTop: 8, fontSize: 13, color: "#6b7280" }}>No address info.</p>
-        ) : (
-          <div style={styles.metaGrid}>
-            <div><b>Full:</b> <span style={styles.muted}>{address?.display || "-"}</span></div>
-            <div><b>Road:</b> <span style={styles.muted}>{address?.road || "-"}</span></div>
-            <div><b>City:</b> <span style={styles.muted}>{address?.city || "-"}</span></div>
-            <div><b>State:</b> <span style={styles.muted}>{address?.state || "-"}</span></div>
-            <div><b>Country:</b> <span style={styles.muted}>{address?.country || "-"}</span></div>
-            <div><b>Postcode:</b> <span style={styles.muted}>{address?.postcode || "-"}</span></div>
+        {nearbyLoading && (
+          <div className="absolute inset-0 z-[1000] bg-black/20 backdrop-blur-[2px] flex items-center justify-center pointer-events-none">
+            <div
+              className={`px-4 py-2 rounded-full shadow-lg flex items-center gap-2 ${
+                isDark ? "bg-[#2b63c7]/95" : "bg-white/90 dark:bg-[#0f2947]/90"
+              }`}
+            >
+              <div className="w-3 h-3 rounded-full bg-blue-200 animate-bounce" />
+              <span
+                className={`text-xs font-black uppercase tracking-widest ${
+                  isDark ? "text-white" : "text-blue-600 dark:text-blue-400"
+                }`}
+              >
+                Scanning Nearby...
+              </span>
+            </div>
           </div>
         )}
       </div>
 
-      {/* Nearby */}
-      <div style={styles.card}>
-        <p style={styles.cardTitle}>
-          🏫 Nearby Services{" "}
-          {nearbyLoading ? <span style={styles.muted}>(loading...)</span> : null}
-        </p>
+      <div className={`p-6 rounded-[32px] border shadow-sm ${ui.card}`}>
+        <h4
+          className={`text-sm font-black uppercase tracking-widest mb-4 flex items-center gap-2 ${ui.text}`}
+        >
+          <MapPin className="w-4 h-4 text-blue-500" /> Reverse Geocoding{" "}
+          {addrLoading && (
+            <span className="text-[10px] lowercase text-slate-400 animate-pulse">
+              (fetching...)
+            </span>
+          )}
+        </h4>
 
-        <div style={styles.nearbyGrid}>
-          <Block title="Schools" items={nearby.schools} />
-          <Block title="Colleges / Universities" items={nearby.colleges} />
-          <Block title="Hospitals / Clinics" items={nearby.hospitals} />
-          <Block title="Markets / Supermarkets" items={nearby.markets} />
-          <Block title="Bus Stops" items={nearby.bus} />
-          <Block title="ATMs" items={nearby.atms} />
+        {!address && !addrLoading ? (
+          <p className={`text-xs font-medium italic ${ui.subText}`}>
+            No additional address details found from coordinates.
+          </p>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+            {[
+              ["Sublocality", address?.suburb],
+              ["City", address?.city],
+              ["State", address?.state],
+              ["Road", address?.road],
+              ["Postcode", address?.postcode],
+              ["Country", address?.country],
+            ].map(([k, v]) => (
+              <div key={k}>
+                <p
+                  className={`text-[10px] font-black uppercase tracking-widest mb-1 ${ui.mutedText}`}
+                >
+                  {k}
+                </p>
+                <p className={`text-sm font-bold ${v ? ui.text : ui.mutedText}`}>
+                  {v || "—"}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-4">
+        <h4
+          className={`text-sm font-black uppercase tracking-widest flex items-center gap-2 ${ui.text}`}
+        >
+          <GraduationCap className="w-4 h-4 text-blue-500" /> Local Amenities
+        </h4>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <Block title="Schools" items={nearby.schools} icon={School} />
+          <Block title="Universities" items={nearby.colleges} icon={GraduationCap} />
+          <Block title="Healthcare" items={nearby.hospitals} icon={Hospital} />
+          <Block title="Shopping" items={nearby.markets} icon={ShoppingCart} />
+          <Block title="Transit" items={nearby.bus} icon={Bus} />
+          <Block title="Financial" items={nearby.atms} icon={CreditCard} />
         </div>
-
-        <p style={styles.note}>
-          Note: Nearby results depend on OpenStreetMap data in your area.
-        </p>
       </div>
     </div>
   );

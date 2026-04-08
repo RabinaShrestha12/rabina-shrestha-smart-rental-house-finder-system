@@ -1,9 +1,9 @@
-// src/pages/home/Listing360Page.js
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import Cubemap360 from "../../components/Cubemap360";
 import Panorama360 from "../../components/Panorama360";
+import { useTheme } from "../../components/ThemeContext";
 import { ChevronLeft, Layers, Image as ImageIcon } from "lucide-react";
 
 const BACKEND = "http://127.0.0.1:8000";
@@ -19,7 +19,7 @@ function toAbsUrl(value) {
   return `${BACKEND}/${s}`;
 }
 
-function FacesGrid({ faces }) {
+function FacesGrid({ faces, isDark }) {
   const items = [
     ["Front", faces?.pano_front],
     ["Back", faces?.pano_back],
@@ -29,14 +29,16 @@ function FacesGrid({ faces }) {
     ["Down/Bottom", faces?.pano_down],
   ];
 
+  const ui = {
+    card: isDark ? "bg-[#10233f] border-white/5 shadow-black/20" : "bg-neutral-50 border-neutral-200 shadow-sm",
+    header: isDark ? "bg-white/5 border-white/5 text-slate-300" : "bg-white border-b border-neutral-200 text-neutral-700",
+  };
+
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
       {items.map(([label, url]) => (
-        <div
-          key={label}
-          className="border border-neutral-200 rounded-2xl overflow-hidden bg-neutral-50 shadow-sm"
-        >
-          <div className="px-4 py-2 bg-white border-b border-neutral-200 text-sm font-bold text-neutral-700 flex items-center justify-between">
+        <div key={label} className={`border rounded-2xl overflow-hidden shadow-sm ${ui.card}`}>
+          <div className={`px-4 py-2 text-sm font-bold flex items-center justify-between ${ui.header}`}>
             {label} 
           </div>
 
@@ -50,7 +52,9 @@ function FacesGrid({ faces }) {
               }}
             />
           ) : (
-            <div className="w-full h-32 md:h-48 flex flex-col items-center justify-center text-red-400 gap-2 bg-red-50/30">
+            <div className={`w-full h-32 md:h-48 flex flex-col items-center justify-center gap-2 ${
+              isDark ? "bg-red-500/5 text-red-400/50" : "bg-red-50/30 text-red-400"
+            }`}>
               <ImageIcon className="w-6 h-6 opacity-50"/>
               <span className="text-xs font-bold uppercase tracking-wider">Missing</span>
             </div>
@@ -64,9 +68,19 @@ function FacesGrid({ faces }) {
 export default function Listing360Page() {
   const { id } = useParams();
   const nav = useNavigate();
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
 
   const [listing, setListing] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  const ui = {
+    bg: isDark ? "bg-[#071120]" : "bg-neutral-50",
+    card: isDark ? "bg-[#0f2947] border border-white/10 shadow-2xl shadow-black/30" : "bg-white border border-neutral-100 shadow-xl shadow-neutral-900/5",
+    text: isDark ? "text-white" : "text-neutral-900",
+    subText: isDark ? "text-slate-400" : "text-neutral-500",
+    btnPrimary: "bg-blue-600 text-white hover:bg-blue-700 shadow-blue-500/30 hover:shadow-lg hover:-translate-y-0.5",
+  };
 
   useEffect(() => {
     let alive = true;
@@ -127,10 +141,10 @@ export default function Listing360Page() {
   const hasCube = faces && missingFaces.length === 0;
 
   if (loading) return (
-    <div className="min-h-screen bg-neutral-50 pt-32 pb-24 text-neutral-900 w-full flex justify-center items-center">
+    <div className={`min-h-screen pt-32 pb-24 w-full flex justify-center items-center ${ui.bg}`}>
       <div className="animate-pulse flex flex-col items-center gap-4">
-        <div className="w-16 h-16 rounded-full border-4 border-blue-200 border-t-blue-600 animate-spin"></div>
-        <div className="text-neutral-500 font-medium">Loading 360° environment...</div>
+        <div className={`w-16 h-16 rounded-full border-4 ${isDark ? 'border-blue-900/50 border-t-blue-500' : 'border-blue-200 border-t-blue-600'} animate-spin`}></div>
+        <div className={`${ui.subText} font-medium`}>Loading 360° environment...</div>
       </div>
     </div>
   );
@@ -138,32 +152,37 @@ export default function Listing360Page() {
   if (!listing) return null;
 
   return (
-    <div className="min-h-screen bg-neutral-50 pt-32 pb-24 text-neutral-900 selection:bg-blue-600 selection:text-white">
+    <div className={`min-h-screen pt-32 pb-24 selection:bg-blue-600 selection:text-white transition-colors duration-500 ${ui.bg} ${ui.text}`}>
       <div className="max-w-7xl mx-auto px-6 md:px-12">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 bg-white p-6 rounded-[24px] shadow-sm border border-neutral-100">
+        <div className={`flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 p-6 rounded-[24px] transition-all ${ui.card}`}>
           <div>
-            <h2 className="text-3xl font-extrabold text-neutral-900 tracking-tight flex items-center gap-2">
+            <h2 className={`text-3xl font-extrabold tracking-tight flex items-center gap-2 ${ui.text}`}>
               <Layers className="w-8 h-8 text-blue-600" /> Virtual 360° Tour
             </h2>
-            <p className="text-sm font-medium text-neutral-500 mt-2">
-              {listing.title} <span className="text-neutral-300 mx-2">•</span> {listing.location}
+            <p className={`text-sm font-medium mt-2 ${ui.subText}`}>
+              {listing.title} <span className="text-slate-300 mx-2">•</span> {listing.location}
             </p>
           </div>
-          <button onClick={() => nav(-1)} className="px-6 py-2.5 rounded-xl border border-neutral-200 bg-white hover:bg-neutral-50 font-bold text-sm transition-colors flex items-center gap-1 shadow-sm w-max">
+          <button 
+            onClick={() => nav(-1)} 
+            className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-1 w-max ${ui.btnPrimary}`}
+          >
             <ChevronLeft className="w-4 h-4" /> Exit 360 View
           </button>
         </div>
 
         {/* 360 VIEW SECTION */}
-        <div className="w-full h-[70vh] min-h-[500px] rounded-[32px] overflow-hidden shadow-2xl shadow-neutral-900/10 border border-neutral-200 bg-white relative">
+        <div className={`w-full h-[70vh] min-h-[500px] rounded-[32px] overflow-hidden border transition-all relative ${ui.card}`}>
           {pano ? (
             <Panorama360 panoramaUrl={pano} height="100%" />
           ) : hasCube ? (
             <Cubemap360 faces={faces} height="100%" />
           ) : (
-            <div className="w-full h-full flex flex-col items-center justify-center bg-neutral-100 p-8 text-center text-neutral-500">
-              <ImageIcon className="w-16 h-16 text-neutral-300 mb-4" />
-              <h3 className="text-xl font-bold text-neutral-900 mb-2">360 View Unavailable</h3>
+            <div className={`w-full h-full flex flex-col items-center justify-center p-8 text-center ${
+              isDark ? "bg-[#0b1b33] text-slate-500" : "bg-neutral-100 text-neutral-500"
+            }`}>
+              <ImageIcon className="w-16 h-16 opacity-30 mb-4" />
+              <h3 className={`text-xl font-bold mb-2 ${ui.text}`}>360 View Unavailable</h3>
               <p>The 360 images for this specific property have not been fully uploaded yet.</p>
             </div>
           )}
@@ -171,16 +190,18 @@ export default function Listing360Page() {
 
         {/* Faces debug preview if applicable */}
         {faces && (
-          <div className="mt-12 bg-white rounded-[32px] shadow-sm border border-neutral-100 p-8">
-             <h3 className="text-2xl font-extrabold text-neutral-900 tracking-tight mb-6 flex items-center gap-2">
+          <div className={`mt-12 rounded-[32px] p-8 transition-all ${ui.card}`}>
+             <h3 className={`text-2xl font-extrabold tracking-tight mb-6 flex items-center gap-2 ${ui.text}`}>
                 Cubemap Source Images
              </h3>
-             <FacesGrid faces={faces} />
+             <FacesGrid faces={faces} isDark={isDark} />
              {missingFaces.length > 0 && (
-               <div className="mt-8 bg-red-50 text-red-800 px-6 py-4 rounded-xl text-sm font-bold border border-red-200 flex items-center gap-3">
-                 <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center shrink-0">❌</div>
-                 Cubemap incomplete. Missing angles: {missingFaces.join(", ")}. Tour may not render optimally.
-               </div>
+                <div className={`mt-8 px-6 py-4 rounded-xl text-sm font-bold border flex items-center gap-3 ${
+                  isDark ? "bg-red-500/10 border-red-500/20 text-red-200" : "bg-red-50 border-red-200 text-red-700"
+                }`}>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${isDark ? "bg-red-500/20" : "bg-red-100"}`}>❌</div>
+                  Cubemap incomplete. Missing angles: {missingFaces.join(", ")}. Tour may not render optimally.
+                </div>
              )}
           </div>
         )}

@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import api from "../../api/axios";
 import Shell from "../../components/Shell";
-import Toast from "../../components/Toast";
 import { useTheme } from "../../components/ThemeContext";
+import Toast from "../../components/Toast";
 
 function getBackendBaseUrl() {
   return (
@@ -66,6 +66,42 @@ function normalizeMessages(data) {
   return [];
 }
 
+function safeArr(data) {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.results)) return data.results;
+  if (Array.isArray(data?.data)) return data.data;
+  return [];
+}
+
+function getRequestProviderName(req) {
+  return (
+    req?.assigned_provider_name ||
+    req?.provider_name ||
+    req?.provider?.username ||
+    req?.provider?.name ||
+    req?.provider?.user?.username ||
+    "Service Provider"
+  );
+}
+
+function getRequestLabel(req) {
+  if (!req) return "Request";
+  return req?.title || `Service chat #${req?.id}`;
+}
+
+function getRequestSnippet(req) {
+  if (!req) return "No conversation yet.";
+  return (
+    String(req?.last_message || req?.latest_message || req?.description || "").slice(0, 85) ||
+    "No conversation yet."
+  );
+}
+
+function getRequestStatus(req) {
+  if (!req) return "Unknown";
+  return String(req?.status || req?.state || "").replace(/_/g, " ") || "Open";
+}
+
 function formatMessageTime(value) {
   if (!value) return "";
   try {
@@ -80,7 +116,7 @@ function formatMessageTime(value) {
 function getThemeStyles(isDark) {
   return {
     page: {
-      maxWidth: 1180,
+      maxWidth: 1440,
       margin: "0 auto",
       padding: 20,
       minHeight: "100%",
@@ -233,8 +269,8 @@ function getThemeStyles(isDark) {
     chatLayout: {
       display: "flex",
       flexDirection: "column",
-      height: 760,
-      minHeight: 620,
+      height: 880,
+      minHeight: 680,
     },
 
     chatArea: {
@@ -245,6 +281,109 @@ function getThemeStyles(isDark) {
       background: isDark
         ? "linear-gradient(180deg, #071a3b 0%, #0a224d 100%)"
         : "linear-gradient(180deg, #f9f9fd 0%, #f6f6fb 100%)",
+    },
+
+    contentLayout: {
+      display: "grid",
+      gridTemplateColumns: "320px minmax(0, 1fr)",
+      gap: 18,
+      alignItems: "stretch",
+    },
+
+    sidebar: {
+      display: "flex",
+      flexDirection: "column",
+      minWidth: 320,
+      maxHeight: 760,
+      background: isDark ? "rgba(6, 15, 42, 0.96)" : "#ffffff",
+      border: isDark ? "1px solid rgba(148,163,184,0.16)" : "1px solid #ececf3",
+      borderRadius: 28,
+      overflow: "hidden",
+      boxShadow: isDark
+        ? "0 22px 54px rgba(0,0,0,0.23)"
+        : "0 18px 45px rgba(24,24,40,0.08)",
+    },
+
+    sidebarHeader: {
+      padding: 20,
+      borderBottom: isDark ? "1px solid rgba(148,163,184,0.16)" : "1px solid #f0f0f5",
+      background: isDark
+        ? "linear-gradient(180deg, rgba(9,23,50,1) 0%, rgba(13,31,66,1) 100%)"
+        : "linear-gradient(180deg, #ffffff 0%, #fafaff 100%)",
+    },
+
+    sidebarTitle: {
+      margin: 0,
+      fontSize: 18,
+      fontWeight: 900,
+      color: isDark ? "#f8fbff" : "#111827",
+    },
+
+    sidebarText: {
+      marginTop: 8,
+      fontSize: 13,
+      lineHeight: 1.6,
+      color: isDark ? "#cbd5e1" : "#5b5f72",
+    },
+
+    sidebarList: {
+      overflowY: "auto",
+      minHeight: 0,
+    },
+
+    sidebarItem: {
+      display: "block",
+      width: "100%",
+      padding: "18px 20px",
+      textAlign: "left",
+      cursor: "pointer",
+      borderBottom: isDark ? "1px solid rgba(148,163,184,0.08)" : "1px solid #f0f0f5",
+      background: "transparent",
+      transition: "background 0.2s ease, transform 0.2s ease",
+    },
+
+    activeSidebarItem: {
+      background: isDark ? "rgba(56, 189, 248, 0.12)" : "rgba(59, 130, 246, 0.12)",
+      transform: "scale(1.01)",
+    },
+
+    requestTitle: {
+      margin: 0,
+      fontSize: 15,
+      fontWeight: 800,
+      color: isDark ? "#ffffff" : "#111827",
+    },
+
+    requestMeta: {
+      marginTop: 8,
+      fontSize: 13,
+      color: isDark ? "#cbd5e1" : "#6b7280",
+    },
+
+    requestSnippet: {
+      marginTop: 10,
+      fontSize: 13,
+      color: isDark ? "#e2e8f0" : "#4b5563",
+      lineHeight: 1.5,
+    },
+
+    requestStatus: {
+      display: "inline-flex",
+      marginTop: 10,
+      padding: "6px 12px",
+      borderRadius: 999,
+      fontSize: 11,
+      fontWeight: 800,
+      letterSpacing: "0.08em",
+      textTransform: "uppercase",
+      background: isDark ? "rgba(148,163,184,0.12)" : "rgba(148,163,184,0.12)",
+      color: isDark ? "#cbd5e1" : "#475569",
+    },
+
+    emptySidebar: {
+      padding: 24,
+      color: isDark ? "#cbd5e1" : "#64748b",
+      fontSize: 14,
     },
 
     emptyState: {
@@ -302,11 +441,15 @@ function getThemeStyles(isDark) {
 
     ownerBubble: {
       background: isDark
-        ? "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)"
-        : "linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)",
+        ? "linear-gradient(135deg, #3b82f6 0%, #1e40af 100%)"
+        : "linear-gradient(135deg, #a855f7 0%, #9333ea 100%)",
       color: "#ffffff",
+      textShadow: "0 1px 2px rgba(0,0,0,0.2)",
       borderTopRightRadius: 8,
       border: "none",
+      boxShadow: isDark
+        ? "0 8px 25px rgba(59, 130, 246, 0.4), inset 0 1px 0 rgba(255,255,255,0.2)"
+        : "0 8px 25px rgba(168, 85, 247, 0.3), inset 0 1px 0 rgba(255,255,255,0.4)",
     },
 
     providerBubble: {
@@ -329,6 +472,7 @@ function getThemeStyles(isDark) {
       marginTop: 10,
       fontSize: 11,
       fontWeight: 700,
+      opacity: 0.9,
     },
 
     messageImage: {
@@ -495,6 +639,8 @@ export default function OwnerProviderChat() {
 
   const [selectedImage, setSelectedImage] = useState(null);
   const [previewUrl, setPreviewUrl] = useState("");
+  const [requests, setRequests] = useState([]);
+  const [requestsLoading, setRequestsLoading] = useState(true);
 
   const fileInputRef = useRef(null);
   const bottomRef = useRef(null);
@@ -502,18 +648,64 @@ export default function OwnerProviderChat() {
 
   const messageCount = useMemo(() => messages.length, [messages]);
 
+  const selectedRequest = useMemo(() => {
+    return requests.find((r) => String(r?.id) === String(jobId)) || requests[0] || null;
+  }, [requests, jobId]);
+
+  const activeJobId = jobId || selectedRequest?.id || "";
+
   const showToast = (type, msg) => setToast({ type, msg });
+
+  const loadRequests = async () => {
+    setRequestsLoading(true);
+    try {
+      const res = await api.get("owner/maintenance/");
+      setRequests(safeArr(res.data));
+    } catch (e) {
+      showToast(
+        "error",
+        e?.response?.data?.detail ||
+          e?.response?.data?.message ||
+          "Failed to load provider conversations"
+      );
+      setRequests([]);
+    } finally {
+      setRequestsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadRequests();
+  }, []);
+
+  useEffect(() => {
+    if (!requestsLoading && requests.length && !jobId) {
+      nav(`/owner/provider-chat/${requests[0]?.id}`, { replace: true });
+    }
+  }, [requestsLoading, requests, jobId, nav]);
 
   const scrollToBottom = (smooth = true) => {
     setTimeout(() => {
-      bottomRef.current?.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "end" });
+      bottomRef.current?.scrollIntoView({
+        behavior: smooth ? "smooth" : "auto",
+        block: "end",
+      });
     }, 50);
   };
 
   const loadMessages = async (showLoader = true) => {
+    const currentJobId = jobId || selectedRequest?.id;
+
+    if (!currentJobId) {
+      setMessages([]);
+      if (showLoader) setLoading(false);
+      return;
+    }
+
     if (showLoader) setLoading(true);
+
     try {
-      const res = await api.get(`owner/maintenance/${jobId}/messages/`);
+      const res = await api.get(`owner/maintenance/${currentJobId}/messages/`);
       setMessages(normalizeMessages(res.data));
       if (toast.msg) showToast("info", "");
     } catch (e) {
@@ -532,7 +724,6 @@ export default function OwnerProviderChat() {
 
   useEffect(() => {
     loadMessages(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobId]);
 
   useEffect(() => {
@@ -575,6 +766,11 @@ export default function OwnerProviderChat() {
       return;
     }
 
+    if (!activeJobId) {
+      showToast("error", "No active maintenance chat selected");
+      return;
+    }
+
     try {
       setSending(true);
 
@@ -598,12 +794,11 @@ export default function OwnerProviderChat() {
 
       setMessages((prev) => [...prev, optimistic]);
       setText("");
-      const localPreview = previewUrl;
       clearSelectedImage();
       scrollToBottom(true);
 
       const res = await api.post(
-        `owner/maintenance/${jobId}/messages/send/`,
+        `owner/maintenance/${activeJobId}/messages/send/`,
         formData,
         {
           headers: { "Content-Type": "multipart/form-data" },
@@ -655,7 +850,7 @@ export default function OwnerProviderChat() {
           <div style={styles.heroCard}>
             <div>
               <div style={styles.eyebrow}>OWNER COMMUNICATION</div>
-              <h1 style={styles.heroTitle}>Owner Provider Chat • Job #{jobId}</h1>
+              <h1 style={styles.heroTitle}>Owner Provider Chat • Job #{activeJobId || "-"}</h1>
               <p style={styles.heroSub}>
                 Talk directly with the service provider about this maintenance request.
               </p>
@@ -682,7 +877,14 @@ export default function OwnerProviderChat() {
           <div style={styles.summaryRow}>
             <div style={styles.summaryCard}>
               <div style={styles.summaryLabel}>Job</div>
-              <div style={styles.summaryValue}>#{jobId}</div>
+              <div style={styles.summaryValue}>#{activeJobId || "-"}</div>
+            </div>
+
+            <div style={styles.summaryCard}>
+              <div style={styles.summaryLabel}>Provider</div>
+              <div style={styles.summaryValue}>
+                {getRequestProviderName(selectedRequest)}
+              </div>
             </div>
 
             <div style={styles.summaryCard}>
@@ -696,166 +898,208 @@ export default function OwnerProviderChat() {
             </div>
           </div>
 
-          <div style={styles.chatCard}>
-            <div style={styles.chatHeader}>
-              <div>
-                <h2 style={styles.chatTitle}>Conversation</h2>
-                <p style={styles.chatSub}>
-                  Owner messages appear on the right, provider messages on the left.
+          <div style={styles.contentLayout}>
+            <div style={styles.sidebar}>
+              <div style={styles.sidebarHeader}>
+                <h2 style={styles.sidebarTitle}>Provider Conversations</h2>
+                <p style={styles.sidebarText}>
+                  Select a service provider chat to view the full conversation.
                 </p>
+              </div>
+
+              <div style={styles.sidebarList}>
+                {requestsLoading ? (
+                  <div style={styles.emptySidebar}>Loading conversations...</div>
+                ) : requests.length === 0 ? (
+                  <div style={styles.emptySidebar}>
+                    No provider conversations available yet.
+                  </div>
+                ) : (
+                  requests.map((req) => {
+                    const active = String(req?.id) === String(activeJobId);
+
+                    return (
+                      <button
+                        key={req?.id}
+                        type="button"
+                        style={{
+                          ...styles.sidebarItem,
+                          ...(active ? styles.activeSidebarItem : {}),
+                        }}
+                        onClick={() => nav(`/owner/provider-chat/${req?.id}`)}
+                      >
+                        <h3 style={styles.requestTitle}>{getRequestLabel(req)}</h3>
+
+                        <div style={styles.requestMeta}>
+                          {getRequestProviderName(req)} · {getRequestStatus(req)}
+                        </div>
+
+                        <div style={styles.requestSnippet}>{getRequestSnippet(req)}</div>
+
+                        <div style={styles.requestStatus}>{getRequestStatus(req)}</div>
+                      </button>
+                    );
+                  })
+                )}
               </div>
             </div>
 
-            <div style={styles.chatLayout}>
-              <div style={styles.chatArea}>
-                {loading ? (
-                  <div style={styles.emptyState}>Loading messages...</div>
-                ) : messages.length === 0 ? (
-                  <div style={styles.emptyState}>No messages yet.</div>
-                ) : (
-                  messages.map((m, i) => {
-                    const ownerSide = isOwnerMessage(m);
-                    const msgText = getMsgText(m);
-                    const msgImage = getMsgImage(m);
+            <div style={styles.chatCard}>
+              <div style={styles.chatHeader}>
+                <div>
+                  <h2 style={styles.chatTitle}>Conversation</h2>
+                  <p style={styles.chatSub}>
+                    Owner messages appear on the right, provider messages on the left.
+                  </p>
+                </div>
+              </div>
 
-                    return (
-                      <div
-                        key={m?.id || i}
-                        style={{
-                          ...styles.messageRow,
-                          justifyContent: ownerSide ? "flex-end" : "flex-start",
-                        }}
-                      >
+              <div style={styles.chatLayout}>
+                <div style={styles.chatArea}>
+                  {loading ? (
+                    <div style={styles.emptyState}>Loading messages...</div>
+                  ) : messages.length === 0 ? (
+                    <div style={styles.emptyState}>No messages yet.</div>
+                  ) : (
+                    messages.map((m, i) => {
+                      const ownerSide = isOwnerMessage(m);
+                      const msgText = getMsgText(m);
+                      const msgImage = getMsgImage(m);
+
+                      return (
                         <div
+                          key={m?.id || i}
                           style={{
-                            ...styles.messageWrap,
-                            alignItems: ownerSide ? "flex-end" : "flex-start",
+                            ...styles.messageRow,
+                            justifyContent: ownerSide ? "flex-end" : "flex-start",
                           }}
                         >
                           <div
                             style={{
-                              ...styles.metaRow,
-                              justifyContent: ownerSide ? "flex-end" : "flex-start",
+                              ...styles.messageWrap,
+                              alignItems: ownerSide ? "flex-end" : "flex-start",
                             }}
                           >
-                            <span style={styles.senderName}>{getSenderName(m)}</span>
-                            <span style={styles.senderRole}>
-                              {String(
-                                m?.sender_role || (ownerSide ? "OWNER" : "PROVIDER")
-                              ).toUpperCase()}
-                            </span>
-                          </div>
-
-                          <div
-                            style={{
-                              ...styles.messageBubble,
-                              ...(ownerSide ? styles.ownerBubble : styles.providerBubble),
-                            }}
-                          >
-                            {msgImage ? (
-                              <img
-                                src={msgImage}
-                                alt="chat attachment"
-                                style={styles.messageImage}
-                                onError={(e) => {
-                                  e.currentTarget.style.display = "none";
-                                }}
-                              />
-                            ) : null}
-
-                            {msgText ? (
-                              <div style={styles.messageText}>{msgText}</div>
-                            ) : null}
+                            <div
+                              style={{
+                                ...styles.metaRow,
+                                justifyContent: ownerSide ? "flex-end" : "flex-start",
+                              }}
+                            >
+                              <span style={styles.senderName}>{getSenderName(m)}</span>
+                              <span style={styles.senderRole}>
+                                {String(
+                                  m?.sender_role || (ownerSide ? "OWNER" : "PROVIDER")
+                                ).toUpperCase()}
+                              </span>
+                            </div>
 
                             <div
                               style={{
-                                ...styles.messageTime,
-                                color: ownerSide
-                                  ? "rgba(255,255,255,0.85)"
-                                  : isDark
-                                  ? "#cbd5e1"
-                                  : "#7a7a8c",
+                                ...styles.messageBubble,
+                                ...(ownerSide ? styles.ownerBubble : styles.providerBubble),
                               }}
                             >
-                              {formatMessageTime(m?.created_at)}
-                              {m?._optimistic ? " • sending..." : ""}
+                              {msgImage ? (
+                                <img
+                                  src={msgImage}
+                                  alt="chat attachment"
+                                  style={styles.messageImage}
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = "none";
+                                  }}
+                                />
+                              ) : null}
+
+                              {msgText ? (
+                                <div style={styles.messageText}>{msgText}</div>
+                              ) : null}
+
+                              <div style={styles.messageTime}>
+                                {formatMessageTime(
+                                  m?.created_at || m?.timestamp || m?.sent_at
+                                )}
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })
-                )}
-                <div ref={bottomRef} />
-              </div>
+                      );
+                    })
+                  )}
 
-              <div style={styles.composer}>
-                {previewUrl ? (
-                  <div style={styles.previewCard}>
-                    <div style={styles.previewTop}>
-                      <div style={styles.previewLabel}>Selected Image</div>
+                  <div ref={bottomRef} />
+                </div>
+
+                <div style={styles.composer}>
+                  {previewUrl ? (
+                    <div style={styles.previewCard}>
+                      <div style={styles.previewTop}>
+                        <div style={styles.previewLabel}>Selected Image</div>
+                        <button
+                          type="button"
+                          onClick={clearSelectedImage}
+                          disabled={sending}
+                          style={styles.removeBtn}
+                        >
+                          Remove
+                        </button>
+                      </div>
+
+                      <img src={previewUrl} alt="preview" style={styles.previewImage} />
+                    </div>
+                  ) : null}
+
+                  <textarea
+                    ref={textareaRef}
+                    value={text}
+                    onChange={(e) => setText(e.target.value)}
+                    placeholder="Write your message to the service provider..."
+                    style={styles.textarea}
+                    onKeyDown={handleKeyDown}
+                    disabled={sending}
+                  />
+
+                  <div style={styles.composerFooter}>
+                    <div style={styles.leftActions}>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        hidden
+                        accept="image/*"
+                        onChange={handleImageChange}
+                      />
+
                       <button
                         type="button"
-                        onClick={clearSelectedImage}
+                        onClick={() => fileInputRef.current?.click()}
                         disabled={sending}
-                        style={styles.removeBtn}
+                        style={styles.uploadBtn}
                       >
-                        Remove
+                        Upload Image
                       </button>
+
+                      <div style={styles.fileName}>
+                        {selectedImage ? selectedImage.name : "No image selected"}
+                      </div>
                     </div>
-                    <img src={previewUrl} alt="preview" style={styles.previewImage} />
-                  </div>
-                ) : null}
-
-                <textarea
-                  ref={textareaRef}
-                  value={text}
-                  onChange={(e) => setText(e.target.value)}
-                  placeholder="Write your message to the service provider..."
-                  style={styles.textarea}
-                  onKeyDown={handleKeyDown}
-                  disabled={sending}
-                />
-
-                <div style={styles.composerFooter}>
-                  <div style={styles.leftActions}>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      hidden
-                      accept="image/*"
-                      onChange={handleImageChange}
-                    />
 
                     <button
                       type="button"
-                      onClick={() => fileInputRef.current?.click()}
+                      onClick={sendMessage}
                       disabled={sending}
-                      style={styles.uploadBtn}
+                      style={{
+                        ...styles.sendBtn,
+                        ...(sending ? styles.sendBtnDisabled : {}),
+                      }}
                     >
-                      Upload Image
+                      {sending ? "Sending..." : "Send Message"}
                     </button>
-
-                    <div style={styles.fileName}>
-                      {selectedImage ? selectedImage.name : "No image selected"}
-                    </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={sendMessage}
-                    disabled={sending}
-                    style={{
-                      ...styles.sendBtn,
-                      ...(sending ? styles.sendBtnDisabled : {}),
-                    }}
-                  >
-                    {sending ? "Sending..." : "Send Message"}
-                  </button>
-                </div>
-
-                <div style={styles.helperText}>
-                  Press <strong>Enter</strong> to send and <strong>Shift + Enter</strong> for a new line.
+                  <div style={styles.helperText}>
+                    Press <strong>Enter</strong> to send and <strong>Shift + Enter</strong> for a
+                    new line.
+                  </div>
                 </div>
               </div>
             </div>

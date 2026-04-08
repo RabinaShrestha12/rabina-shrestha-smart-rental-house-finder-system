@@ -20,10 +20,10 @@ export default function Shell({
         color: isDark ? "#ffffff" : "#0f172a",
       }}
     >
-      <div className="mx-auto w-full max-w-[1600px] px-6 pt-32 pb-10 xl:px-8 2xl:px-10">
+      <div className="mx-auto w-full max-w-[1600px] px-6 pt-10 pb-8 xl:px-8 2xl:px-10">
         {(title || subtitle || right) && (
           <div
-            className="mb-8 rounded-[34px] border p-7 transition-colors duration-300"
+            className="mb-4 rounded-[30px] border p-6 transition-colors duration-300"
             style={{
               backgroundColor: isDark ? "#0f2947" : "#ffffff",
               borderColor: isDark ? "rgba(96, 165, 250, 0.16)" : "#dbe7f5",
@@ -32,7 +32,7 @@ export default function Shell({
                 : "0 10px 30px rgba(59, 130, 246, 0.08)",
             }}
           >
-            <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
               <div className="min-w-0">
                 {title ? (
                   <h1
@@ -45,7 +45,7 @@ export default function Shell({
 
                 {subtitle ? (
                   <p
-                    className="mt-3 max-w-3xl text-base leading-7"
+                    className="mt-2 max-w-3xl text-base leading-7"
                     style={{
                       color: isDark ? "rgba(191,219,254,0.82)" : "#475569",
                     }}

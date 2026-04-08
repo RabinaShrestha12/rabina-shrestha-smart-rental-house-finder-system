@@ -13,9 +13,9 @@ import {
   Sparkles,
   ChevronRight,
   Info,
-  DollarSign,
+  Banknote,
   RefreshCw,
-  XCircle,
+  ArrowLeft,
 } from "lucide-react";
 
 export default function RoommateFinder() {
@@ -196,7 +196,7 @@ export default function RoommateFinder() {
       title="Roommate Sync"
       subtitle="Find compatible housemates based on lifestyle, budget, and location preferences."
       right={
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <button
             onClick={() => nav("/tenant/roommates/requests")}
             className={`flex items-center gap-2 rounded-xl px-5 py-2.5 text-xs font-bold uppercase tracking-widest transition-all ${
@@ -210,13 +210,13 @@ export default function RoommateFinder() {
 
           <button
             onClick={() => nav("/tenant")}
-            className={`rounded-2xl p-3 transition-all ${
+            className={`flex items-center gap-2 rounded-xl px-5 py-2.5 text-xs font-bold uppercase tracking-widest transition-all ${
               isDark
                 ? "border border-white/10 bg-[#123a64] text-blue-100 hover:bg-[#174876]"
-                : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"
+                : "bg-neutral-100 text-neutral-700 hover:bg-neutral-200"
             }`}
           >
-            <XCircle className="h-5 w-5" />
+            <ArrowLeft className="h-4 w-4" /> Back Dashboard
           </button>
         </div>
       }
@@ -297,7 +297,7 @@ export default function RoommateFinder() {
 
             <FormSection title="Budget & Location" icon={MapPin}>
               <div className="relative">
-                <DollarSign
+                <Banknote
                   className={`absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 ${
                     isDark ? "text-blue-200/60" : "text-neutral-400"
                   }`}
@@ -312,7 +312,7 @@ export default function RoommateFinder() {
               </div>
 
               <div className="relative">
-                <DollarSign
+                <Banknote
                   className={`absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 ${
                     isDark ? "text-blue-200/60" : "text-neutral-400"
                   }`}
@@ -597,7 +597,7 @@ export default function RoommateFinder() {
                               isDark ? "text-blue-100/65" : "text-neutral-400"
                             }`}
                           >
-                            <DollarSign className="h-3.5 w-3.5" /> Max Rs {m.max_budget}
+                            <Banknote className="h-3.5 w-3.5" /> Max Rs {m.max_budget}
                           </div>
                         )}
                       </div>

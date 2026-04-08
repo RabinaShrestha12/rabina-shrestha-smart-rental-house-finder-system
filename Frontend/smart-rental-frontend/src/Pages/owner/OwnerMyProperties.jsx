@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTheme } from "../../components/ThemeContext";
 import api from "../../api/axios";
@@ -11,13 +11,15 @@ import {
   ExternalLink,
   MapPin,
   Home,
-  DollarSign,
+  Banknote,
   Calendar,
   Eye,
   RefreshCw,
   Layers,
   CheckCircle2,
   ChevronRight,
+  Lock,
+  Unlock,
 } from "lucide-react";
 
 const BACKEND =
@@ -77,6 +79,24 @@ export default function OwnerMyProperties() {
     }
   };
 
+  const bookedCount = useMemo(() => {
+    return rows.filter(
+      (r) =>
+        r?.is_available === false ||
+        String(r?.status || "").toLowerCase() === "booked"
+    ).length;
+  }, [rows]);
+
+  const availableCount = useMemo(() => {
+    return rows.filter(
+      (r) =>
+        !(
+          r?.is_available === false ||
+          String(r?.status || "").toLowerCase() === "booked"
+        )
+    ).length;
+  }, [rows]);
+
   return (
     <Shell
       title="Property Portfolio"
@@ -116,8 +136,7 @@ export default function OwnerMyProperties() {
           onClose={() => setToast({ type: "info", msg: "" })}
         />
 
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
           <div
             className={`rounded-[32px] p-8 flex items-center gap-6 border transition-all ${
               isDark
@@ -189,57 +208,76 @@ export default function OwnerMyProperties() {
           </div>
 
           <div
-            onClick={() => nav("/owner")}
-            className={`rounded-[32px] p-8 flex items-center justify-between group cursor-pointer border transition-all ${
+            className={`rounded-[32px] p-8 flex items-center gap-6 border transition-all ${
               isDark
-                ? "bg-[#143861] border-white/10 hover:border-blue-400/30 shadow-[0_8px_20px_rgba(0,0,0,0.18)]"
-                : "bg-white border-neutral-100 shadow-sm hover:border-blue-100"
+                ? "bg-[#143861] border-white/10 shadow-[0_8px_20px_rgba(0,0,0,0.18)]"
+                : "bg-white border-neutral-100 shadow-sm"
             }`}
           >
+            <div
+              className={`w-14 h-14 rounded-2xl flex items-center justify-center ${
+                isDark
+                  ? "bg-red-500/15 text-red-300"
+                  : "bg-red-50 text-red-600"
+              }`}
+            >
+              <Lock className="w-7 h-7" />
+            </div>
+
             <div>
               <div
-                className={`text-[10px] font-black uppercase tracking-widest mb-2 ${
+                className={`text-[10px] font-black uppercase tracking-widest mb-1 ${
                   isDark ? "text-slate-400" : "text-neutral-400"
                 }`}
               >
-                Portfolio Overview
+                Booked Properties
               </div>
-
               <div
-                className={`text-sm font-black flex items-center gap-2 ${
+                className={`text-3xl font-black leading-none ${
                   isDark ? "text-white" : "text-neutral-900"
                 }`}
               >
-                Back to Dashboard
-                <ChevronRight
-                  className={`w-4 h-4 transition-transform group-hover:translate-x-1 ${
-                    isDark
-                      ? "text-slate-400 group-hover:text-blue-300"
-                      : "text-neutral-400 group-hover:text-blue-600"
-                  }`}
-                />
+                {loading ? "-" : bookedCount}
               </div>
             </div>
+          </div>
 
+          <div
+            className={`rounded-[32px] p-8 flex items-center gap-6 border transition-all ${
+              isDark
+                ? "bg-[#143861] border-white/10 shadow-[0_8px_20px_rgba(0,0,0,0.18)]"
+                : "bg-white border-neutral-100 shadow-sm"
+            }`}
+          >
             <div
-              className={`w-12 h-12 rounded-full flex items-center justify-center border transition-colors ${
+              className={`w-14 h-14 rounded-2xl flex items-center justify-center ${
                 isDark
-                  ? "border-white/10 bg-[#1a4678] group-hover:bg-[#20538d]"
-                  : "border-neutral-100 group-hover:bg-blue-50"
+                  ? "bg-blue-500/15 text-blue-300"
+                  : "bg-blue-50 text-blue-600"
               }`}
             >
-              <Home
-                className={`w-5 h-5 ${
-                  isDark
-                    ? "text-slate-200 group-hover:text-blue-200"
-                    : "text-neutral-400 group-hover:text-blue-600"
+              <Unlock className="w-7 h-7" />
+            </div>
+
+            <div>
+              <div
+                className={`text-[10px] font-black uppercase tracking-widest mb-1 ${
+                  isDark ? "text-slate-400" : "text-neutral-400"
                 }`}
-              />
+              >
+                Available Properties
+              </div>
+              <div
+                className={`text-3xl font-black leading-none ${
+                  isDark ? "text-white" : "text-neutral-900"
+                }`}
+              >
+                {loading ? "-" : availableCount}
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Portfolio Section */}
         <div
           className={`rounded-[40px] p-8 border transition-all ${
             isDark
@@ -256,12 +294,26 @@ export default function OwnerMyProperties() {
               Active Portfolio
             </h2>
 
-            <div
-              className={`text-sm font-medium ${
-                isDark ? "text-slate-400" : "text-neutral-500"
-              }`}
-            >
-              {rows.length} items
+            <div className="flex items-center gap-3">
+              <div
+                className={`text-sm font-medium ${
+                  isDark ? "text-slate-400" : "text-neutral-500"
+                }`}
+              >
+                {rows.length} items
+              </div>
+
+              <button
+                onClick={() => nav("/owner")}
+                className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
+                  isDark
+                    ? "bg-[#143861] text-white border border-white/10 hover:bg-[#1a4678]"
+                    : "bg-white text-neutral-700 border border-neutral-200 hover:bg-neutral-50"
+                }`}
+              >
+                Back to Dashboard
+                <ChevronRight className="w-4 h-4" />
+              </button>
             </div>
           </div>
 
@@ -309,177 +361,210 @@ export default function OwnerMyProperties() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {rows.map((p) => (
-                <div
-                  key={p.id}
-                  className={`rounded-[32px] overflow-hidden border group flex flex-col transition-all duration-300 ${
-                    isDark
-                      ? "bg-[#143861] border-white/10 shadow-[0_10px_24px_rgba(0,0,0,0.18)] hover:border-blue-400/25"
-                      : "bg-white border-neutral-100 shadow-sm hover:shadow-xl hover:shadow-neutral-200/40"
-                  }`}
-                >
-                  {/* Image */}
-                  <div className="relative h-48 overflow-hidden">
-                    <img
-                      src={toImageSrc(p.image || p.cover_image)}
-                      alt="Property Cover"
-                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                    />
+              {rows.map((p) => {
+                const isBooked =
+                  p.is_available === false ||
+                  String(p.status || "").toLowerCase() === "booked";
 
-                    <div className="absolute top-4 left-4">
-                      <span
-                        className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm ${
-                          p.is_active !== false
-                            ? isDark
-                              ? "bg-emerald-500/20 text-emerald-300 border border-emerald-400/20"
-                              : "bg-white text-emerald-600"
-                            : isDark
-                            ? "bg-[#1a4678] text-slate-200 border border-white/10"
-                            : "bg-white text-neutral-400"
-                        }`}
-                      >
-                        {p.is_active !== false ? "● Active" : "○ Draft"}
-                      </span>
-                    </div>
-
-                    <div
-                      className={`absolute top-4 right-4 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm flex items-center gap-1.5 backdrop-blur-md border ${
-                        isDark
-                          ? "bg-[#153862]/90 text-white border-white/10"
-                          : "bg-white/90 text-neutral-900"
-                      }`}
-                    >
-                      <Eye
-                        className={`w-3.5 h-3.5 ${
-                          isDark ? "text-blue-300" : "text-blue-600"
-                        }`}
+                return (
+                  <div
+                    key={p.id}
+                    className={`rounded-[32px] overflow-hidden border group flex flex-col transition-all duration-300 ${
+                      isDark
+                        ? "bg-[#143861] border-white/10 shadow-[0_10px_24px_rgba(0,0,0,0.18)] hover:border-blue-400/25"
+                        : "bg-white border-neutral-100 shadow-sm hover:shadow-xl hover:shadow-neutral-200/40"
+                    }`}
+                  >
+                    <div className="relative h-48 overflow-hidden">
+                      <img
+                        src={toImageSrc(p.image || p.cover_image)}
+                        alt="Property Cover"
+                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                       />
-                      {p.views || 0}
-                    </div>
-                  </div>
 
-                  {/* Body */}
-                  <div className="p-6 flex-1 flex flex-col justify-between">
-                    <div>
-                      <h3
-                        className={`text-lg font-black leading-tight mb-2 line-clamp-1 ${
-                          isDark ? "text-white" : "text-neutral-900"
-                        }`}
-                      >
-                        {p.title || "Untitled Property"}
-                      </h3>
+                      <div className="absolute top-4 left-4 flex items-center gap-2">
+                        <span
+                          className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm ${
+                            p.is_active !== false
+                              ? isDark
+                                ? "bg-emerald-500/20 text-emerald-300 border border-emerald-400/20"
+                                : "bg-white text-emerald-600"
+                              : isDark
+                              ? "bg-[#1a4678] text-slate-200 border border-white/10"
+                              : "bg-white text-neutral-400"
+                          }`}
+                        >
+                          {p.is_active !== false ? "● Active" : "○ Draft"}
+                        </span>
 
-                      <div
-                        className={`flex items-center gap-1.5 text-xs font-bold mb-4 ${
-                          isDark ? "text-slate-400" : "text-neutral-400"
-                        }`}
-                      >
-                        <MapPin className="w-3.5 h-3.5 text-red-500 shrink-0" />
-                        <span className="truncate">
-                          {p.location || "Location not specified"}
+                        <span
+                          className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm border ${
+                            isBooked
+                              ? isDark
+                                ? "bg-red-500/20 text-red-300 border-red-400/20"
+                                : "bg-red-50 text-red-600 border-red-200"
+                              : isDark
+                              ? "bg-blue-500/20 text-blue-200 border-blue-400/20"
+                              : "bg-blue-50 text-blue-700 border-blue-200"
+                          }`}
+                        >
+                          {isBooked ? "Booked" : "Available"}
                         </span>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3 mb-6">
-                        <div
-                          className={`rounded-2xl p-3 border ${
-                            isDark
-                              ? "bg-[#1a4678] border-white/10"
-                              : "bg-neutral-50 border-neutral-100"
+                      <div
+                        className={`absolute top-4 right-4 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm flex items-center gap-1.5 backdrop-blur-md border ${
+                          isDark
+                            ? "bg-[#153862]/90 text-white border-white/10"
+                            : "bg-white/90 text-neutral-900"
+                        }`}
+                      >
+                        <Eye
+                          className={`w-3.5 h-3.5 ${
+                            isDark ? "text-blue-300" : "text-blue-600"
                           }`}
-                        >
-                          <div
-                            className={`text-[9px] font-black uppercase tracking-widest mb-1 flex items-center gap-1 ${
-                              isDark ? "text-slate-300" : "text-neutral-400"
-                            }`}
-                          >
-                            <DollarSign className="w-3 h-3" />
-                            Rent
-                          </div>
-                          <div
-                            className={`text-sm font-black ${
-                              isDark ? "text-white" : "text-neutral-900"
-                            }`}
-                          >
-                            Rs {p.price_per_month || "0"}
-                          </div>
-                        </div>
-
-                        <div
-                          className={`rounded-2xl p-3 border ${
-                            isDark
-                              ? "bg-[#1a4678] border-white/10"
-                              : "bg-neutral-50 border-neutral-100"
-                          }`}
-                        >
-                          <div
-                            className={`text-[9px] font-black uppercase tracking-widest mb-1 flex items-center gap-1 ${
-                              isDark ? "text-slate-300" : "text-neutral-400"
-                            }`}
-                          >
-                            <Calendar className="w-3 h-3" />
-                            Added
-                          </div>
-                          <div
-                            className={`text-sm font-black ${
-                              isDark ? "text-white" : "text-neutral-900"
-                            }`}
-                          >
-                            {p.created_at
-                              ? new Date(p.created_at).toLocaleDateString(
-                                  undefined,
-                                  {
-                                    month: "short",
-                                    year: "numeric",
-                                  }
-                                )
-                              : "Recently"}
-                          </div>
-                        </div>
+                        />
+                        {p.views || 0}
                       </div>
                     </div>
 
-                    {/* Buttons */}
-                    <div className="grid grid-cols-3 gap-2">
-                      <button
-                        onClick={() => nav(`/public/listings/${p.id}`)}
-                        title="View Public Listing"
-                        className={`py-3 rounded-xl flex items-center justify-center transition-colors border ${
-                          isDark
-                            ? "bg-[#1a4678] text-slate-100 hover:bg-[#20538d] border-white/10"
-                            : "bg-neutral-50 text-neutral-600 hover:bg-neutral-100 border-transparent"
-                        }`}
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                      </button>
+                    <div className="p-6 flex-1 flex flex-col justify-between">
+                      <div>
+                        <h3
+                          className={`text-lg font-black leading-tight mb-2 line-clamp-1 ${
+                            isDark ? "text-white" : "text-neutral-900"
+                          }`}
+                        >
+                          {p.title || "Untitled Property"}
+                        </h3>
 
-                      <button
-                        onClick={() => nav(`/owner/listing/${p.id}/edit`)}
-                        className={`py-3 rounded-xl font-bold text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all border ${
-                          isDark
-                            ? "bg-blue-500/15 text-blue-200 hover:bg-blue-500/25 border-blue-400/20"
-                            : "bg-blue-50 text-blue-600 hover:bg-blue-100 border-transparent"
-                        }`}
-                      >
-                        <Edit className="w-3.5 h-3.5" />
-                        Edit
-                      </button>
+                        <div
+                          className={`flex items-center gap-1.5 text-xs font-bold mb-3 ${
+                            isDark ? "text-slate-400" : "text-neutral-400"
+                          }`}
+                        >
+                          <MapPin className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                          <span className="truncate">
+                            {p.location || "Location not specified"}
+                          </span>
+                        </div>
 
-                      <button
-                        onClick={() => doDelete(p.id)}
-                        title="Delete Property"
-                        className={`py-3 rounded-xl font-bold text-[10px] uppercase tracking-widest flex items-center justify-center transition-all border ${
-                          isDark
-                            ? "bg-red-500/15 text-red-200 hover:bg-red-500/25 border-red-400/20"
-                            : "bg-red-50 text-red-600 hover:bg-red-100 border-transparent"
-                        }`}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                        <div
+                          className={`mb-4 text-xs font-bold ${
+                            isBooked
+                              ? isDark
+                                ? "text-red-300"
+                                : "text-red-600"
+                              : isDark
+                              ? "text-emerald-300"
+                              : "text-emerald-600"
+                          }`}
+                        >
+                          {isBooked
+                            ? "This property is currently booked."
+                            : "This property is currently available."}
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3 mb-6">
+                          <div
+                            className={`rounded-2xl p-3 border ${
+                              isDark
+                                ? "bg-[#1a4678] border-white/10"
+                                : "bg-neutral-50 border-neutral-100"
+                            }`}
+                          >
+                            <div
+                              className={`text-[9px] font-black uppercase tracking-widest mb-1 flex items-center gap-1 ${
+                                isDark ? "text-slate-300" : "text-neutral-400"
+                              }`}
+                            >
+                              <Banknote className="w-3 h-3" />
+                              Rent
+                            </div>
+                            <div
+                              className={`text-sm font-black ${
+                                isDark ? "text-white" : "text-neutral-900"
+                              }`}
+                            >
+                              Rs {p.price_per_month || p.rent || "0"}
+                            </div>
+                          </div>
+
+                          <div
+                            className={`rounded-2xl p-3 border ${
+                              isDark
+                                ? "bg-[#1a4678] border-white/10"
+                                : "bg-neutral-50 border-neutral-100"
+                            }`}
+                          >
+                            <div
+                              className={`text-[9px] font-black uppercase tracking-widest mb-1 flex items-center gap-1 ${
+                                isDark ? "text-slate-300" : "text-neutral-400"
+                              }`}
+                            >
+                              <Calendar className="w-3 h-3" />
+                              Added
+                            </div>
+                            <div
+                              className={`text-sm font-black ${
+                                isDark ? "text-white" : "text-neutral-900"
+                              }`}
+                            >
+                              {p.created_at
+                                ? new Date(p.created_at).toLocaleDateString(
+                                    undefined,
+                                    {
+                                      month: "short",
+                                      year: "numeric",
+                                    }
+                                  )
+                                : "Recently"}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2">
+                        <button
+                          onClick={() => nav(`/public/listings/${p.id}`)}
+                          title="View Public Listing"
+                          className={`py-3 rounded-xl flex items-center justify-center transition-colors border ${
+                            isDark
+                              ? "bg-[#1a4678] text-slate-100 hover:bg-[#20538d] border-white/10"
+                              : "bg-neutral-50 text-neutral-600 hover:bg-neutral-100 border-transparent"
+                          }`}
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </button>
+
+                        <button
+                          onClick={() => nav(`/owner/listing/${p.id}/edit`)}
+                          className={`py-3 rounded-xl font-bold text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all border ${
+                            isDark
+                              ? "bg-blue-500/15 text-blue-200 hover:bg-blue-500/25 border-blue-400/20"
+                              : "bg-blue-50 text-blue-600 hover:bg-blue-100 border-transparent"
+                          }`}
+                        >
+                          <Edit className="w-3.5 h-3.5" />
+                          Edit
+                        </button>
+
+                        <button
+                          onClick={() => doDelete(p.id)}
+                          title="Delete Property"
+                          className={`py-3 rounded-xl font-bold text-[10px] uppercase tracking-widest flex items-center justify-center transition-all border ${
+                            isDark
+                              ? "bg-red-500/15 text-red-200 hover:bg-red-500/25 border-red-400/20"
+                              : "bg-red-50 text-red-600 hover:bg-red-100 border-transparent"
+                          }`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

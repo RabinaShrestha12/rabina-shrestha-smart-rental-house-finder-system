@@ -54,6 +54,26 @@ def _maintenance_to_dict(m: MaintenanceRequest):
     }
 
 
+def _get_owner_listing(request, listing_id):
+    """
+    listing_id can be:
+    - None / "" => no listing
+    - valid id owned by current owner => return Listing
+    - invalid / not owned => return Response error
+    """
+    if listing_id in [None, "", "null"]:
+        return None
+
+    try:
+        listing = Listing.objects.get(id=int(listing_id), owner=request.user)
+        return listing
+    except (Listing.DoesNotExist, ValueError, TypeError):
+        return Response(
+            {"detail": "Listing not found or not yours."},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+
 @api_view(["POST"])
 @permission_classes([IsAuthenticated, IsOwnerRole])
 def owner_create_maintenance_request(request):
@@ -62,16 +82,28 @@ def owner_create_maintenance_request(request):
     category = (request.data.get("category") or "other").strip()
     priority = (request.data.get("priority") or "medium").strip()
 
+    allowed_categories = {
+        "plumbing", "electrical", "cleaning", "internet", "gas",
+        "hvac", "pest_control", "carpentry", "painting", "other"
+    }
+    allowed_priorities = {"low", "medium", "high", "emergency"}
+
     if not title:
         return Response({"detail": "Title is required."}, status=status.HTTP_400_BAD_REQUEST)
 
-    listing_id = request.data.get("listing") or request.data.get("listing_id") or ""
-    listing = None
-    if str(listing_id).strip():
-        try:
-            listing = Listing.objects.get(id=int(listing_id), owner=request.user)
-        except (Listing.DoesNotExist, ValueError):
-            return Response({"detail": "Listing not found or not yours."}, status=status.HTTP_404_NOT_FOUND)
+    if not description:
+        return Response({"detail": "Description is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+    if category not in allowed_categories:
+        return Response({"detail": "Invalid category."}, status=status.HTTP_400_BAD_REQUEST)
+
+    if priority not in allowed_priorities:
+        return Response({"detail": "Invalid priority."}, status=status.HTTP_400_BAD_REQUEST)
+
+    listing_id = request.data.get("listing") or request.data.get("listing_id") or None
+    listing = _get_owner_listing(request, listing_id)
+    if isinstance(listing, Response):
+        return listing
 
     m = MaintenanceRequest.objects.create(
         owner=request.user,
@@ -91,6 +123,134 @@ def owner_create_maintenance_request(request):
 def owner_maintenance_requests(request):
     qs = MaintenanceRequest.objects.filter(owner=request.user).order_by("-created_at")
     return Response([_maintenance_to_dict(x) for x in qs], status=status.HTTP_200_OK)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated, IsOwnerRole])
+def owner_maintenance_request_detail(request, req_id):
+    try:
+        m = MaintenanceRequest.objects.get(id=req_id, owner=request.user)
+    except MaintenanceRequest.DoesNotExist:
+        return Response({"detail": "Maintenance request not found."}, status=status.HTTP_404_NOT_FOUND)
+
+    return Response(_maintenance_to_dict(m), status=status.HTTP_200_OK)
+
+
+@api_view(["PATCH", "PUT"])
+@permission_classes([IsAuthenticated, IsOwnerRole])
+def owner_update_maintenance_request(request, req_id):
+    try:
+        m = MaintenanceRequest.objects.get(id=req_id, owner=request.user)
+    except MaintenanceRequest.DoesNotExist:
+        return Response({"detail": "Maintenance request not found."}, status=status.HTTP_404_NOT_FOUND)
+
+    allowed_categories = {
+        "plumbing", "electrical", "cleaning", "internet", "gas",
+        "hvac", "pest_control", "carpentry", "painting", "other"
+    }
+    allowed_priorities = {"low", "medium", "high", "emergency"}
+    allowed_statuses = {"open", "in_progress", "resolved", "rejected"}
+
+    title = request.data.get("title", None)
+    description = request.data.get("description", None)
+    category = request.data.get("category", None)
+    priority = request.data.get("priority", None)
+    status_value = request.data.get("status", None)
+
+    # listing can be passed as listing_id or listing
+    has_listing_key = ("listing_id" in request.data) or ("listing" in request.data)
+    listing_id = request.data.get("listing_id", request.data.get("listing", None))
+
+    changed_fields = []
+
+    if title is not None:
+        title = str(title).strip()
+        if not title:
+            return Response({"detail": "Title cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
+        m.title = title
+        changed_fields.append("title")
+
+    if description is not None:
+        description = str(description).strip()
+        if not description:
+            return Response({"detail": "Description cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
+        m.description = description
+        changed_fields.append("description")
+
+    if category is not None:
+        category = str(category).strip()
+        if category not in allowed_categories:
+            return Response({"detail": "Invalid category."}, status=status.HTTP_400_BAD_REQUEST)
+        m.category = category
+        changed_fields.append("category")
+
+    if priority is not None:
+        priority = str(priority).strip()
+        if priority not in allowed_priorities:
+            return Response({"detail": "Invalid priority."}, status=status.HTTP_400_BAD_REQUEST)
+        m.priority = priority
+        changed_fields.append("priority")
+
+    if status_value is not None:
+        status_value = str(status_value).strip()
+        if status_value not in allowed_statuses:
+            return Response({"detail": "Invalid status."}, status=status.HTTP_400_BAD_REQUEST)
+        m.status = status_value
+        changed_fields.append("status")
+
+    if has_listing_key:
+        listing = _get_owner_listing(request, listing_id)
+        if isinstance(listing, Response):
+            return listing
+        m.listing = listing
+        changed_fields.append("listing")
+
+    if not changed_fields:
+        return Response(
+            {"detail": "No valid fields provided for update."},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    changed_fields.append("updated_at")
+    m.save(update_fields=changed_fields)
+
+    if m.assigned_provider:
+        _create_notification(
+            user=m.assigned_provider,
+            title="Maintenance request updated",
+            message=f"{_user_display_name(request.user)} updated '{m.title or f'Maintenance #{m.id}'}'.",
+            link=f"/provider/chat/{m.id}",
+        )
+
+    return Response(_maintenance_to_dict(m), status=status.HTTP_200_OK)
+
+
+@api_view(["DELETE"])
+@permission_classes([IsAuthenticated, IsOwnerRole])
+def owner_delete_maintenance_request(request, req_id):
+    try:
+        m = MaintenanceRequest.objects.get(id=req_id, owner=request.user)
+    except MaintenanceRequest.DoesNotExist:
+        return Response({"detail": "Maintenance request not found."}, status=status.HTTP_404_NOT_FOUND)
+
+    provider = m.assigned_provider
+    title = m.title or f"Maintenance #{m.id}"
+    req_id_value = m.id
+
+    m.delete()
+
+    if provider:
+        _create_notification(
+            user=provider,
+            title="Maintenance request deleted",
+            message=f"{_user_display_name(request.user)} deleted '{title}'.",
+            link="",
+        )
+
+    return Response(
+        {"detail": f"Maintenance request #{req_id_value} deleted successfully."},
+        status=status.HTTP_200_OK
+    )
 
 
 @api_view(["PATCH", "POST"])
@@ -233,7 +393,6 @@ def provider_update_job_status(request, req_id):
     except MaintenanceRequest.DoesNotExist:
         return Response({"detail": "Job not found."}, status=status.HTTP_404_NOT_FOUND)
 
-    # If your model does not allow "completed", map it to "resolved"
     save_status = "resolved" if new_status == "completed" else new_status
 
     m.status = save_status

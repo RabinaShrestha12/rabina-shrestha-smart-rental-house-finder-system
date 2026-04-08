@@ -110,7 +110,7 @@ function statusStyles(status, isDark) {
 }
 
 export default function ProviderDashboard() {
-  const { role, logout, booting } = useAuth();
+  const { role, logout, booting, isAuthed } = useAuth();
   const { theme } = useTheme();
   const isDark = theme === "dark";
   const nav = useNavigate();
@@ -208,9 +208,8 @@ export default function ProviderDashboard() {
     if (booting) return;
 
     const r = normalizeRole(role);
-    if (r !== "provider" && r !== "service_provider") {
-      showToast("error", "You are not authorized to access Provider Dashboard.");
-      setLoading(false);
+    if (!isAuthed || (r !== "provider" && r !== "service_provider")) {
+      nav("/auth", { replace: true });
       return;
     }
 
@@ -221,8 +220,7 @@ export default function ProviderDashboard() {
     }, 5000);
 
     return () => clearInterval(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [booting, role]);
+  }, [booting, role, isAuthed, nav]);
 
   const sortedJobs = useMemo(() => {
     const list = [...jobs];
@@ -335,8 +333,8 @@ export default function ProviderDashboard() {
           </div>
 
           <div style={styles.heroActions}>
-            <button type="button" style={styles.secondaryBtn} onClick={() => nav("/")}>
-              Home
+            <button type="button" style={styles.secondaryBtn} onClick={() => nav("/provider")}>
+              Dashboard
             </button>
 
             <button type="button" style={styles.secondaryBtn} onClick={openMessages}>
@@ -604,19 +602,21 @@ export default function ProviderDashboard() {
 function getStyles(isDark) {
   return {
     page: {
-      maxWidth: 1220,
+      width: "100%",
+      maxWidth: "1440px",
       margin: "0 auto",
-      padding: 20,
+      padding: "24px 28px 40px",
+      boxSizing: "border-box",
     },
 
     heroCard: {
       display: "flex",
       justifyContent: "space-between",
       alignItems: "center",
-      gap: 18,
+      gap: 20,
       flexWrap: "wrap",
-      padding: 24,
-      borderRadius: 26,
+      padding: 28,
+      borderRadius: 28,
       background: isDark
         ? "linear-gradient(135deg, #12355d 0%, #173f6e 55%, #102b49 100%)"
         : "linear-gradient(135deg, #ffffff 0%, #f7f7ff 100%)",
@@ -637,16 +637,18 @@ function getStyles(isDark) {
 
     heroTitle: {
       margin: 0,
-      fontSize: 30,
+      fontSize: 38,
       fontWeight: 900,
       color: isDark ? "#ffffff" : "#171725",
+      lineHeight: 1.15,
     },
 
     heroSub: {
-      margin: "8px 0 0 0",
-      fontSize: 15,
+      margin: "10px 0 0 0",
+      fontSize: 16,
       color: isDark ? "#cbd5e1" : "#66667d",
-      lineHeight: 1.5,
+      lineHeight: 1.6,
+      maxWidth: 760,
     },
 
     heroActions: {
@@ -715,17 +717,17 @@ function getStyles(isDark) {
     },
 
     statsGrid: {
-      marginTop: 18,
+      marginTop: 20,
       display: "grid",
-      gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-      gap: 14,
+      gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+      gap: 16,
     },
 
     statCard: {
       background: isDark ? "#102d50" : "#ffffff",
       border: isDark ? "1px solid rgba(96,165,250,0.12)" : "1px solid #ececf3",
-      borderRadius: 20,
-      padding: 18,
+      borderRadius: 22,
+      padding: 20,
       boxShadow: isDark
         ? "0 10px 28px rgba(2,12,30,0.22)"
         : "0 10px 28px rgba(20,20,40,0.06)",
@@ -741,14 +743,14 @@ function getStyles(isDark) {
 
     statValue: {
       marginTop: 10,
-      fontSize: 28,
+      fontSize: 32,
       fontWeight: 900,
       color: isDark ? "#ffffff" : "#151523",
     },
 
     panel: {
-      marginTop: 18,
-      padding: 18,
+      marginTop: 20,
+      padding: 20,
       borderRadius: 24,
       background: isDark ? "#102d50" : "#ffffff",
       border: isDark ? "1px solid rgba(96,165,250,0.12)" : "1px solid #ececf3",
@@ -789,7 +791,7 @@ function getStyles(isDark) {
     },
 
     emptyBox: {
-      padding: 18,
+      padding: 20,
       borderRadius: 18,
       background: isDark ? "#102d50" : "#ffffff",
       border: isDark ? "1px solid rgba(96,165,250,0.12)" : "1px solid #ececf3",
@@ -802,8 +804,8 @@ function getStyles(isDark) {
 
     cardsGrid: {
       display: "grid",
-      gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))",
-      gap: 16,
+      gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+      gap: 18,
     },
 
     jobCard: {
@@ -832,7 +834,7 @@ function getStyles(isDark) {
     },
 
     jobTitle: {
-      fontSize: 22,
+      fontSize: 24,
       fontWeight: 900,
       color: isDark ? "#ffffff" : "#161625",
       lineHeight: 1.2,
@@ -956,5 +958,7 @@ function getStyles(isDark) {
       fontSize: 12,
       fontWeight: 900,
     },
+
+    "@media (max-width: 1100px)": {},
   };
 }

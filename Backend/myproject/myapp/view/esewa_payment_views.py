@@ -291,6 +291,21 @@ def esewa_success(request):
         if not payment.verified_at:
             apply_payment_split(payment)
             payment.verified_at = timezone.now()
+            
+            # --- CRITICAL: Once payment is complete, lock the listing ---
+            listing = payment.listing
+            listing.mark_booked()
+
+            # Reject all other requests for this listing
+            from ..models import BookingRequest
+            BookingRequest.objects.filter(listing=listing).exclude(
+                tenant=payment.tenant
+            ).update(
+                status="rejected",
+                decided_at=timezone.now()
+            )
+            # -------------------------------------------------------------
+
             payment.save()
         else:
             payment.save(update_fields=["raw_response", "payment_status", "ref_id"])

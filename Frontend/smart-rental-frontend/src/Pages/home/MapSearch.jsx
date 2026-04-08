@@ -1,4 +1,3 @@
-// src/pages/tenant/TenantAISearch.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
@@ -19,12 +18,12 @@ import markerShadow from "leaflet/dist/images/marker-shadow.png";
 import {
   Sparkles,
   MapPin,
-  ChevronRight,
+  ArrowLeft,
   ExternalLink,
   Calendar,
   RefreshCw,
   AlertCircle,
-  DollarSign,
+  Banknote,
   LocateFixed,
   Navigation,
   Compass,
@@ -39,7 +38,7 @@ L.Icon.Default.mergeOptions({
 });
 
 const BACKEND = "http://127.0.0.1:8000";
-const DEFAULT_CENTER = [26.6636, 87.2747]; // Itahari
+const DEFAULT_CENTER = [26.6636, 87.2747];
 const FALLBACK_IMAGE =
   "https://images.unsplash.com/photo-1560520653-9e0e4c89eb81?auto=format&fit=crop&q=80&w=800";
 
@@ -76,7 +75,6 @@ function toImageSrc(value) {
   }
 
   if (s.startsWith("/")) return `${BACKEND}${s}`;
-
   return `${BACKEND}/${s.replace(/^\/+/, "")}`;
 }
 
@@ -157,9 +155,7 @@ export default function TenantAISearch() {
   const directionsLink = (item) => {
     const coords = extractLatLng(item);
 
-    if (!coords) {
-      return mapsLink(item);
-    }
+    if (!coords) return mapsLink(item);
 
     if (parsedLat != null && parsedLng != null) {
       return `https://www.google.com/maps/dir/${parsedLat},${parsedLng}/${coords[0]},${coords[1]}`;
@@ -230,7 +226,6 @@ export default function TenantAISearch() {
         property_type: propertyType,
       };
 
-      // keep this route if your Django urls.py uses the same endpoint
       const res = await api.post("/tenant/ai/suggest/", payload);
 
       const normalized = normalizeResults(res.data);
@@ -280,26 +275,26 @@ export default function TenantAISearch() {
       right={
         <button
           onClick={() => nav("/tenant")}
-          className="p-3 bg-neutral-100 hover:bg-neutral-200 text-neutral-600 rounded-2xl transition-all"
+          className="flex items-center gap-2 px-4 py-2.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-2xl transition-all border border-neutral-200 font-bold text-sm"
         >
-          <ChevronRight className="w-5 h-5 rotate-180" />
+          <ArrowLeft className="w-4 h-4" />
+          Back Dashboard
         </button>
       }
     >
       <div className="max-w-7xl mx-auto space-y-10">
-        {/* Hero Search Section */}
-        <div className="bg-neutral-900 rounded-[40px] p-8 md:p-12 shadow-2xl shadow-neutral-900/20 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-72 h-72 bg-blue-600/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
+        <div className="bg-gradient-to-br from-[#0374BE] via-[#1480C9] to-[#0374BE] rounded-[40px] p-8 md:p-12 shadow-2xl shadow-blue-900/30 relative overflow-hidden border border-blue-200/20">
+          <div className="absolute top-0 right-0 w-72 h-72 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
 
           <div className="relative z-10 grid grid-cols-1 lg:grid-cols-[1fr_220px] gap-8">
             <div className="space-y-6">
               <div className="relative group">
-                <MapPin className="absolute left-6 top-1/2 -translate-y-1/2 w-6 h-6 text-neutral-500 group-focus-within:text-blue-400 transition-colors" />
+                <MapPin className="absolute left-6 top-1/2 -translate-y-1/2 w-6 h-6 text-white/80 group-focus-within:text-white transition-colors" />
                 <input
                   value={place}
                   onChange={(e) => setPlace(e.target.value)}
                   placeholder="Search by place, college, office or landmark (e.g. Itahari International College)"
-                  className="w-full pl-16 pr-6 py-6 bg-white/5 border border-white/10 rounded-[28px] text-white text-lg font-medium placeholder:text-neutral-500 focus:outline-none focus:ring-4 focus:ring-blue-600/10 focus:border-blue-600/50 transition-all"
+                  className="w-full pl-16 pr-6 py-6 bg-[#2589CC] border border-white/25 rounded-[28px] text-white text-lg font-medium placeholder:text-white/75 focus:outline-none focus:ring-4 focus:ring-white/15 focus:border-white/50 transition-all"
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !loading) runAISearch();
                   }}
@@ -307,8 +302,8 @@ export default function TenantAISearch() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="bg-white/5 border border-white/5 rounded-2xl px-5 py-4 flex items-center justify-between">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-neutral-500">
+                <div className="bg-[#2589CC] border border-white/25 rounded-2xl px-5 py-4 flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-white/85">
                     Radius
                   </span>
                   <select
@@ -324,8 +319,8 @@ export default function TenantAISearch() {
                   </select>
                 </div>
 
-                <div className="bg-white/5 border border-white/5 rounded-2xl px-5 py-4 flex items-center justify-between">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-neutral-500">
+                <div className="bg-[#2589CC] border border-white/25 rounded-2xl px-5 py-4 flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-white/85">
                     Type
                   </span>
                   <select
@@ -348,27 +343,27 @@ export default function TenantAISearch() {
                   </select>
                 </div>
 
-                <div className="bg-white/5 border border-white/5 rounded-2xl px-5 py-4 flex items-center gap-2">
-                  <DollarSign className="w-3.5 h-3.5 text-neutral-500" />
+                <div className="bg-[#2589CC] border border-white/25 rounded-2xl px-5 py-4 flex items-center gap-2">
+                  <Banknote className="w-3.5 h-3.5 text-white/85" />
                   <input
                     type="number"
                     min="0"
                     value={minPrice}
                     onChange={(e) => setMinPrice(e.target.value)}
                     placeholder="Min Price"
-                    className="bg-transparent text-white font-bold text-sm w-full outline-none placeholder:font-medium placeholder:text-neutral-600"
+                    className="bg-transparent text-white font-bold text-sm w-full outline-none placeholder:font-medium placeholder:text-white/70"
                   />
                 </div>
 
-                <div className="bg-white/5 border border-white/5 rounded-2xl px-5 py-4 flex items-center gap-2">
-                  <DollarSign className="w-3.5 h-3.5 text-neutral-500" />
+                <div className="bg-[#2589CC] border border-white/25 rounded-2xl px-5 py-4 flex items-center gap-2">
+                  <Banknote className="w-3.5 h-3.5 text-white/85" />
                   <input
                     type="number"
                     min="0"
                     value={maxPrice}
                     onChange={(e) => setMaxPrice(e.target.value)}
                     placeholder="Max Price"
-                    className="bg-transparent text-white font-bold text-sm w-full outline-none placeholder:font-medium placeholder:text-neutral-600"
+                    className="bg-transparent text-white font-bold text-sm w-full outline-none placeholder:font-medium placeholder:text-white/70"
                   />
                 </div>
               </div>
@@ -379,19 +374,19 @@ export default function TenantAISearch() {
                   value={lat}
                   onChange={(e) => setLat(e.target.value)}
                   placeholder="Latitude"
-                  className="flex-1 min-w-[180px] px-4 py-3 rounded-2xl bg-white/5 border border-white/10 text-white placeholder:text-neutral-500 outline-none"
+                  className="flex-1 min-w-[180px] px-4 py-3 rounded-2xl bg-[#2589CC] border border-white/25 text-white placeholder:text-white/70 outline-none"
                 />
                 <input
                   type="text"
                   value={lng}
                   onChange={(e) => setLng(e.target.value)}
                   placeholder="Longitude"
-                  className="flex-1 min-w-[180px] px-4 py-3 rounded-2xl bg-white/5 border border-white/10 text-white placeholder:text-neutral-500 outline-none"
+                  className="flex-1 min-w-[180px] px-4 py-3 rounded-2xl bg-[#2589CC] border border-white/25 text-white placeholder:text-white/70 outline-none"
                 />
                 <button
                   type="button"
                   onClick={handleUseMyLocation}
-                  className="px-4 py-3 bg-white/10 hover:bg-white/15 text-white rounded-2xl font-bold text-xs uppercase tracking-widest transition-all flex items-center gap-2"
+                  className="px-4 py-3 bg-[#0267AB] hover:bg-[#025B97] text-white rounded-2xl font-bold text-xs uppercase tracking-widest transition-all flex items-center gap-2 border border-white/25"
                 >
                   {detecting ? (
                     <RefreshCw className="w-4 h-4 animate-spin" />
@@ -407,7 +402,7 @@ export default function TenantAISearch() {
               <button
                 onClick={runAISearch}
                 disabled={loading || (!cleanPlace && !(lat && lng))}
-                className="h-full min-h-[72px] bg-blue-600 hover:bg-blue-700 text-white rounded-[28px] font-black text-sm uppercase tracking-[0.2em] shadow-2xl shadow-blue-600/20 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="h-full min-h-[72px] bg-[#025F9F] hover:bg-[#02548C] text-white rounded-[28px] font-black text-sm uppercase tracking-[0.2em] shadow-2xl shadow-blue-900/30 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed border border-white/25"
               >
                 {loading ? (
                   <RefreshCw className="w-5 h-5 animate-spin" />
@@ -422,12 +417,12 @@ export default function TenantAISearch() {
               <button
                 onClick={clearFilters}
                 type="button"
-                className="py-4 bg-white/10 hover:bg-white/15 text-white rounded-[20px] font-black text-xs uppercase tracking-widest transition-all"
+                className="py-4 bg-[#1B7FC3] hover:bg-[#1472B2] text-white rounded-[20px] font-black text-xs uppercase tracking-widest transition-all border border-white/25"
               >
                 Clear
               </button>
 
-              <div className="text-[9px] font-black text-neutral-500 uppercase tracking-widest text-center px-4">
+              <div className="text-[9px] font-black text-white/80 uppercase tracking-widest text-center px-4">
                 AI-based search with map and route direction
               </div>
             </div>
@@ -450,9 +445,7 @@ export default function TenantAISearch() {
             <p className="text-sm text-blue-800">
               Requested radius: {meta.radiusRequested} km
             </p>
-            <p className="text-sm text-blue-800">
-              Used radius: {meta.radiusUsed} km
-            </p>
+            <p className="text-sm text-blue-800">Used radius: {meta.radiusUsed} km</p>
             {meta.fallbackUsed && (
               <p className="text-sm font-semibold text-amber-700">
                 No listing found in your first radius, so wider results are shown.
@@ -462,7 +455,6 @@ export default function TenantAISearch() {
         )}
 
         <div className="grid grid-cols-1 xl:grid-cols-[1.35fr_0.95fr] gap-6">
-          {/* Map */}
           <div className="w-full bg-white rounded-[32px] overflow-hidden border border-neutral-200 shadow-xl shadow-neutral-900/5 relative min-h-[620px]">
             {loading && (
               <div className="absolute inset-0 bg-white/80 backdrop-blur z-[400] flex items-center justify-center">
@@ -486,10 +478,7 @@ export default function TenantAISearch() {
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               />
 
-              <FitBounds
-                points={points}
-                fallbackCenter={center}
-              />
+              <FitBounds points={points} fallbackCenter={center} />
 
               {center?.[0] != null && center?.[1] != null && (
                 <Circle
@@ -569,7 +558,6 @@ export default function TenantAISearch() {
             </MapContainer>
           </div>
 
-          {/* Results Cards */}
           <div className="space-y-4">
             <div className="flex items-center justify-between flex-wrap gap-4">
               <h2 className="text-2xl font-black text-neutral-900 tracking-tight">
@@ -591,7 +579,8 @@ export default function TenantAISearch() {
                   No properties found
                 </h3>
                 <p className="text-sm text-neutral-500 mt-2">
-                  Try changing the place, increasing the radius, or adjusting the budget.
+                  Try changing the place, increasing the radius, or adjusting the
+                  budget.
                 </p>
               </div>
             ) : (
@@ -728,7 +717,8 @@ export default function TenantAISearch() {
                   Awaiting Input
                 </h3>
                 <p className="text-sm text-neutral-500 mt-2">
-                  Enter a place or use your current location to get AI-based property suggestions.
+                  Enter a place or use your current location to get AI-based
+                  property suggestions.
                 </p>
               </div>
             )}

@@ -150,7 +150,7 @@ export default function OwnerAddListing360() {
             value={form.price_per_month}
             onChange={onChange}
             type="number"
-            placeholder="Price per month"
+            placeholder="Price per month (Rs)"
             required
             min="1"
           />

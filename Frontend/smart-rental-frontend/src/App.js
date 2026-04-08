@@ -1,22 +1,22 @@
-import React from "react";
-import { Routes, Route } from "react-router-dom";
+import { Route, Routes } from "react-router-dom";
 
 // PUBLIC
 import PublicLayout from "./components/PublicLayout";
-import HomePublic from "./pages/home/HomePublic";
-import PublicListings from "./pages/home/PublicListings";
-import PublicListingDetails from "./pages/home/PublicListingDetails";
-import Listing360Page from "./pages/home/Listing360Page";
 import AboutPage from "./pages/home/AboutPage";
+import ContactPage from "./pages/home/ContactPage";
+import HomePublic from "./pages/home/HomePublic";
+import Listing360Page from "./pages/home/Listing360Page";
+import PublicListingDetails from "./pages/home/PublicListingDetails";
+import PublicListings from "./pages/home/PublicListings";
 
 // MAP SEARCH
 import MapSearch from "./pages/home/MapSearch";
 
 // AUTH
-import UserAuth from "./pages/auth/UserAuth";
 import AdminLogin from "./pages/auth/AdminLogin";
 import Otp from "./pages/auth/Otp";
 import RegisterProvider from "./pages/auth/RegisterProvider";
+import UserAuth from "./pages/auth/UserAuth";
 
 // ADMIN SETUP
 import AdminSetup from "./pages/admin/AdminSetup";
@@ -24,43 +24,44 @@ import AdminSetup from "./pages/admin/AdminSetup";
 // DASHBOARDS
 import AdminDashboard from "./pages/dashboard/AdminDashboard";
 import OwnerDashboard from "./pages/dashboard/OwnerDashboard";
-import TenantDashboard from "./pages/dashboard/TenantDashboard";
 import ProviderDashboard from "./pages/dashboard/ProviderDashboard";
+import TenantDashboard from "./pages/dashboard/TenantDashboard";
 
 // TENANT PAGES
-import TenantInbox from "./pages/tenant/TenantInbox";
-import TenantMaintenance from "./pages/tenant/TenantMaintenance";
-import TenantAISearch from "./pages/tenant/TenantAISearch";
+import PaymentFailed from "./pages/tenant/PaymentFailed";
+import PaymentSuccess from "./pages/tenant/PaymentSuccess";
+import RoommateChat from "./pages/tenant/RoommateChat";
+import RoommateChatList from "./pages/tenant/RoommateChatList";
 import RoommateFinder from "./pages/tenant/RoommateFinder";
 import RoommateRequests from "./pages/tenant/RoommateRequests";
-import RoommateChatList from "./pages/tenant/RoommateChatList";
-import RoommateChat from "./pages/tenant/RoommateChat";
-import VirtualFurniturePage from "./pages/tenant/VirtualFurniturePage";
-import TenantEsewaPay from "./pages/tenant/TenantEsewaPay";
-import PaymentSuccess from "./pages/tenant/PaymentSuccess";
-import PaymentFailed from "./pages/tenant/PaymentFailed";
+import TenantAISearch from "./pages/tenant/TenantAISearch";
 import TenantBookingPayments from "./pages/tenant/TenantBookingPayments";
+import TenantEsewaPay from "./pages/tenant/TenantEsewaPay";
 import TenantExpenseTracker from "./pages/tenant/TenantExpenseTracker";
+import TenantInbox from "./pages/tenant/TenantInbox";
+import TenantMaintenance from "./pages/tenant/TenantMaintenance";
+import VirtualFurniturePage from "./pages/tenant/VirtualFurniturePage";
 
 // OWNER PAGES
-import OwnerMyProperties from "./pages/owner/OwnerMyProperties";
+import OwnerBookingPayments from "./pages/owner/OwnerBookingPayments";
+import OwnerContractPage from "./pages/owner/OwnerContractPage";
 import OwnerListingDetail from "./pages/owner/OwnerListingDetail";
 import OwnerListingEdit from "./pages/owner/OwnerListingEdit";
-import OwnerMessages from "./pages/owner/OwnerMessages";
 import OwnerMaintenance from "./pages/owner/OwnerMaintenance";
-import OwnerBookingPayments from "./pages/owner/OwnerBookingPayments";
+import OwnerMessages from "./pages/owner/OwnerMessages";
+import OwnerMyProperties from "./pages/owner/OwnerMyProperties";
 import OwnerProviderChat from "./pages/owner/OwnerProviderChat";
 
 // PROVIDER PAGES
-import ProviderInbox from "./pages/provider/ProviderInbox";
 import ProviderChat from "./pages/provider/ProviderChat";
+import ProviderInbox from "./pages/provider/ProviderInbox";
 import ProviderNotifications from "./pages/provider/ProviderNotifications";
 import ProviderOtp from "./pages/provider/ProviderOtp";
 
 // ADMIN PAGE
-import EmailBroadcast from "./pages/dashboard/EmailBroadcast";
-import Furnitures from "./pages/admin/Furnitures";
 import AdminBookingPayments from "./pages/admin/AdminBookingPayments";
+import Furnitures from "./pages/admin/Furnitures";
+import EmailBroadcast from "./pages/dashboard/EmailBroadcast";
 
 // OWNER / TENANT
 import OwnerAddListing from "./pages/home/OwnerAddListing";
@@ -73,9 +74,9 @@ import BudgetSplitCalculator from "./pages/tools/BudgetSplitCalculator";
 import RemindersPage from "./pages/common/RemindersPage";
 
 // COMMON
-import Unauthorized from "./pages/Unauthorized";
-import NotFound from "./pages/NotFound";
 import GoDashboard from "./pages/GoDashboard";
+import NotFound from "./pages/NotFound";
+import Unauthorized from "./pages/Unauthorized";
 
 // PROTECTED
 import ProtectedRoute from "./auth/ProtectedRoute";
@@ -93,6 +94,7 @@ export default function App() {
         <Route path="/listing/:id/360" element={<Listing360Page />} />
         <Route path="/map" element={<MapSearch />} />
         <Route path="/about" element={<AboutPage />} />
+        <Route path="/contact" element={<ContactPage />} />
         <Route path="/tools/budget-split" element={<BudgetSplitCalculator />} />
       </Route>
 
@@ -173,10 +175,26 @@ export default function App() {
           }
         />
         <Route
+          path="/owner/provider-chat"
+          element={
+            <ProtectedRoute allowRoles={["owner"]}>
+              <OwnerProviderChat />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/owner/provider-chat/:jobId"
           element={
             <ProtectedRoute allowRoles={["owner"]}>
               <OwnerProviderChat />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/owner/contract"
+          element={
+            <ProtectedRoute allowRoles={["owner"]}>
+              <OwnerContractPage />
             </ProtectedRoute>
           }
         />

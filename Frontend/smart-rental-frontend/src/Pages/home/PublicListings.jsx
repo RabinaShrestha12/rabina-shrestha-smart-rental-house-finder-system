@@ -116,9 +116,7 @@ export default function PublicListings() {
   const go360 = (listingId) => navigate(`/listing/${listingId}/360`);
   const goDetails = (listingId) => navigate(`/listings/${listingId}`);
 
-  const goBook = (listingId, booked) => {
-    if (booked) return;
-
+  const goBook = (listingId) => {
     const token =
       localStorage.getItem("access") ||
       localStorage.getItem("access_token") ||
@@ -133,7 +131,7 @@ export default function PublicListings() {
     }
 
     if (role && role !== "tenant") {
-      alert("Please login as tenant to send message and book this property.");
+      alert("Please login as tenant to send a booking request for this property.");
       sessionStorage.setItem("post_login_redirect", `/tenant/book/${listingId}`);
       localStorage.removeItem("access");
       localStorage.removeItem("access_token");
@@ -198,11 +196,9 @@ export default function PublicListings() {
 
   return (
     <div
-      className="min-h-screen pt-32 pb-24 transition-colors duration-300 selection:bg-blue-600 selection:text-white"
-      style={{
-        background: "var(--bg-color)",
-        color: "var(--text-color)",
-      }}
+      className={`min-h-screen pt-32 pb-24 transition-colors duration-500 selection:bg-blue-600 selection:text-white premium-bg ${
+        isDark ? "text-slate-100" : "text-neutral-900"
+      }`}
     >
       <section className="mx-auto mb-12 max-w-[1500px] px-6">
         <div className="mb-8">
@@ -346,11 +342,16 @@ export default function PublicListings() {
           <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-3">
             {filtered.map((l) => {
               const cover = toImageSrc(l.image_url || l.image || l.pano_front_url);
-              const booked = l.is_available === false || l.status === "booked";
+              const booked =
+                l.is_available === false ||
+                String(l.status || "").toLowerCase() === "booked";
+
               const monthPriceRaw =
                 l.price_per_month ??
                 (l.price_per_week ? weekToMonth(l.price_per_week) : null);
-              const monthPriceText = monthPriceRaw == null ? "-" : money(monthPriceRaw);
+
+              const monthPriceText =
+                monthPriceRaw == null ? "-" : money(monthPriceRaw);
 
               return (
                 <div
@@ -431,7 +432,7 @@ export default function PublicListings() {
                     >
                       <div>
                         <span className="text-2xl font-extrabold text-blue-600">
-                          ${monthPriceText === "-" ? "0" : monthPriceText}
+                          Rs {monthPriceText === "-" ? "0" : monthPriceText}
                         </span>
                         <span
                           className={`text-sm font-medium ${
@@ -441,6 +442,30 @@ export default function PublicListings() {
                           {" "}
                           /mo
                         </span>
+                      </div>
+
+                      <div>
+                        {booked ? (
+                          <span
+                            className={`rounded-full px-3 py-1 text-xs font-bold ${
+                              isDark
+                                ? "bg-red-500/15 text-red-300 border border-red-500/20"
+                                : "bg-red-50 text-red-700 border border-red-200"
+                            }`}
+                          >
+                            Already booked
+                          </span>
+                        ) : (
+                          <span
+                            className={`rounded-full px-3 py-1 text-xs font-bold ${
+                              isDark
+                                ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/20"
+                                : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                            }`}
+                          >
+                            Available
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -457,15 +482,14 @@ export default function PublicListings() {
                       </button>
 
                       <button
-                        onClick={() => goBook(l.id, booked)}
-                        disabled={booked}
+                        onClick={() => goBook(l.id)}
                         className={`rounded-xl py-3 font-bold text-white shadow-lg ${
                           booked
-                            ? "cursor-not-allowed bg-red-400 shadow-red-500/20"
+                            ? "bg-amber-500 hover:bg-amber-600 shadow-amber-500/30"
                             : "bg-blue-600 hover:bg-blue-700 shadow-blue-500/30"
                         }`}
                       >
-                        {booked ? "Booked" : "Book Now"}
+                        {booked ? "Send Request" : "Book Now"}
                       </button>
                     </div>
                   </div>

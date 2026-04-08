@@ -1,10 +1,10 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import api from "../../api/axios";
 import { useAuth } from "../../auth/AuthContext";
 import Shell from "../../components/Shell";
-import Toast from "../../components/Toast";
 import { useTheme } from "../../components/ThemeContext";
+import Toast from "../../components/Toast";
 
 function getBackendBaseUrl() {
   const envUrl =
@@ -67,6 +67,9 @@ export default function TenantInbox() {
 
   const [selectedImage, setSelectedImage] = useState(null);
   const [previewUrl, setPreviewUrl] = useState("");
+  const [editingMessageId, setEditingMessageId] = useState(null);
+  const [editingMessageImageUrl, setEditingMessageImageUrl] = useState("");
+  const [removeEditingImage, setRemoveEditingImage] = useState(false);
 
   const [unreadMap, setUnreadMap] = useState(() => {
     try {
@@ -88,6 +91,7 @@ export default function TenantInbox() {
 
   useEffect(() => {
     localStorage.setItem(UNREAD_STORAGE_KEY, JSON.stringify(unreadMap));
+    window.dispatchEvent(new CustomEvent("inboxUnreadUpdated"));
   }, [unreadMap]);
 
   useEffect(() => {
@@ -130,10 +134,10 @@ export default function TenantInbox() {
   const getStatus = (b) =>
     normalizeStatus(
       b?.status ??
-        b?.state ??
-        b?.booking_status ??
-        b?.request_status ??
-        "pending"
+      b?.state ??
+      b?.booking_status ??
+      b?.request_status ??
+      "pending"
     );
 
   const getListingId = (b) =>
@@ -493,6 +497,7 @@ export default function TenantInbox() {
 
     setSelectedImage(file);
     setPreviewUrl(URL.createObjectURL(file));
+    setRemoveEditingImage(false);
   };
 
   const clearSelectedImage = () => {
@@ -504,7 +509,98 @@ export default function TenantInbox() {
     }
   };
 
+  const resetEditState = () => {
+    setEditingMessageId(null);
+    setEditingMessageImageUrl("");
+    setRemoveEditingImage(false);
+    setReply("");
+    clearSelectedImage();
+  };
+
+  const startEditMessage = (message) => {
+    setEditingMessageId(message?.id ?? null);
+    setReply(getMsgText(message));
+    setEditingMessageImageUrl(getMsgImage(message));
+    setRemoveEditingImage(false);
+    setSelectedImage(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+    if (textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  };
+
+  const updateMessage = async () => {
+    const messageId = editingMessageId;
+    if (!messageId) {
+      setToast({ type: "error", msg: "No message selected for editing." });
+      return;
+    }
+
+    if (!reply.trim() && !selectedImage && !editingMessageImageUrl && !removeEditingImage) {
+      setToast({ type: "error", msg: "Message cannot be empty. Add text or choose an image." });
+      return;
+    }
+
+    setSending(true);
+    try {
+      const formData = new FormData();
+      formData.append("text", reply.trim());
+      formData.append("message", reply.trim());
+
+      if (selectedImage) {
+        formData.append("image", selectedImage);
+      }
+
+      if (removeEditingImage) {
+        formData.append("remove_image", "true");
+      }
+
+      await api.patch(`booking-messages/${messageId}/update/`, formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      setToast({ type: "success", msg: "Message updated ✅" });
+      resetEditState();
+      await loadChat(getBookingId(active), { markRead: true, showLoader: false });
+      await loadInbox({ silent: true });
+    } catch (e) {
+      setToast({ type: "error", msg: axiosErr(e, "Failed to update message.") });
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const deleteMessage = async (messageId) => {
+    if (!messageId) return;
+    const confirmed = window.confirm("Delete this message permanently?");
+    if (!confirmed) return;
+
+    setChatLoading(true);
+    try {
+      await api.delete(`booking-messages/${messageId}/delete/`);
+      setToast({ type: "success", msg: "Message deleted ✅" });
+      if (editingMessageId === messageId) {
+        resetEditState();
+      }
+      await loadChat(getBookingId(active), { markRead: true, showLoader: false });
+      await loadInbox({ silent: true });
+    } catch (e) {
+      setToast({ type: "error", msg: axiosErr(e, "Failed to delete message.") });
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
   const sendReply = async () => {
+    if (editingMessageId) {
+      await updateMessage();
+      return;
+    }
+
     const bookingId = getBookingId(active);
 
     if (!bookingId) {
@@ -755,13 +851,12 @@ export default function TenantInbox() {
                       }
                     }}
                     type="button"
-                    className={`w-full rounded-2xl border px-3 py-3 text-left transition ${
-                      isActive
+                    className={`w-full rounded-2xl border px-3 py-3 text-left transition ${isActive
                         ? isDark
                           ? "border border-sky-400/40 bg-[#1a4775] shadow-sm text-white"
                           : "border border-blue-300 bg-blue-50 shadow-sm text-slate-900"
                         : colors.softCard
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="line-clamp-1 text-sm font-semibold">
@@ -934,9 +1029,8 @@ export default function TenantInbox() {
                             className={`flex ${isMine ? "justify-end" : "justify-start"}`}
                           >
                             <div
-                              className={`max-w-[70%] rounded-2xl p-3 shadow-sm ${
-                                isMine ? colors.myMsg : colors.otherMsg
-                              }`}
+                              className={`max-w-[70%] rounded-2xl p-3 shadow-sm ${isMine ? colors.myMsg : colors.otherMsg
+                                }`}
                             >
                               <div className="flex items-center justify-between gap-3">
                                 <div className={`text-xs font-semibold ${isDark ? "text-slate-100" : "text-slate-800"}`}>
@@ -952,9 +1046,8 @@ export default function TenantInbox() {
                                   <img
                                     src={imageUrl}
                                     alt="chat upload"
-                                    className={`max-w-[220px] rounded-2xl border ${
-                                      isDark ? "border-[#5077a1]" : "border-slate-200"
-                                    }`}
+                                    className={`max-w-[220px] rounded-2xl border ${isDark ? "border-[#5077a1]" : "border-slate-200"
+                                      }`}
                                     onError={(e) => {
                                       console.log("TenantInbox image failed:", imageUrl, m);
                                       e.currentTarget.style.display = "none";
@@ -968,6 +1061,25 @@ export default function TenantInbox() {
                                   {text}
                                 </div>
                               ) : null}
+
+                              {isMine && (
+                                <div className="mt-3 flex items-center justify-end gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => startEditMessage(m)}
+                                    className="rounded-full border border-slate-300 bg-slate-50 px-3 py-1 text-[11px] text-slate-700 transition hover:bg-slate-100"
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => deleteMessage(m?.id)}
+                                    className="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-[11px] text-red-700 transition hover:bg-red-100"
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           </div>
                         );
@@ -994,6 +1106,17 @@ export default function TenantInbox() {
                     Press <span className="font-semibold">Enter</span> to send and{" "}
                     <span className="font-semibold">Shift + Enter</span> for a new line.
                   </div>
+
+                  {editingMessageId && (
+                    <div className="mt-3 rounded-2xl border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
+                      Editing message #{editingMessageId}. Your changes will update the selected message.
+                      {editingMessageImageUrl && !selectedImage && !removeEditingImage ? (
+                        <div className="mt-2 text-xs text-yellow-700">
+                          Original image will be kept. Choose a new image to replace it, or click Remove image to delete it.
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
 
                   <div className="mt-3 flex flex-wrap items-center gap-3">
                     <input
@@ -1027,9 +1150,8 @@ export default function TenantInbox() {
                       <img
                         src={previewUrl}
                         alt="preview"
-                        className={`max-w-[180px] rounded-2xl border ${
-                          isDark ? "border-[#5077a1]" : "border-slate-200"
-                        }`}
+                        className={`max-w-[180px] rounded-2xl border ${isDark ? "border-[#5077a1]" : "border-slate-200"
+                          }`}
                       />
                       <div className="mt-2">
                         <button
@@ -1047,6 +1169,19 @@ export default function TenantInbox() {
                     </div>
                   )}
 
+                  {editingMessageId && editingMessageImageUrl && !selectedImage && (
+                    <div className="mt-3 flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                      <div>Original attached image will be kept unless replaced.</div>
+                      <button
+                        type="button"
+                        onClick={() => setRemoveEditingImage((prev) => !prev)}
+                        className="rounded-full border border-red-200 bg-red-50 px-2 py-1 text-[11px] text-red-700 transition hover:bg-red-100"
+                      >
+                        {removeEditingImage ? "Undo remove" : "Remove image"}
+                      </button>
+                    </div>
+                  )}
+
                   <div className="mt-2 flex flex-wrap gap-2">
                     <button
                       onClick={sendReply}
@@ -1054,16 +1189,16 @@ export default function TenantInbox() {
                       type="button"
                       className="rounded-2xl border border-blue-200 bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:opacity-60"
                     >
-                      {sending ? "Sending…" : "Send"}
+                      {sending ? "Sending…" : editingMessageId ? "Update" : "Send"}
                     </button>
 
                     <button
-                      onClick={sendReply}
+                      onClick={editingMessageId ? resetEditState : sendReply}
                       disabled={sending}
                       type="button"
                       className={`rounded-2xl px-4 py-2 text-sm font-medium transition disabled:opacity-60 ${colors.button}`}
                     >
-                      OK
+                      {editingMessageId ? "Cancel" : "OK"}
                     </button>
 
                     <button

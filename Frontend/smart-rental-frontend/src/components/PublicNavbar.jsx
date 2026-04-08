@@ -1,192 +1,110 @@
-import React, { useState, useEffect } from "react";
-import { Link, useNavigate, useLocation } from "react-router-dom";
-import { useAuth } from "../auth/AuthContext";
-import { useTheme } from "./ThemeContext";
+import React from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Home } from "lucide-react";
 import ThemeToggle from "./ThemeToggle";
-import { Menu, X, Home } from "lucide-react";
+import { useAuth } from "../auth/AuthContext";
 
 export default function PublicNavbar() {
-  const nav = useNavigate();
+  const navigate = useNavigate();
   const location = useLocation();
-  const { user } = useAuth();
-  const { theme } = useTheme();
+  const { isAuthed, role } = useAuth();
 
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
+  const normalizedRole = String(role || "").trim().toLowerCase();
 
-  const isDark = theme === "dark";
+  const isTenantLoggedIn = isAuthed && normalizedRole === "tenant";
+  const isOwnerLoggedIn = isAuthed && normalizedRole === "owner";
+  const isProviderLoggedIn =
+    isAuthed &&
+    (normalizedRole === "provider" || normalizedRole === "service_provider");
+  const isAdminLoggedIn = isAuthed && normalizedRole === "admin";
 
-  useEffect(() => {
-    const handleScroll = () => {
-      setScrolled(window.scrollY > 20);
-    };
+  const isLoggedInDashboardUser =
+    isTenantLoggedIn ||
+    isOwnerLoggedIn ||
+    isProviderLoggedIn ||
+    isAdminLoggedIn;
 
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
+  const dashboardPath = isAdminLoggedIn
+    ? "/admin"
+    : isOwnerLoggedIn
+    ? "/owner"
+    : isTenantLoggedIn
+    ? "/tenant"
+    : isProviderLoggedIn
+    ? "/provider"
+    : "/auth";
 
-  const goDashboard = () => {
-    if (!user?.role) return nav("/auth");
-    if (user.role === "admin") return nav("/admin");
-    if (user.role === "owner") return nav("/owner");
-    return nav("/tenant");
-  };
+  const isOnDashboardPage =
+    location.pathname.startsWith("/admin") ||
+    location.pathname.startsWith("/owner") ||
+    location.pathname.startsWith("/tenant") ||
+    location.pathname.startsWith("/provider");
 
-  const isActive = (path) => {
-    if (path === "/" && location.pathname !== "/") return false;
-    if (path !== "/" && location.pathname.startsWith(path)) return true;
-    return location.pathname === path;
-  };
-
-  const isHome = location.pathname === "/";
-
-  const navBackground =
-    scrolled || !isHome
-      ? isDark
-        ? "bg-[#122c50]/95 backdrop-blur-md border-b border-white/10 shadow-lg shadow-black/20 py-3"
-        : "bg-white/95 backdrop-blur-md border-b border-neutral-200 shadow-sm py-3"
-      : "bg-transparent py-5";
-
-  const brandTextClass =
-    scrolled || !isHome
-      ? isDark
-        ? "text-white"
-        : "text-neutral-900"
-      : "text-white drop-shadow-md";
-
-  const textClass =
-    scrolled || !isHome
-      ? isDark
-        ? "text-white"
-        : "text-neutral-900"
-      : "text-white";
-
-  const linkClass = (path) => {
-    if (isActive(path)) return "text-blue-500";
-
-    if (scrolled || !isHome) {
-      return isDark
-        ? "text-slate-200 hover:text-blue-300"
-        : "text-neutral-700 hover:text-blue-600";
+  const handleMainButton = () => {
+    if (!isLoggedInDashboardUser) {
+      navigate("/auth");
+      return;
     }
 
-    return "text-white hover:text-blue-300";
+    if (isOnDashboardPage) {
+      navigate("/");
+    } else {
+      navigate(dashboardPath);
+    }
   };
 
-  const mobileMenuClass = isDark
-    ? "absolute top-full left-0 w-full bg-[#122c50] border-b border-white/10 shadow-2xl p-6 flex flex-col gap-4 md:hidden"
-    : "absolute top-full left-0 w-full bg-white border-b border-neutral-200 shadow-xl p-6 flex flex-col gap-4 md:hidden";
-
   return (
-    <nav className={`fixed top-0 w-full z-50 transition-all duration-300 ${navBackground}`}>
-      <div className="max-w-7xl mx-auto px-6 md:px-12 flex justify-between items-center">
-        <div
-          className="flex items-center gap-3 cursor-pointer"
-          onClick={() => nav("/")}
-        >
-          <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
-            <Home className="text-white w-5 h-5" />
+    <header className="sticky top-0 z-50 w-full border-b border-slate-200 bg-white/95 backdrop-blur">
+      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 md:px-6">
+        <Link to="/" className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white shadow-md">
+            <Home className="h-5 w-5" />
           </div>
-
-          <span className={`text-xl font-bold tracking-tight ${brandTextClass}`}>
+          <span className="text-xl font-extrabold text-slate-900">
             Smart Rental
           </span>
-        </div>
+        </Link>
 
-        <div className="hidden md:flex items-center gap-6 font-medium">
-          <Link to="/" className={`transition-colors ${linkClass("/")}`}>
-            Home
-          </Link>
-
-          <Link
-            to="/listings"
-            className={`transition-colors ${linkClass("/listings")}`}
-          >
-            Listings
-          </Link>
-
-          <Link
-            to="/about"
-            className={`transition-colors ${linkClass("/about")}`}
-          >
-            About
-          </Link>
+        <div className="flex items-center gap-4">
+          {!isLoggedInDashboardUser && (
+            <nav className="hidden items-center gap-8 md:flex">
+              <Link
+                to="/"
+                className="text-sm font-semibold text-slate-700 transition hover:text-blue-600"
+              >
+                Home
+              </Link>
+              <Link
+                to="/listings"
+                className="text-sm font-semibold text-slate-700 transition hover:text-blue-600"
+              >
+                Listings
+              </Link>
+              <Link
+                to="/about"
+                className="text-sm font-semibold text-slate-700 transition hover:text-blue-600"
+              >
+                About
+              </Link>
+              <Link
+                to="/contact"
+                className="text-sm font-semibold text-slate-700 transition hover:text-blue-600"
+              >
+                Contact
+              </Link>
+            </nav>
+          )}
 
           <ThemeToggle />
 
           <button
-            onClick={goDashboard}
-            className="px-6 py-2.5 rounded-full bg-blue-600 text-white shadow-lg shadow-blue-500/30 hover:-translate-y-0.5 hover:bg-blue-700 transition-all"
+            onClick={handleMainButton}
+            className="rounded-2xl bg-blue-600 px-6 py-3 text-sm font-bold text-white shadow-md transition hover:bg-blue-700"
           >
-            {user ? "Dashboard" : "Get Started"}
-          </button>
-        </div>
-
-        <div className="md:hidden flex items-center gap-2">
-          <ThemeToggle />
-          <button className="p-2" onClick={() => setIsMenuOpen(!isMenuOpen)}>
-            {isMenuOpen ? <X className={textClass} /> : <Menu className={textClass} />}
+            {isLoggedInDashboardUser ? "Dashboard" : "Get Started"}
           </button>
         </div>
       </div>
-
-      {isMenuOpen && (
-        <div className={`${mobileMenuClass} animate-in slide-in-from-top-4`}>
-          <Link
-            to="/"
-            onClick={() => setIsMenuOpen(false)}
-            className={`text-lg font-medium ${
-              isActive("/")
-                ? "text-blue-500"
-                : isDark
-                ? "text-slate-100"
-                : "text-neutral-800"
-            }`}
-          >
-            Home
-          </Link>
-
-          <Link
-            to="/listings"
-            onClick={() => setIsMenuOpen(false)}
-            className={`text-lg font-medium ${
-              isActive("/listings")
-                ? "text-blue-500"
-                : isDark
-                ? "text-slate-100"
-                : "text-neutral-800"
-            }`}
-          >
-            Listings
-          </Link>
-
-          <Link
-            to="/about"
-            onClick={() => setIsMenuOpen(false)}
-            className={`text-lg font-medium ${
-              isActive("/about")
-                ? "text-blue-500"
-                : isDark
-                ? "text-slate-100"
-                : "text-neutral-800"
-            }`}
-          >
-            About
-          </Link>
-
-          <hr className={isDark ? "my-2 border-white/10" : "my-2 border-neutral-100"} />
-
-          <button
-            onClick={() => {
-              setIsMenuOpen(false);
-              goDashboard();
-            }}
-            className="w-full py-3 rounded-xl bg-blue-600 text-white font-semibold text-lg hover:bg-blue-700 transition-all"
-          >
-            {user ? "Dashboard" : "Get Started"}
-          </button>
-        </div>
-      )}
-    </nav>
+    </header>
   );
 }

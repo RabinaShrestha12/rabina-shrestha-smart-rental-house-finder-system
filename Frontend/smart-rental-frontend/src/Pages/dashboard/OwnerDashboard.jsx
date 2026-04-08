@@ -1,31 +1,30 @@
-// src/pages/dashboard/OwnerDashboard.jsx
+import {
+  ArrowLeft,
+  Bell,
+  Building2,
+  CreditCard,
+  FileText,
+  Image as ImageIcon,
+  LogOut,
+  MapPin,
+  MessageSquare,
+  PlusCircle,
+  RefreshCw,
+  Search,
+  Send,
+  Star,
+  UserRound,
+  Wallet,
+  Wrench,
+} from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useTheme } from "../../components/ThemeContext";
 import api from "../../api/axios";
 import { useAuth } from "../../auth/AuthContext";
-import Shell from "../../components/Shell";
-import Toast from "../../components/Toast";
 import LocationPicker from "../../components/LocationPicker";
-import {
-  Home,
-  Building2,
-  PlusCircle,
-  MessageSquare,
-  Star,
-  Bell,
-  CreditCard,
-  Wrench,
-  LogOut,
-  RefreshCw,
-  MapPin,
-  Send,
-  Image as ImageIcon,
-  Search,
-  Wallet,
-  UserRound,
-  ArrowLeft,
-} from "lucide-react";
+import Shell from "../../components/Shell";
+import { useTheme } from "../../components/ThemeContext";
+import Toast from "../../components/Toast";
 
 function kmOrM(meters) {
   if (meters == null || Number.isNaN(Number(meters))) return "";
@@ -91,6 +90,11 @@ export default function OwnerDashboard() {
     [displayEmail]
   );
 
+  const paymentSeenKey = useMemo(
+    () => `owner_seen_payments_${displayEmail || "owner"}`,
+    [displayEmail]
+  );
+
   const ui = {
     pageBg: isDark
       ? "bg-[linear-gradient(180deg,#071120_0%,#0a1a30_45%,#0c2240_100%)]"
@@ -152,6 +156,7 @@ export default function OwnerDashboard() {
 
   const [seenBookingIds, setSeenBookingIds] = useState([]);
   const [seenReviewIds, setSeenReviewIds] = useState([]);
+  const [seenPaymentIds, setSeenPaymentIds] = useState([]);
 
   const [form, setForm] = useState({
     title: "",
@@ -541,6 +546,11 @@ export default function OwnerDashboard() {
       if (ids.length) markReviewsSeen(ids);
     }
 
+    if (panel === "payments") {
+      const ids = (payments || []).map((p) => getPaymentId(p)).filter(Boolean);
+      if (ids.length) markPaymentsSeen(ids);
+    }
+
     scrollToRef(topPanelRef);
   };
 
@@ -583,6 +593,14 @@ export default function OwnerDashboard() {
     );
     setSeenReviewIds(merged);
     saveSeenIds(reviewSeenKey, merged);
+  };
+
+  const markPaymentsSeen = (ids = []) => {
+    const merged = Array.from(new Set([...(seenPaymentIds || []), ...ids])).filter(
+      Boolean
+    );
+    setSeenPaymentIds(merged);
+    saveSeenIds(paymentSeenKey, merged);
   };
 
   const showNotificationPopup = (notif) => {
@@ -1118,7 +1136,8 @@ out center;
   useEffect(() => {
     setSeenBookingIds(loadSeenIds(bookingSeenKey));
     setSeenReviewIds(loadSeenIds(reviewSeenKey));
-  }, [bookingSeenKey, reviewSeenKey]);
+    setSeenPaymentIds(loadSeenIds(paymentSeenKey));
+  }, [bookingSeenKey, reviewSeenKey, paymentSeenKey]);
 
   useEffect(() => {
     if (!form.latitude || !form.longitude) return;
@@ -1338,11 +1357,12 @@ out center;
     return (notifications || []).filter((n) => isNotifUnread(n)).length;
   }, [notifications]);
 
-  const completedPaymentCount = useMemo(() => {
-    return (payments || []).filter(
-      (p) => String(p?.payment_status || p?.status || "").toUpperCase() === "COMPLETE"
-    ).length;
-  }, [payments]);
+  const unreadPaymentCount = useMemo(() => {
+    return (payments || []).filter((p) => {
+      const id = getPaymentId(p);
+      return id && !seenPaymentIds.includes(id);
+    }).length;
+  }, [payments, seenPaymentIds]);
 
   const latestRequests = useMemo(() => {
     const list = [...(requests || [])];
@@ -1418,6 +1438,24 @@ out center;
     );
   }, [notifications]);
 
+  const unreadServiceProviderCount = useMemo(() => {
+    return (groupedNotifications || [])
+      .filter((g) => g.kind === "provider")
+      .reduce((acc, g) => acc + (g.unreadCount || 0), 0);
+  }, [groupedNotifications]);
+
+  const markServiceProviderNotificationsRead = async () => {
+    const providerGroups = (groupedNotifications || []).filter(
+      (g) => g.kind === "provider"
+    );
+    for (const group of providerGroups) {
+      const unreadItems = (group.items || []).filter((n) => isNotifUnread(n));
+      for (const item of unreadItems) {
+        await markNotificationRead(item);
+      }
+    }
+  };
+
   const filteredNotifGroups = useMemo(() => {
     const q = String(notifQuery || "").trim().toLowerCase();
     if (!q) return groupedNotifications;
@@ -1460,64 +1498,147 @@ out center;
   onClick,
   active = false,
   count,
-}) => (
-  <button
-    onClick={onClick}
-    className={`group flex h-full min-h-[130px] flex-col justify-between rounded-3xl p-5 text-left transition-all duration-300 hover:-translate-y-1 ${
-      active
-        ? isDark
-          ? "border border-blue-400/30 bg-[#1a4678] shadow-[0_10px_30px_rgba(59,130,246,0.18)]"
-          : "border border-blue-200 bg-blue-100 shadow-[0_10px_24px_rgba(59,130,246,0.12)]"
-        : isDark
-        ? "border border-white/10 bg-[#10294d]/95 hover:bg-[#16345c] hover:shadow-[0_10px_26px_rgba(0,0,0,0.22)]"
-        : "border border-slate-200 bg-white hover:border-blue-200 hover:bg-blue-50 hover:shadow-[0_10px_24px_rgba(59,130,246,0.10)]"
-    }`}
-  >
-    <div className="flex items-start justify-between gap-3">
-      <div
-        className={`flex h-12 w-12 items-center justify-center rounded-2xl ${
-          isDark
-            ? "bg-blue-500/15 text-blue-300"
-            : active
-            ? "bg-blue-200 text-blue-700"
-            : "bg-blue-50 text-blue-600"
-        }`}
-      >
-        <Icon className="h-5 w-5" />
+  accent = "blue",
+}) => {
+  const accentMap = {
+    blue: {
+      bg: "bg-blue-100",
+      border: "border-blue-200",
+      hover: "hover:bg-blue-100",
+      icon: "bg-blue-200 text-blue-700",
+      iconHover: "group-hover:bg-blue-300",
+      countBg: "bg-blue-100",
+      countBorder: "border-blue-200",
+      countText: "text-blue-700",
+    },
+    green: {
+      bg: "bg-emerald-100",
+      border: "border-emerald-200",
+      hover: "hover:bg-blue-100",
+      icon: "bg-emerald-200 text-emerald-700",
+      iconHover: "group-hover:bg-emerald-300",
+      countBg: "bg-emerald-100",
+      countBorder: "border-emerald-200",
+      countText: "text-emerald-700",
+    },
+    pink: {
+      bg: "bg-pink-100",
+      border: "border-pink-200",
+      hover: "hover:bg-blue-100",
+      icon: "bg-pink-200 text-pink-700",
+      iconHover: "group-hover:bg-pink-300",
+      countBg: "bg-pink-100",
+      countBorder: "border-pink-200",
+      countText: "text-pink-700",
+    },
+    purple: {
+      bg: "bg-violet-100",
+      border: "border-violet-200",
+      hover: "hover:bg-blue-100",
+      icon: "bg-violet-200 text-violet-700",
+      iconHover: "group-hover:bg-violet-300",
+      countBg: "bg-violet-100",
+      countBorder: "border-violet-200",
+      countText: "text-violet-700",
+    },
+    amber: {
+      bg: "bg-amber-100",
+      border: "border-amber-200",
+      hover: "hover:bg-blue-100",
+      icon: "bg-amber-200 text-amber-700",
+      iconHover: "group-hover:bg-amber-300",
+      countBg: "bg-amber-100",
+      countBorder: "border-amber-200",
+      countText: "text-amber-700",
+    },
+    cyan: {
+      bg: "bg-cyan-100",
+      border: "border-cyan-200",
+      hover: "hover:bg-blue-100",
+      icon: "bg-cyan-200 text-cyan-700",
+      iconHover: "group-hover:bg-cyan-300",
+      countBg: "bg-cyan-100",
+      countBorder: "border-cyan-200",
+      countText: "text-cyan-700",
+    },
+    indigo: {
+      bg: "bg-indigo-100",
+      border: "border-indigo-200",
+      hover: "hover:bg-blue-100",
+      icon: "bg-indigo-200 text-indigo-700",
+      iconHover: "group-hover:bg-indigo-300",
+      countBg: "bg-indigo-100",
+      countBorder: "border-indigo-200",
+      countText: "text-indigo-700",
+    },
+  };
+
+  const acc = accentMap[accent] || accentMap.blue;
+  const activeClass = active ? "ring-2 ring-slate-300" : "";
+
+  return (
+    <button
+      onClick={onClick}
+      className={`group flex h-full min-h-[130px] flex-col justify-between rounded-3xl border p-5 text-left transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${acc.bg} ${acc.border} ${acc.hover} ${activeClass}`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className={`flex h-12 w-12 items-center justify-center rounded-2xl transition-colors ${acc.icon} ${acc.iconHover}`}>
+          <Icon className="h-5 w-5" />
+        </div>
+
+        {count !== undefined ? (
+          <span
+            className={`inline-flex min-w-[28px] items-center justify-center rounded-full border px-2 py-1 text-[11px] font-extrabold transition-colors ${acc.countBorder} ${acc.countBg} ${acc.countText}`}
+          >
+            {count}
+          </span>
+        ) : null}
       </div>
 
-      {count !== undefined ? (
-        <span
-          className={`inline-flex min-w-[28px] items-center justify-center rounded-full border px-2 py-1 text-[11px] font-extrabold ${
-            isDark
-              ? "border-blue-500/20 bg-blue-500/10 text-blue-100"
-              : "border-blue-200 bg-blue-50 text-blue-700"
-          }`}
-        >
-          {count}
-        </span>
-      ) : null}
-    </div>
-
-    <div>
-      <h3 className={`text-sm font-extrabold tracking-wide ${ui.heading}`}>
-        {label}
-      </h3>
-      <p className={`mt-1 text-xs leading-5 ${ui.sub}`}>{subtitle}</p>
-    </div>
-  </button>
-);
+      <div>
+        <h3 className="text-sm font-black text-slate-900">{label}</h3>
+        <p className="mt-1 text-xs leading-5 text-slate-600">{subtitle}</p>
+      </div>
+    </button>
+  );
+};
 
   const StatCard = ({ label, value, icon: Icon, accent = "blue" }) => {
     const accentMap = {
-      blue: isDark ? "bg-blue-500/15 text-blue-300" : "bg-blue-50 text-blue-600",
-      green: isDark ? "bg-emerald-500/15 text-emerald-300" : "bg-emerald-50 text-emerald-600",
-      amber: isDark ? "bg-amber-500/15 text-amber-300" : "bg-amber-50 text-amber-600",
-      violet: isDark ? "bg-violet-500/15 text-violet-300" : "bg-violet-50 text-violet-600",
+      blue: isDark
+        ? "bg-gradient-to-br from-blue-500/20 to-blue-600/10 border-blue-400/20 text-blue-300"
+        : "bg-gradient-to-br from-blue-100 to-blue-50 border-blue-200/50 text-blue-700",
+      green: isDark
+        ? "bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 border-emerald-400/20 text-emerald-300"
+        : "bg-gradient-to-br from-emerald-100 to-emerald-50 border-emerald-200/50 text-emerald-700",
+      amber: isDark
+        ? "bg-gradient-to-br from-amber-500/20 to-amber-600/10 border-amber-400/20 text-amber-300"
+        : "bg-gradient-to-br from-amber-100 to-amber-50 border-amber-200/50 text-amber-700",
+      yellow: isDark
+        ? "bg-gradient-to-br from-yellow-500/20 to-yellow-600/10 border-yellow-400/20 text-yellow-300"
+        : "bg-gradient-to-br from-yellow-100 to-yellow-50 border-yellow-200/50 text-yellow-700",
+      red: isDark
+        ? "bg-gradient-to-br from-red-500/20 to-red-600/10 border-red-400/20 text-red-300"
+        : "bg-gradient-to-br from-red-100 to-red-50 border-red-200/50 text-red-700",
+      violet: isDark
+        ? "bg-gradient-to-br from-violet-500/20 to-violet-600/10 border-violet-400/20 text-violet-300"
+        : "bg-gradient-to-br from-violet-100 to-violet-50 border-violet-200/50 text-violet-700",
+      pink: isDark
+        ? "bg-gradient-to-br from-pink-500/20 to-pink-600/10 border-pink-400/20 text-pink-300"
+        : "bg-gradient-to-br from-pink-100 to-pink-50 border-pink-200/50 text-pink-700",
+      indigo: isDark
+        ? "bg-gradient-to-br from-indigo-500/20 to-indigo-600/10 border-indigo-400/20 text-indigo-300"
+        : "bg-gradient-to-br from-indigo-100 to-indigo-50 border-indigo-200/50 text-indigo-700",
+      cyan: isDark
+        ? "bg-gradient-to-br from-cyan-500/20 to-cyan-600/10 border-cyan-400/20 text-cyan-300"
+        : "bg-gradient-to-br from-cyan-100 to-cyan-50 border-cyan-200/50 text-cyan-700",
+      orange: isDark
+        ? "bg-gradient-to-br from-orange-500/20 to-orange-600/10 border-orange-400/20 text-orange-300"
+        : "bg-gradient-to-br from-orange-100 to-orange-50 border-orange-200/50 text-orange-700",
     };
 
     return (
-      <div className={`rounded-3xl p-5 ${ui.card}`}>
+      <div className={`rounded-3xl border p-5 shadow-sm transition hover:shadow-md ${accentMap[accent]}`}>
         <div className="flex items-center justify-between">
           <div>
             <p className={`text-[11px] font-extrabold uppercase tracking-[0.18em] ${ui.muted}`}>
@@ -1527,7 +1648,11 @@ out center;
               {value}
             </h3>
           </div>
-          <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${accentMap[accent]}`}>
+          <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${
+            isDark
+              ? "bg-white/10 border border-white/20"
+              : "bg-white/80 border border-white/60 shadow-sm"
+          }`}>
             <Icon className="h-5 w-5" />
           </div>
         </div>
@@ -1642,7 +1767,14 @@ out center;
           ) : (
             <div className="grid gap-4">
               {filteredReviews.map((review, idx) => (
-                <div key={getReviewId(review, idx)} className={`rounded-3xl p-5 ${ui.soft}`}>
+                <div
+                  key={getReviewId(review, idx)}
+                  className={`rounded-3xl border p-5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${
+                    isDark
+                      ? "border-amber-400/20 bg-gradient-to-br from-amber-500/10 to-amber-600/5"
+                      : "border-amber-200 bg-gradient-to-br from-amber-50 to-amber-25"
+                  }`}
+                >
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
@@ -1727,7 +1859,11 @@ out center;
                   key={group.key}
                   type="button"
                   onClick={() => openNotificationGroup(group)}
-                  className={`rounded-3xl p-5 text-left transition hover:-translate-y-0.5 ${ui.soft}`}
+                  className={`rounded-3xl border p-5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${
+                    isDark
+                      ? "border-white/10 bg-gradient-to-br from-slate-800/60 to-slate-700/40 hover:bg-blue-100 hover:border-blue-200"
+                      : "border-slate-200 bg-gradient-to-br from-white to-slate-50/60 hover:bg-blue-100 hover:border-blue-200"
+                  }`}
                 >
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div>
@@ -1824,7 +1960,22 @@ out center;
                 const amount = getPaymentAmount(payment);
 
                 return (
-                  <div key={getPaymentId(payment, idx)} className={`rounded-3xl p-5 ${ui.soft}`}>
+                  <div
+                    key={getPaymentId(payment, idx)}
+                    className={`rounded-3xl border p-5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${
+                      status === "COMPLETE"
+                        ? isDark
+                          ? "border-emerald-400/20 bg-gradient-to-br from-emerald-500/10 to-emerald-600/5"
+                          : "border-emerald-200 bg-gradient-to-br from-emerald-50 to-emerald-25"
+                        : status === "PENDING"
+                        ? isDark
+                          ? "border-amber-400/20 bg-gradient-to-br from-amber-500/10 to-amber-600/5"
+                          : "border-amber-200 bg-gradient-to-br from-amber-50 to-amber-25"
+                        : isDark
+                        ? "border-slate-400/20 bg-gradient-to-br from-slate-500/10 to-slate-600/5"
+                        : "border-slate-200 bg-gradient-to-br from-slate-50 to-slate-25"
+                    }`}
+                  >
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                       <div className="space-y-2">
                         <div className="flex flex-wrap items-center gap-2">
@@ -1845,7 +1996,7 @@ out center;
 
                         {amount != null ? (
                           <p className={`text-sm ${ui.sub}`}>
-                            Amount: <span className="font-semibold">{amount}</span>
+                            Amount: <span className="font-semibold">Rs {amount}</span>
                           </p>
                         ) : null}
 
@@ -1876,18 +2027,6 @@ out center;
       subtitle={`Welcome back, ${displayEmail}. Manage properties, requests, reviews, notifications, and payments.`}
       right={
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => nav("/")}
-            className={`flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-bold transition ${
-              isDark
-                ? "bg-white/10 text-slate-200 hover:bg-white/15"
-                : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-            }`}
-          >
-            <Home className="h-4 w-4" />
-            Home
-          </button>
-
           <button
             onClick={handleLogout}
             className={`flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-bold transition ${
@@ -1979,11 +2118,11 @@ out center;
                 label="Notifications"
                 value={notifLoading ? "..." : unreadNotifCount}
                 icon={Wallet}
-                accent="violet"
+                accent="purple"
               />
               <StatCard
                 label="Payments"
-                value={paymentsLoading ? "..." : completedPaymentCount}
+                value={paymentsLoading ? "..." : unreadPaymentCount}
                 icon={CreditCard}
                 accent="green"
               />
@@ -1994,16 +2133,11 @@ out center;
             <SectionTitle title="Owner Tools Hub" />
             <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-8">
               <QuickAction
-                icon={Home}
-                label="Home"
-                subtitle="Go to main landing page"
-                onClick={() => nav("/")}
-              />
-              <QuickAction
                 icon={Building2}
                 label="My Properties"
                 subtitle="View all properties you listed"
                 onClick={() => nav("/owner/my-properties")}
+                accent="blue"
               />
               <QuickAction
                 icon={PlusCircle}
@@ -2011,7 +2145,17 @@ out center;
                 subtitle="Create a new property listing"
                 onClick={handleToggleAddProperty}
                 active={showAddProperty}
+                accent="green"
               />
+
+              <QuickAction
+                icon={FileText}
+                label="Contract"
+                subtitle="Read owner agreement and commission rules"
+                onClick={() => nav("/owner/contract")}
+                accent="indigo"
+              />
+
               <QuickAction
                 icon={MessageSquare}
                 label="Messages"
@@ -2023,6 +2167,7 @@ out center;
                   nav("/owner/messages");
                 }}
                 count={loadingMsgs ? "..." : unreadBookingCount}
+                accent="cyan"
               />
               <QuickAction
                 icon={Star}
@@ -2031,6 +2176,7 @@ out center;
                 onClick={handleToggleReviews}
                 active={activeTopPanel === "reviews"}
                 count={reviewsLoading ? "..." : unreadReviewCount}
+                accent="amber"
               />
               <QuickAction
                 icon={Wallet}
@@ -2039,147 +2185,48 @@ out center;
                 onClick={handleToggleNotifications}
                 active={activeTopPanel === "notifications"}
                 count={notifLoading ? "..." : unreadNotifCount}
+                accent="purple"
               />
               <QuickAction
                 icon={CreditCard}
                 label="Payments"
                 subtitle="Track verified payment records"
-                onClick={() => nav("/owner/booking-payments")}
-                count={paymentsLoading ? "..." : completedPaymentCount}
+                onClick={() => {
+                  markPaymentsSeen((payments || []).map(getPaymentId).filter(Boolean));
+                  nav("/owner/booking-payments");
+                }}
+                count={paymentsLoading ? "..." : unreadPaymentCount}
+                accent="green"
               />
               <QuickAction
                 icon={Wrench}
                 label="Maintenance"
                 subtitle="Open provider maintenance panel"
-                onClick={() => nav("/owner/maintenance")}
+                onClick={async () => {
+                  await markServiceProviderNotificationsRead();
+                  nav("/owner/maintenance");
+                }}
+                count={unreadServiceProviderCount > 0 ? unreadServiceProviderCount : undefined}
+                accent="indigo"
+              />
+              <QuickAction
+                icon={MessageSquare}
+                label="Service Provider Chat"
+                subtitle="Direct communication with service providers"
+                onClick={async () => {
+                  await markServiceProviderNotificationsRead();
+                  nav("/owner/provider-chat");
+                }}
+                count={unreadServiceProviderCount > 0 ? unreadServiceProviderCount : undefined}
+                accent="pink"
               />
             </div>
           </div>
 
           {renderFocusedTopPanel()}
 
-          <div className={`mt-8 grid grid-cols-1 gap-6 ${activeTopPanel ? "xl:grid-cols-1" : "xl:grid-cols-[1.2fr_1fr]"}`}>
-            <div className={`rounded-[32px] p-6 ${ui.card}`}>
-              <SectionTitle
-                title="Latest Booking Requests"
-                right={
-                  <button
-                    onClick={() => {
-                      markBookingsSeen(
-                        (requests || []).map((r) => getBookingId(r)).filter(Boolean)
-                      );
-                      nav("/owner/messages");
-                    }}
-                    className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-bold transition ${ui.smallAction}`}
-                  >
-                    <MessageSquare className="h-4 w-4" />
-                    Open inbox
-                  </button>
-                }
-              />
-
-              {loadingMsgs ? (
-                <div className={`rounded-2xl p-5 ${ui.soft}`}>
-                  <div className={`text-sm ${ui.sub}`}>Loading booking requests...</div>
-                </div>
-              ) : latestRequests.length === 0 ? (
-                <div className={`rounded-2xl p-5 ${ui.soft}`}>
-                  <div className={`text-sm ${ui.sub}`}>No booking requests available.</div>
-                </div>
-              ) : (
-                <div className="grid gap-4">
-                  {latestRequests.map((req, idx) => {
-                    const bookingId = getBookingId(req);
-                    const status = getStatus(req);
-
-                    const statusClasses =
-                      status === "accepted"
-                        ? ui.badgeGreen
-                        : status === "rejected"
-                        ? (isDark
-                            ? "border-red-500/20 bg-red-500/10 text-red-300"
-                            : "border-red-200 bg-red-50 text-red-700")
-                        : ui.badgeAmber;
-
-                    return (
-                      <div key={bookingId || idx} className={`rounded-3xl p-5 ${ui.soft}`}>
-                        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                          <div>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <h3 className={`text-lg font-black ${ui.heading}`}>
-                                {getListingTitle(req)}
-                              </h3>
-                              <span className={`rounded-full border px-3 py-1 text-xs font-bold ${statusClasses}`}>
-                                {status}
-                              </span>
-                            </div>
-
-                            <p className={`mt-3 text-sm ${ui.sub}`}>
-                              Tenant: {getTenantName(req)} • {getTenantEmail(req)}
-                            </p>
-
-                            <p className={`mt-4 text-sm leading-7 ${ui.sub}`}>
-                              {getFirstMessage(req) || "No message preview available."}
-                            </p>
-                          </div>
-
-                          <div className={`text-xs ${ui.muted}`}>
-                            {formatDate(req?.created_at)}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {!activeTopPanel && (
-              <div className={`rounded-[32px] p-6 ${ui.card}`}>
-                <SectionTitle
-                  title="Dashboard Summary"
-                  right={
-                    <button
-                      onClick={() => {
-                        loadNotifications(false);
-                        loadReviews(false);
-                        loadPayments(false);
-                      }}
-                      className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-bold transition ${ui.smallAction}`}
-                    >
-                      <RefreshCw className="h-4 w-4" />
-                      Refresh
-                    </button>
-                  }
-                />
-
-                <div className="grid gap-4">
-                  <div className={`rounded-3xl p-5 ${ui.soft}`}>
-                    <div className={`mb-2 text-xs font-bold uppercase tracking-[0.18em] ${ui.muted}`}>
-                      Owner Account
-                    </div>
-                    <div className={`text-base font-bold ${ui.heading}`}>{displayEmail}</div>
-                    <div className={`mt-1 text-sm ${ui.sub}`}>
-                      Manage your rentals, messages, and records professionally.
-                    </div>
-                  </div>
-
-                  <div className={`rounded-3xl p-5 ${ui.soft}`}>
-                    <div className={`mb-2 text-xs font-bold uppercase tracking-[0.18em] ${ui.muted}`}>
-                      Actions Available
-                    </div>
-                    <div className={`text-sm leading-7 ${ui.sub}`}>
-                      Post new property listings, open tenant messages, review ratings,
-                      inspect grouped notifications, and monitor completed payment records.
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
           {showAddProperty && (
-            <div ref={addPropertyRef} className={`mt-10 rounded-[32px] p-6 lg:p-8 ${ui.card}`}>
+            <div ref={addPropertyRef} className={`mt-8 rounded-[32px] p-6 lg:p-8 ${ui.card}`}>
               <SectionTitle
                 title="Add New Property"
                 right={
@@ -2244,7 +2291,7 @@ out center;
                       name="price_per_month"
                       value={form.price_per_month}
                       onChange={onChange}
-                      placeholder="Enter monthly price"
+                      placeholder="Enter monthly price (e.g. Rs 5000)"
                       className={`h-12 w-full rounded-2xl border px-4 outline-none ${ui.input}`}
                     />
                   </div>
@@ -2434,6 +2481,128 @@ out center;
               </form>
             </div>
           )}
+
+          <div className={`mt-8 grid grid-cols-1 gap-6 ${activeTopPanel ? "xl:grid-cols-1" : "xl:grid-cols-[1.2fr_1fr]"}`}>
+            <div className={`rounded-[32px] p-6 ${ui.card}`}>
+              <SectionTitle
+                title="Latest Booking Requests"
+                right={
+                  <button
+                    onClick={() => {
+                      markBookingsSeen(
+                        (requests || []).map((r) => getBookingId(r)).filter(Boolean)
+                      );
+                      nav("/owner/messages");
+                    }}
+                    className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-bold transition ${ui.smallAction}`}
+                  >
+                    <MessageSquare className="h-4 w-4" />
+                    Open inbox
+                  </button>
+                }
+              />
+
+              {loadingMsgs ? (
+                <div className={`rounded-2xl p-5 ${ui.soft}`}>
+                  <div className={`text-sm ${ui.sub}`}>Loading booking requests...</div>
+                </div>
+              ) : latestRequests.length === 0 ? (
+                <div className={`rounded-2xl p-5 ${ui.soft}`}>
+                  <div className={`text-sm ${ui.sub}`}>No booking requests available.</div>
+                </div>
+              ) : (
+                <div className="grid gap-4">
+                  {latestRequests.map((req, idx) => {
+                    const bookingId = getBookingId(req);
+                    const status = getStatus(req);
+
+                    const statusClasses =
+                      status === "accepted"
+                        ? ui.badgeGreen
+                        : status === "rejected"
+                        ? (isDark
+                            ? "border-red-500/20 bg-red-500/10 text-red-300"
+                            : "border-red-200 bg-red-50 text-red-700")
+                        : ui.badgeAmber;
+
+                    return (
+                      <div key={bookingId || idx} className={`rounded-3xl p-5 ${ui.soft}`}>
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className={`text-lg font-black ${ui.heading}`}>
+                                {getListingTitle(req)}
+                              </h3>
+                              <span className={`rounded-full border px-3 py-1 text-xs font-bold ${statusClasses}`}>
+                                {status}
+                              </span>
+                            </div>
+
+                            <p className={`mt-3 text-sm ${ui.sub}`}>
+                              Tenant: {getTenantName(req)} • {getTenantEmail(req)}
+                            </p>
+
+                            <p className={`mt-4 text-sm leading-7 ${ui.sub}`}>
+                              {getFirstMessage(req) || "No message preview available."}
+                            </p>
+                          </div>
+
+                          <div className={`text-xs ${ui.muted}`}>
+                            {formatDate(req?.created_at)}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {!activeTopPanel && (
+              <div className={`rounded-[32px] p-6 ${ui.card}`}>
+                <SectionTitle
+                  title="Dashboard Summary"
+                  right={
+                    <button
+                      onClick={() => {
+                        loadNotifications(false);
+                        loadReviews(false);
+                        loadPayments(false);
+                      }}
+                      className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-bold transition ${ui.smallAction}`}
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                      Refresh
+                    </button>
+                  }
+                />
+
+                <div className="grid gap-4">
+                  <div className={`rounded-3xl p-5 ${ui.soft}`}>
+                    <div className={`mb-2 text-xs font-bold uppercase tracking-[0.18em] ${ui.muted}`}>
+                      Owner Account
+                    </div>
+                    <div className={`text-base font-bold ${ui.heading}`}>{displayEmail}</div>
+                    <div className={`mt-1 text-sm ${ui.sub}`}>
+                      Manage your rentals, messages, and records professionally.
+                    </div>
+                  </div>
+
+                  <div className={`rounded-3xl p-5 ${ui.soft}`}>
+                    <div className={`mb-2 text-xs font-bold uppercase tracking-[0.18em] ${ui.muted}`}>
+                      Actions Available
+                    </div>
+                    <div className={`text-sm leading-7 ${ui.sub}`}>
+                      Post new property listings, open tenant messages, review ratings,
+                      inspect grouped notifications, and monitor completed payment records.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+
 
           {/* Hidden refs kept for compatibility with your existing logic */}
           <div ref={reviewsRef} className="h-0 w-0 overflow-hidden" />

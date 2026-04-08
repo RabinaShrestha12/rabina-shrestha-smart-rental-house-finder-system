@@ -1,4 +1,3 @@
-// src/auth/AuthContext.jsx
 import React, { createContext, useContext, useMemo, useState } from "react";
 import api from "../api/axios";
 
@@ -63,7 +62,11 @@ export function AuthProvider({ children }) {
   };
 
   const logout = (redirectTo = "/") => {
-    localStorage.clear();
+    // Preserving UI logic (e.g. unread counts, last_seen) while clearing user auth
+    localStorage.removeItem("access");
+    localStorage.removeItem("refresh");
+    localStorage.removeItem("role");
+    localStorage.removeItem("email");
     setAccess("");
     setRole("");
     setEmail("");
