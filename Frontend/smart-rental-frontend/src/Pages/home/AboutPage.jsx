@@ -1,11 +1,8 @@
 import React from "react";
-import { Link } from "react-router-dom";
 import {
-  ChevronRight,
   Home,
   Users,
   Search,
-  ShieldCheck,
   MapPinned,
   MessageSquare,
   Wrench,
@@ -21,32 +18,24 @@ export default function AboutPage() {
 
   return (
     <div
-      className="min-h-screen pt-32 pb-24 xl:pt-36 xl:pb-28 selection:bg-blue-600 selection:text-white transition-colors duration-300"
+      className="min-h-screen pt-14 pb-16 xl:pt-16 xl:pb-20 selection:bg-blue-600 selection:text-white transition-colors duration-300"
       style={{
-        background: "var(--bg-color)",
+        background: isDark
+          ? "linear-gradient(180deg, #071120 0%, #0b1e36 45%, #0f2745 100%)"
+          : "linear-gradient(180deg, #f4f9ff 0%, #edf6ff 45%, #e8f3ff 100%)",
         color: "var(--text-color)",
       }}
     >
       <div className="max-w-7xl mx-auto px-6 md:px-10 xl:px-16">
-        <div className="mb-5">
-          <Link
-            to="/"
-            className="text-blue-600 font-semibold flex items-center gap-1 hover:gap-2 transition-all w-max text-sm md:text-base"
-          >
-            <ChevronRight className="w-4 h-4 rotate-180" />
-            Back to Home
-          </Link>
-        </div>
-
         <div
-          className={`rounded-[32px] xl:rounded-[40px] p-8 md:p-12 xl:p-16 2xl:p-20 shadow-2xl border transition-colors duration-300 ${
+          className={`rounded-[32px] xl:rounded-[40px] p-8 md:p-10 xl:p-14 2xl:p-16 shadow-2xl border transition-colors duration-300 ${
             isDark
               ? "bg-[#10294d] border-white/10 shadow-black/20"
-              : "bg-white border-neutral-100 shadow-neutral-900/5"
+              : "bg-[#fbfdff] border-blue-100 shadow-blue-100/40"
           }`}
         >
           <div
-            className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs md:text-sm font-semibold uppercase tracking-wider mb-7 ${
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs md:text-sm font-semibold uppercase tracking-wider mb-6 ${
               isDark
                 ? "bg-blue-500/10 border border-blue-400/20 text-blue-300"
                 : "bg-blue-50 border border-blue-100 text-blue-600"
@@ -57,17 +46,17 @@ export default function AboutPage() {
           </div>
 
           <h1
-            className={`text-4xl md:text-5xl xl:text-6xl font-extrabold tracking-tight leading-tight mb-10 xl:mb-12 ${
-              isDark ? "text-white" : "text-neutral-900"
+            className={`text-4xl md:text-5xl xl:text-6xl font-extrabold tracking-tight leading-tight mb-8 xl:mb-10 ${
+              isDark ? "text-white" : "text-slate-900"
             }`}
           >
             Smart Rental House Finder System
           </h1>
 
-          <div className="space-y-7 xl:space-y-8">
+          <div className="space-y-6 xl:space-y-7">
             <p
               className={`text-base md:text-lg xl:text-[19px] leading-8 xl:leading-9 ${
-                isDark ? "text-slate-300" : "text-neutral-600"
+                isDark ? "text-slate-300" : "text-slate-600"
               }`}
             >
               <strong>Smart Rental House Finder System</strong> is a modern rental
@@ -80,7 +69,7 @@ export default function AboutPage() {
 
             <p
               className={`text-base md:text-lg xl:text-[19px] leading-8 xl:leading-9 ${
-                isDark ? "text-slate-300" : "text-neutral-600"
+                isDark ? "text-slate-300" : "text-slate-600"
               }`}
             >
               The platform helps users discover rooms, apartments, and houses
@@ -92,7 +81,7 @@ export default function AboutPage() {
 
             <p
               className={`text-base md:text-lg xl:text-[19px] leading-8 xl:leading-9 ${
-                isDark ? "text-slate-300" : "text-neutral-600"
+                isDark ? "text-slate-300" : "text-slate-600"
               }`}
             >
               To make the rental experience more friendly and interactive, the
@@ -103,25 +92,25 @@ export default function AboutPage() {
               convenient.
             </p>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 xl:gap-7 my-10 xl:my-14">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 xl:gap-7 my-8 xl:my-10">
               <div
                 className={`rounded-3xl p-6 xl:p-7 border transition-colors duration-300 ${
                   isDark
                     ? "bg-[#16345c] border-white/10"
-                    : "bg-neutral-50 border-neutral-100"
+                    : "bg-[#f3f9ff] border-blue-100"
                 }`}
               >
                 <Search className="w-9 h-9 text-blue-600 mb-4" />
                 <h3
                   className={`text-xl xl:text-2xl font-bold mb-3 ${
-                    isDark ? "text-white" : "text-neutral-900"
+                    isDark ? "text-white" : "text-slate-900"
                   }`}
                 >
                   Smart Search and Recommendations
                 </h3>
                 <p
                   className={`text-sm xl:text-[15px] leading-7 ${
-                    isDark ? "text-slate-300" : "text-neutral-500"
+                    isDark ? "text-slate-300" : "text-slate-500"
                   }`}
                 >
                   Users can search properties with smart suggestions, budget
@@ -134,20 +123,20 @@ export default function AboutPage() {
                 className={`rounded-3xl p-6 xl:p-7 border transition-colors duration-300 ${
                   isDark
                     ? "bg-[#16345c] border-white/10"
-                    : "bg-neutral-50 border-neutral-100"
+                    : "bg-[#f3f9ff] border-blue-100"
                 }`}
               >
                 <MapPinned className="w-9 h-9 text-blue-600 mb-4" />
                 <h3
                   className={`text-xl xl:text-2xl font-bold mb-3 ${
-                    isDark ? "text-white" : "text-neutral-900"
+                    isDark ? "text-white" : "text-slate-900"
                   }`}
                 >
                   Map-Based Property Discovery
                 </h3>
                 <p
                   className={`text-sm xl:text-[15px] leading-7 ${
-                    isDark ? "text-slate-300" : "text-neutral-500"
+                    isDark ? "text-slate-300" : "text-slate-500"
                   }`}
                 >
                   Interactive map support helps users explore nearby listings and
@@ -160,20 +149,20 @@ export default function AboutPage() {
                 className={`rounded-3xl p-6 xl:p-7 border transition-colors duration-300 ${
                   isDark
                     ? "bg-[#16345c] border-white/10"
-                    : "bg-neutral-50 border-neutral-100"
+                    : "bg-[#f3f9ff] border-blue-100"
                 }`}
               >
                 <Users className="w-9 h-9 text-blue-600 mb-4" />
                 <h3
                   className={`text-xl xl:text-2xl font-bold mb-3 ${
-                    isDark ? "text-white" : "text-neutral-900"
+                    isDark ? "text-white" : "text-slate-900"
                   }`}
                 >
                   Roommate Matching
                 </h3>
                 <p
                   className={`text-sm xl:text-[15px] leading-7 ${
-                    isDark ? "text-slate-300" : "text-neutral-500"
+                    isDark ? "text-slate-300" : "text-slate-500"
                   }`}
                 >
                   The platform includes a roommate finder that helps users match
@@ -186,20 +175,20 @@ export default function AboutPage() {
                 className={`rounded-3xl p-6 xl:p-7 border transition-colors duration-300 ${
                   isDark
                     ? "bg-[#16345c] border-white/10"
-                    : "bg-neutral-50 border-neutral-100"
+                    : "bg-[#f3f9ff] border-blue-100"
                 }`}
               >
                 <MessageSquare className="w-9 h-9 text-blue-600 mb-4" />
                 <h3
                   className={`text-xl xl:text-2xl font-bold mb-3 ${
-                    isDark ? "text-white" : "text-neutral-900"
+                    isDark ? "text-white" : "text-slate-900"
                   }`}
                 >
                   Direct Communication
                 </h3>
                 <p
                   className={`text-sm xl:text-[15px] leading-7 ${
-                    isDark ? "text-slate-300" : "text-neutral-500"
+                    isDark ? "text-slate-300" : "text-slate-500"
                   }`}
                 >
                   Built-in messaging allows tenants, owners, and service
@@ -212,20 +201,20 @@ export default function AboutPage() {
                 className={`rounded-3xl p-6 xl:p-7 border transition-colors duration-300 ${
                   isDark
                     ? "bg-[#16345c] border-white/10"
-                    : "bg-neutral-50 border-neutral-100"
+                    : "bg-[#f3f9ff] border-blue-100"
                 }`}
               >
                 <Wrench className="w-9 h-9 text-blue-600 mb-4" />
                 <h3
                   className={`text-xl xl:text-2xl font-bold mb-3 ${
-                    isDark ? "text-white" : "text-neutral-900"
+                    isDark ? "text-white" : "text-slate-900"
                   }`}
                 >
                   Maintenance and Service Support
                 </h3>
                 <p
                   className={`text-sm xl:text-[15px] leading-7 ${
-                    isDark ? "text-slate-300" : "text-neutral-500"
+                    isDark ? "text-slate-300" : "text-slate-500"
                   }`}
                 >
                   Users can manage maintenance-related communication more easily,
@@ -238,20 +227,20 @@ export default function AboutPage() {
                 className={`rounded-3xl p-6 xl:p-7 border transition-colors duration-300 ${
                   isDark
                     ? "bg-[#16345c] border-white/10"
-                    : "bg-neutral-50 border-neutral-100"
+                    : "bg-[#f3f9ff] border-blue-100"
                 }`}
               >
                 <Bell className="w-9 h-9 text-blue-600 mb-4" />
                 <h3
                   className={`text-xl xl:text-2xl font-bold mb-3 ${
-                    isDark ? "text-white" : "text-neutral-900"
+                    isDark ? "text-white" : "text-slate-900"
                   }`}
                 >
                   Helpful Notifications
                 </h3>
                 <p
                   className={`text-sm xl:text-[15px] leading-7 ${
-                    isDark ? "text-slate-300" : "text-neutral-500"
+                    isDark ? "text-slate-300" : "text-slate-500"
                   }`}
                 >
                   Notifications and reminders keep users informed about booking
@@ -261,25 +250,25 @@ export default function AboutPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 xl:gap-7 my-10 xl:my-14">
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 xl:gap-7 my-8 xl:my-10">
               <div
                 className={`rounded-3xl p-6 xl:p-8 border transition-colors duration-300 ${
                   isDark
                     ? "bg-[#16345c] border-white/10"
-                    : "bg-blue-50/40 border-blue-100"
+                    : "bg-[#f5faff] border-blue-100"
                 }`}
               >
                 <BedDouble className="w-9 h-9 text-blue-600 mb-4" />
                 <h3
                   className={`text-xl xl:text-2xl font-bold mb-3 ${
-                    isDark ? "text-white" : "text-neutral-900"
+                    isDark ? "text-white" : "text-slate-900"
                   }`}
                 >
                   Better Property Visualization
                 </h3>
                 <p
                   className={`leading-7 xl:leading-8 text-sm xl:text-base ${
-                    isDark ? "text-slate-300" : "text-neutral-600"
+                    isDark ? "text-slate-300" : "text-slate-600"
                   }`}
                 >
                   More user-friendly features are also available to make the
@@ -293,20 +282,20 @@ export default function AboutPage() {
                 className={`rounded-3xl p-6 xl:p-8 border transition-colors duration-300 ${
                   isDark
                     ? "bg-[#16345c] border-white/10"
-                    : "bg-blue-50/40 border-blue-100"
+                    : "bg-[#f5faff] border-blue-100"
                 }`}
               >
                 <Calculator className="w-9 h-9 text-blue-600 mb-4" />
                 <h3
                   className={`text-xl xl:text-2xl font-bold mb-3 ${
-                    isDark ? "text-white" : "text-neutral-900"
+                    isDark ? "text-white" : "text-slate-900"
                   }`}
                 >
                   Budget-Friendly Planning
                 </h3>
                 <p
                   className={`leading-7 xl:leading-8 text-sm xl:text-base ${
-                    isDark ? "text-slate-300" : "text-neutral-600"
+                    isDark ? "text-slate-300" : "text-slate-600"
                   }`}
                 >
                   The system also offers practical tools such as budget split
@@ -321,7 +310,7 @@ export default function AboutPage() {
               className={`border-l-4 p-6 xl:p-8 rounded-r-2xl italic font-medium my-8 xl:my-10 text-base xl:text-lg leading-8 transition-colors duration-300 ${
                 isDark
                   ? "border-blue-400 bg-blue-500/10 text-slate-200"
-                  : "border-blue-600 bg-blue-50/60 text-neutral-700"
+                  : "border-blue-600 bg-[#f1f8ff] text-slate-700"
               }`}
             >
               "The platform is designed to provide a complete rental experience
@@ -331,7 +320,7 @@ export default function AboutPage() {
 
             <p
               className={`text-base md:text-lg xl:text-[19px] leading-8 xl:leading-9 ${
-                isDark ? "text-slate-300" : "text-neutral-600"
+                isDark ? "text-slate-300" : "text-slate-600"
               }`}
             >
               Overall, the system focuses on making rental searching more

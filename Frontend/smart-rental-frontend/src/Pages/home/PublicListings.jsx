@@ -65,13 +65,8 @@ export default function PublicListings() {
       try {
         const res = await api.get("/public/listings/");
         const arr = safeArray(res.data);
-
-        console.log("Public listings API response:", res.data);
-        console.log("Normalized listings:", arr);
-
         setListings(arr);
       } catch (e) {
-        console.error("Failed to fetch listings:", e);
         setError(
           e?.response?.data?.detail ||
             e?.response?.data?.message ||
@@ -116,7 +111,9 @@ export default function PublicListings() {
   const go360 = (listingId) => navigate(`/listing/${listingId}/360`);
   const goDetails = (listingId) => navigate(`/listings/${listingId}`);
 
-  const goBook = (listingId) => {
+  const goBook = (listingId, booked) => {
+    if (booked) return;
+
     const token =
       localStorage.getItem("access") ||
       localStorage.getItem("access_token") ||
@@ -131,7 +128,7 @@ export default function PublicListings() {
     }
 
     if (role && role !== "tenant") {
-      alert("Please login as tenant to send a booking request for this property.");
+      alert("Please login as tenant to send message and book this property.");
       sessionStorage.setItem("post_login_redirect", `/tenant/book/${listingId}`);
       localStorage.removeItem("access");
       localStorage.removeItem("access_token");
@@ -147,13 +144,13 @@ export default function PublicListings() {
   if (loading) {
     return (
       <div
-        className="min-h-screen pt-32 pb-24 transition-colors duration-300"
+        className="min-h-screen pt-14 pb-16 transition-colors duration-300"
         style={{
           background: "var(--bg-color)",
           color: "var(--text-color)",
         }}
       >
-        <div className="mx-auto max-w-7xl px-6 py-10">
+        <div className="mx-auto max-w-7xl px-6 py-8">
           <div className="grid grid-cols-1 gap-8 md:grid-cols-2 xl:grid-cols-3">
             {[1, 2, 3, 4, 5, 6].map((i) => (
               <div
@@ -172,7 +169,7 @@ export default function PublicListings() {
   if (error) {
     return (
       <div
-        className="min-h-screen pt-32 pb-24 transition-colors duration-300"
+        className="min-h-screen pt-14 pb-16 transition-colors duration-300"
         style={{
           background: "var(--bg-color)",
           color: "var(--text-color)",
@@ -196,14 +193,14 @@ export default function PublicListings() {
 
   return (
     <div
-      className={`min-h-screen pt-32 pb-24 transition-colors duration-500 selection:bg-blue-600 selection:text-white premium-bg ${
+      className={`min-h-screen pt-14 pb-16 transition-colors duration-500 selection:bg-blue-600 selection:text-white premium-bg ${
         isDark ? "text-slate-100" : "text-neutral-900"
       }`}
     >
-      <section className="mx-auto mb-12 max-w-[1500px] px-6">
-        <div className="mb-8">
+      <section className="mx-auto mb-8 max-w-[1500px] px-6">
+        <div className="mb-6">
           <h1
-            className={`mb-4 text-4xl font-extrabold tracking-tight md:text-5xl ${
+            className={`mb-3 text-4xl font-extrabold tracking-tight md:text-5xl ${
               isDark ? "text-white" : "text-neutral-900"
             }`}
           >
@@ -316,7 +313,7 @@ export default function PublicListings() {
 
         {filtered.length === 0 ? (
           <div
-            className={`mt-8 rounded-[32px] p-16 text-center ${
+            className={`mt-6 rounded-[32px] p-16 text-center ${
               isDark
                 ? "border border-white/10 bg-[#0b1b33]"
                 : "border border-neutral-100 bg-white shadow-sm"
@@ -482,14 +479,15 @@ export default function PublicListings() {
                       </button>
 
                       <button
-                        onClick={() => goBook(l.id)}
+                        onClick={() => goBook(l.id, booked)}
+                        disabled={booked}
                         className={`rounded-xl py-3 font-bold text-white shadow-lg ${
                           booked
-                            ? "bg-amber-500 hover:bg-amber-600 shadow-amber-500/30"
+                            ? "cursor-not-allowed bg-red-400 shadow-red-500/20"
                             : "bg-blue-600 hover:bg-blue-700 shadow-blue-500/30"
                         }`}
                       >
-                        {booked ? "Send Request" : "Book Now"}
+                        {booked ? "Booked" : "Book Now"}
                       </button>
                     </div>
                   </div>
