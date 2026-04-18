@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import { useAuth } from "../../auth/AuthContext";
@@ -32,6 +32,7 @@ import {
   UserRoundSearch,
   BedDouble,
   FileText,
+  X,
 } from "lucide-react";
 
 function isHtml(x) {
@@ -403,7 +404,7 @@ export default function AdminDashboard() {
     setProviders(p);
   };
 
-  const loadProperties = async () => {
+  const loadProperties = useCallback(async () => {
     try {
       const propertyData = await getFirstWorking([
         "admin/properties/",
@@ -425,15 +426,15 @@ export default function AdminDashboard() {
       setProperties([]);
       return [];
     }
-  };
+  }, []);
 
-  const loadCommunications = async () => {
+  const loadCommunications = useCallback(async () => {
     setCommunicationLoading(true);
     try {
       // ✅ Fetch the unified threads list from our new Admin API
       const res = await api.get("admin/communications/");
       const list = safeArr(res.data);
-      
+
       setCommunications(list);
       return list;
     } catch (e) {
@@ -443,9 +444,9 @@ export default function AdminDashboard() {
     } finally {
       setCommunicationLoading(false);
     }
-  };
+  }, []);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     setOwners([]);
     setTenants([]);
@@ -530,7 +531,7 @@ export default function AdminDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [loadProperties, loadCommunications]);
 
   useEffect(() => {
     // Only redirect if role exists but is NOT admin
@@ -540,7 +541,7 @@ export default function AdminDashboard() {
       return;
     }
     if (role) loadData();
-  }, [role, nav]);
+  }, [role, nav, loadData]);
 
   const ownerPropertyCountMap = useMemo(() => {
     const map = {};
@@ -635,52 +636,55 @@ export default function AdminDashboard() {
     return [];
   }, [activeTab, owners, tenants, providers, properties, communications]);
 
-  const handleOwnerPropertyDetails = async (owner) => {
-    const ownerId = getUserId(owner);
-    setSelectedOwner(owner);
-    setSelectedProperty(null);
-    setOwnerDetailsLoading(true);
+  const handleOwnerPropertyDetails = useCallback(
+    async (owner) => {
+      const ownerId = getUserId(owner);
+      setSelectedOwner(owner);
+      setSelectedProperty(null);
+      setOwnerDetailsLoading(true);
 
-    try {
-      const details = await getFirstWorking([
-        `admin/owners/${ownerId}/properties/`,
-        `admin/owners/${ownerId}/properties`,
-        `admin/owner/${ownerId}/properties/`,
-        `admin/owner/${ownerId}/properties`,
-        `owners/${ownerId}/properties/`,
-        `owners/${ownerId}/properties`,
-      ]);
+      try {
+        const details = await getFirstWorking([
+          `admin/owners/${ownerId}/properties/`,
+          `admin/owners/${ownerId}/properties`,
+          `admin/owner/${ownerId}/properties/`,
+          `admin/owner/${ownerId}/properties`,
+          `owners/${ownerId}/properties/`,
+          `owners/${ownerId}/properties`,
+        ]);
 
-      const list = safeArr(details);
-      if (list.length > 0) {
-        setSelectedOwnerProperties(list);
-      } else {
+        const list = safeArr(details);
+        if (list.length > 0) {
+          setSelectedOwnerProperties(list);
+        } else {
+          const fallback = properties.filter((p) => getPropertyOwnerId(p) === ownerId);
+          setSelectedOwnerProperties(fallback);
+        }
+      } catch (e) {
         const fallback = properties.filter((p) => getPropertyOwnerId(p) === ownerId);
         setSelectedOwnerProperties(fallback);
+      } finally {
+        setOwnerDetailsLoading(false);
       }
-    } catch (e) {
-      const fallback = properties.filter((p) => getPropertyOwnerId(p) === ownerId);
-      setSelectedOwnerProperties(fallback);
-    } finally {
-      setOwnerDetailsLoading(false);
-    }
-  };
+    },
+    [properties]
+  );
 
-  const openAllListings = async () => {
+  const openAllListings = useCallback(async () => {
     setSelectedOwner(null);
     setSelectedOwnerProperties([]);
     setSelectedProperty(null);
     setActiveTab("properties");
     await loadProperties();
-  };
+  }, [loadProperties]);
 
-  const openCommunications = async () => {
+  const openCommunications = useCallback(async () => {
     setSelectedOwner(null);
     setSelectedOwnerProperties([]);
     setSelectedProperty(null);
     setActiveTab("communications");
     await loadCommunications();
-  };
+  }, [loadCommunications]);
 
   const openPropertyDetails = (property) => {
     setSelectedOwner(null);
@@ -867,7 +871,7 @@ export default function AdminDashboard() {
   );
 
   const renderCommunicationCards = () => (
-    <div className="space-y-5">
+    <div className="space-y-5 h-[650px] overflow-y-auto pr-3 custom-scrollbar">
       {communicationLoading ? (
         <div className="py-12 flex justify-center">
           <RefreshCw className="w-8 h-8 text-blue-500 animate-spin" />
@@ -932,20 +936,19 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
-                <div className="lg:w-[220px]">
+                <div className="lg:w-[320px]">
                   <div
-                    className={`rounded-[20px] border p-4 ${
+                    className={`rounded-[22px] border p-5 h-full flex flex-col ${
                       isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-white"
                     }`}
                   >
-                    <div className={`text-[11px] uppercase tracking-[0.18em] font-black ${mutedText}`}>
-                      Communication List
+                    <div className={`text-[10px] uppercase tracking-[0.18em] font-black ${mutedText} mb-3`}>
+                      Last Transmission Content
                     </div>
-                    <div className={`mt-2 text-base font-black ${headerText}`}>
-                      Users only
-                    </div>
-                    <div className={`mt-2 text-sm ${mutedText}`}>
-                      This section only shows who is communicating, not their message text.
+                    <div className="flex-1 overflow-y-auto max-h-[120px] pr-2 custom-scrollbar">
+                      <p className={`text-sm leading-relaxed font-medium italic ${headerText}`}>
+                        "{c.last_message || "No message content available."}"
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -1410,7 +1413,7 @@ export default function AdminDashboard() {
       right={
         <div className="flex items-center gap-3">
           <button
-            onClick={() => nav("/admin/dashboard")}
+            onClick={() => nav("/admin")}
             className="px-5 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm flex items-center gap-2 shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all"
           >
             <LayoutDashboard className="w-4 h-4" />

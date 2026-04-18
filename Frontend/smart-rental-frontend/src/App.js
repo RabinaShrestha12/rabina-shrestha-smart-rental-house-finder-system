@@ -36,6 +36,7 @@ import RoommateFinder from "./pages/tenant/RoommateFinder";
 import RoommateRequests from "./pages/tenant/RoommateRequests";
 import TenantAISearch from "./pages/tenant/TenantAISearch";
 import TenantBookingPayments from "./pages/tenant/TenantBookingPayments";
+import TenantContractPage from "./pages/tenant/TenantContractPage";
 import TenantEsewaPay from "./pages/tenant/TenantEsewaPay";
 import TenantExpenseTracker from "./pages/tenant/TenantExpenseTracker";
 import TenantInbox from "./pages/tenant/TenantInbox";
@@ -43,6 +44,7 @@ import TenantMaintenance from "./pages/tenant/TenantMaintenance";
 import VirtualFurniturePage from "./pages/tenant/VirtualFurniturePage";
 
 // OWNER PAGES
+import OwnerAddListing from "./pages/owner/OwnerAddListing";
 import OwnerBookingPayments from "./pages/owner/OwnerBookingPayments";
 import OwnerContractPage from "./pages/owner/OwnerContractPage";
 import OwnerListingDetail from "./pages/owner/OwnerListingDetail";
@@ -51,6 +53,7 @@ import OwnerMaintenance from "./pages/owner/OwnerMaintenance";
 import OwnerMessages from "./pages/owner/OwnerMessages";
 import OwnerMyProperties from "./pages/owner/OwnerMyProperties";
 import OwnerProviderChat from "./pages/owner/OwnerProviderChat";
+import OwnerRentalContractsPage from "./pages/owner/OwnerRentalContractsPage";
 
 // PROVIDER PAGES
 import ProviderChat from "./pages/provider/ProviderChat";
@@ -63,8 +66,7 @@ import AdminBookingPayments from "./pages/admin/AdminBookingPayments";
 import Furnitures from "./pages/admin/Furnitures";
 import EmailBroadcast from "./pages/dashboard/EmailBroadcast";
 
-// OWNER / TENANT
-import OwnerAddListing from "./pages/home/OwnerAddListing";
+// TENANT BOOK PAGE
 import TenantBookPage from "./pages/home/TenantBookPage";
 
 // TOOLS
@@ -190,11 +192,31 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
+        {/* OWNER WEBSITE AGREEMENT */}
         <Route
           path="/owner/contract"
           element={
             <ProtectedRoute allowRoles={["owner"]}>
               <OwnerContractPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* OWNER ↔ TENANT RENTAL CONTRACTS */}
+        <Route
+          path="/owner/contracts"
+          element={
+            <ProtectedRoute allowRoles={["owner"]}>
+              <OwnerRentalContractsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/owner/contracts/:id"
+          element={
+            <ProtectedRoute allowRoles={["owner"]}>
+              <OwnerRentalContractsPage />
             </ProtectedRoute>
           }
         />
@@ -349,6 +371,24 @@ export default function App() {
           element={
             <ProtectedRoute allowRoles={["tenant"]}>
               <TenantExpenseTracker />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* TENANT RENTAL CONTRACTS */}
+        <Route
+          path="/tenant/contracts"
+          element={
+            <ProtectedRoute allowRoles={["tenant"]}>
+              <TenantContractPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/tenant/contracts/:id"
+          element={
+            <ProtectedRoute allowRoles={["tenant"]}>
+              <TenantContractPage />
             </ProtectedRoute>
           }
         />

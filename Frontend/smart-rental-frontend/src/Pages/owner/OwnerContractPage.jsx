@@ -1,13 +1,105 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Shell from "../../components/Shell";
 import { useTheme } from "../../components/ThemeContext";
-import { ArrowLeft, LayoutDashboard, BadgeCheck } from "lucide-react";
+import Toast from "../../components/Toast";
+import api from "../../api/axios";
+import {
+  ArrowLeft,
+  LayoutDashboard,
+  BadgeCheck,
+  CheckCircle2,
+  XCircle,
+  FileText,
+  RefreshCw,
+} from "lucide-react";
 
 export default function OwnerContractPage() {
   const navigate = useNavigate();
   const { theme } = useTheme();
   const isDark = theme === "dark";
+
+  // change this if your add property route is different
+  const ADD_PROPERTY_ROUTE = "/owner/add-property";
+
+  const [agreement, setAgreement] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [working, setWorking] = useState(false);
+  const [toast, setToast] = useState({ type: "info", msg: "" });
+
+  const parseApiError = (err, fallback) => {
+    const data = err?.response?.data;
+    if (!data) return fallback;
+    if (typeof data === "string") return data;
+    if (data.detail) return data.detail;
+
+    const firstKey = Object.keys(data)[0];
+    if (firstKey) {
+      const value = data[firstKey];
+      if (Array.isArray(value) && value.length) return value[0];
+      if (typeof value === "string") return value;
+    }
+
+    return fallback;
+  };
+
+  const loadAgreement = async () => {
+    setLoading(true);
+    try {
+      const res = await api.get("owner/platform-agreement/");
+      setAgreement(res.data);
+    } catch (err) {
+      setToast({
+        type: "error",
+        msg: parseApiError(err, "Failed to load agreement."),
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadAgreement();
+  }, []);
+
+  const respondToAgreement = async (action) => {
+    setWorking(true);
+    try {
+      const res = await api.post("owner/platform-agreement/respond/", { action });
+      setAgreement(res.data);
+
+      setToast({
+        type: "success",
+        msg:
+          action === "accept"
+            ? "Agreement accepted successfully. You can now add property."
+            : "Agreement rejected successfully.",
+      });
+    } catch (err) {
+      setToast({
+        type: "error",
+        msg: parseApiError(err, "Failed to update agreement."),
+      });
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  const accepted = agreement?.status === "accepted";
+  const rejected = agreement?.status === "rejected";
+  const pending = !agreement || agreement?.status === "pending";
+
+  const badgeClass = accepted
+    ? isDark
+      ? "border border-emerald-400/30 bg-emerald-500/10 text-emerald-300"
+      : "border border-emerald-200 bg-emerald-50 text-emerald-700"
+    : rejected
+    ? isDark
+      ? "border border-red-400/30 bg-red-500/10 text-red-300"
+      : "border border-red-200 bg-red-50 text-red-700"
+    : isDark
+    ? "border border-amber-400/30 bg-amber-500/10 text-amber-300"
+    : "border border-amber-200 bg-amber-50 text-amber-700";
 
   return (
     <Shell title="Owner Contract">
@@ -52,6 +144,25 @@ export default function OwnerContractPage() {
                       Please read this agreement carefully before listing your
                       property on our platform.
                     </p>
+
+                    <div className="mt-4 flex flex-wrap items-center gap-3">
+                      <span
+                        className={`rounded-full px-4 py-2 text-xs font-bold ${badgeClass}`}
+                      >
+                        Status: {agreement?.status || "loading"}
+                      </span>
+
+                      {agreement?.accepted_at ? (
+                        <span
+                          className={`text-xs ${
+                            isDark ? "text-slate-300" : "text-slate-600"
+                          }`}
+                        >
+                          Accepted at:{" "}
+                          {new Date(agreement.accepted_at).toLocaleString()}
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
 
                   <div className="flex flex-wrap items-center gap-3">
@@ -68,6 +179,18 @@ export default function OwnerContractPage() {
                     </button>
 
                     <button
+                      onClick={loadAgreement}
+                      className={`inline-flex items-center justify-center gap-2 rounded-full px-6 py-3 text-sm font-bold transition ${
+                        isDark
+                          ? "border border-white/10 bg-white/5 text-slate-200 hover:bg-white/10"
+                          : "border border-slate-200 bg-slate-50 text-slate-700 hover:bg-white"
+                      }`}
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                      Refresh
+                    </button>
+
+                    <button
                       onClick={() => navigate(-1)}
                       className={`inline-flex items-center justify-center gap-2 rounded-full px-6 py-3 text-sm font-bold transition ${
                         isDark
@@ -80,6 +203,18 @@ export default function OwnerContractPage() {
                     </button>
                   </div>
                 </div>
+
+                {loading ? (
+                  <div
+                    className={`mb-8 rounded-3xl border p-6 ${
+                      isDark
+                        ? "border-white/10 bg-white/5 text-slate-300"
+                        : "border-slate-200 bg-slate-50 text-slate-700"
+                    }`}
+                  >
+                    Loading agreement...
+                  </div>
+                ) : null}
 
                 <div className="space-y-10">
                   <section>
@@ -219,19 +354,10 @@ export default function OwnerContractPage() {
                         isDark ? "text-slate-300" : "text-slate-700"
                       }`}
                     >
-                      <li>
-                        • It creates transparency between the platform and the
-                        owner.
-                      </li>
-                      <li>
-                        • It clearly explains the first-payment commission rule.
-                      </li>
-                      <li>
-                        • It prevents confusion about future tenant payments.
-                      </li>
-                      <li>
-                        • It helps both owners and the platform work fairly.
-                      </li>
+                      <li>• It creates transparency between the platform and the owner.</li>
+                      <li>• It clearly explains the first-payment commission rule.</li>
+                      <li>• It prevents confusion about future tenant payments.</li>
+                      <li>• It helps both owners and the platform work fairly.</li>
                     </ul>
                   </section>
 
@@ -255,10 +381,124 @@ export default function OwnerContractPage() {
                     </ul>
                   </section>
                 </div>
+
+                <div
+                  className={`mt-10 rounded-[26px] border p-6 ${
+                    isDark
+                      ? "border-white/10 bg-white/5"
+                      : "border-slate-200 bg-slate-50"
+                  }`}
+                >
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="flex items-start gap-3">
+                      <div
+                        className={`mt-1 flex h-12 w-12 items-center justify-center rounded-2xl ${
+                          isDark ? "bg-white/10" : "bg-white"
+                        }`}
+                      >
+                        <FileText
+                          className={`h-5 w-5 ${
+                            isDark ? "text-slate-200" : "text-slate-700"
+                          }`}
+                        />
+                      </div>
+
+                      <div>
+                        <h3
+                          className={`text-lg font-black ${
+                            isDark ? "text-white" : "text-slate-900"
+                          }`}
+                        >
+                          Agreement Action
+                        </h3>
+
+                        <p
+                          className={`mt-1 text-sm ${
+                            isDark ? "text-slate-300" : "text-slate-600"
+                          }`}
+                        >
+                          Accept once. After that, you can add many properties without accepting again.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-3">
+                      {!accepted ? (
+                        <>
+                          <button
+                            onClick={() => respondToAgreement("accept")}
+                            disabled={working}
+                            className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-6 py-3 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:opacity-60"
+                          >
+                            <CheckCircle2 className="h-4 w-4" />
+                            {working ? "Saving..." : "Accept Agreement"}
+                          </button>
+
+                          <button
+                            onClick={() => respondToAgreement("reject")}
+                            disabled={working}
+                            className="inline-flex items-center gap-2 rounded-full bg-red-600 px-6 py-3 text-sm font-bold text-white transition hover:bg-red-700 disabled:opacity-60"
+                          >
+                            <XCircle className="h-4 w-4" />
+                            Reject
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => navigate(ADD_PROPERTY_ROUTE)}
+                          className="inline-flex items-center gap-2 rounded-full bg-sky-600 px-6 py-3 text-sm font-bold text-white transition hover:bg-sky-700"
+                        >
+                          <BadgeCheck className="h-4 w-4" />
+                          Continue to Add Property
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {accepted ? (
+                    <div
+                      className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${
+                        isDark
+                          ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-200"
+                          : "border-emerald-200 bg-emerald-50 text-emerald-700"
+                      }`}
+                    >
+                      Agreement accepted once. Now this owner can add many properties.
+                    </div>
+                  ) : pending ? (
+                    <div
+                      className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${
+                        isDark
+                          ? "border-amber-400/20 bg-amber-500/10 text-amber-200"
+                          : "border-amber-200 bg-amber-50 text-amber-700"
+                      }`}
+                    >
+                      Please accept the agreement first. Without acceptance, property add will be blocked.
+                    </div>
+                  ) : rejected ? (
+                    <div
+                      className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${
+                        isDark
+                          ? "border-red-400/20 bg-red-500/10 text-red-200"
+                          : "border-red-200 bg-red-50 text-red-700"
+                      }`}
+                    >
+                      Agreement is rejected. Accept it when you want to add a property.
+                    </div>
+                  ) : null}
+                </div>
               </div>
             </div>
           </div>
         </div>
+
+        {toast.msg ? (
+          <Toast
+            type={toast.type}
+            message={toast.msg}
+            onClose={() => setToast({ type: "info", msg: "" })}
+          />
+        ) : null}
       </div>
     </Shell>
   );

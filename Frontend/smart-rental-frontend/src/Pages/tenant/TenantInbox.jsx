@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import api from "../../api/axios";
 import { useAuth } from "../../auth/AuthContext";
 import Shell from "../../components/Shell";
@@ -45,6 +45,7 @@ export default function TenantInbox() {
   const isDark = theme === "dark";
 
   const nav = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const fileInputRef = useRef(null);
   const textareaRef = useRef(null);
@@ -53,7 +54,9 @@ export default function TenantInbox() {
   const [toast, setToast] = useState({ type: "info", msg: "" });
 
   const [loading, setLoading] = useState(true);
+  const [contractsLoading, setContractsLoading] = useState(false);
   const [requests, setRequests] = useState([]);
+  const [contracts, setContracts] = useState([]);
 
   const [active, setActive] = useState(null);
   const [chatLoading, setChatLoading] = useState(false);
@@ -111,6 +114,16 @@ export default function TenantInbox() {
   }, [role, isAuthed, nav]);
 
   useEffect(() => {
+    if (location.state?.toast?.msg) {
+      setToast(location.state.toast);
+      nav(`${location.pathname}${location.search}`, {
+        replace: true,
+        state: {},
+      });
+    }
+  }, [location.state, location.pathname, location.search, nav]);
+
+  useEffect(() => {
     return () => {
       if (previewUrl) URL.revokeObjectURL(previewUrl);
     };
@@ -134,10 +147,10 @@ export default function TenantInbox() {
   const getStatus = (b) =>
     normalizeStatus(
       b?.status ??
-      b?.state ??
-      b?.booking_status ??
-      b?.request_status ??
-      "pending"
+        b?.state ??
+        b?.booking_status ??
+        b?.request_status ??
+        "pending"
     );
 
   const getListingId = (b) =>
@@ -176,10 +189,37 @@ export default function TenantInbox() {
   const getFirstMessage = (b) =>
     b?.first_message || b?.message || b?.text || b?.latest_message || "";
 
+  const getContractForBooking = (b) => {
+    const bookingId = getBookingId(b);
+    if (!bookingId) return null;
+
+    return (
+      contracts.find((c) => String(c?.booking ?? "") === String(bookingId)) || null
+    );
+  };
+
+  const getContractId = (b) =>
+    b?.contract_id ?? b?.contract?.id ?? getContractForBooking(b)?.id ?? null;
+
+  const getContractStatus = (b) =>
+    normalizeStatus(
+      b?.contract_status ??
+        b?.contract?.status ??
+        getContractForBooking(b)?.status ??
+        ""
+    );
+
+  const getContractTitle = (b) =>
+    b?.contract_title ||
+    b?.contract?.contract_title ||
+    getContractForBooking(b)?.contract_title ||
+    "Rental Contract";
+
   const getPaymentAmount = (b) =>
     b?.payment_amount ??
     b?.advance_amount ??
     b?.booking_amount ??
+    getContractForBooking(b)?.rent_amount ??
     b?.listing?.rent ??
     b?.listing?.price ??
     "";
@@ -365,6 +405,25 @@ export default function TenantInbox() {
     }
   };
 
+  const loadContracts = async (opts = {}) => {
+    const { silent = false } = opts;
+
+    if (!silent) setContractsLoading(true);
+
+    try {
+      const res = await api.get("tenant/contracts/");
+      const list = arrify(res.data);
+      setContracts(list);
+    } catch (e) {
+      if (!silent) {
+        setToast({ type: "error", msg: axiosErr(e, "Failed to load contracts.") });
+      }
+      setContracts([]);
+    } finally {
+      if (!silent) setContractsLoading(false);
+    }
+  };
+
   const loadInbox = async (opts = {}) => {
     const { silent = false } = opts;
 
@@ -455,8 +514,12 @@ export default function TenantInbox() {
     }
   };
 
+  const loadAll = async (opts = {}) => {
+    await Promise.all([loadInbox(opts), loadContracts(opts)]);
+  };
+
   useEffect(() => {
-    loadInbox();
+    loadAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -473,6 +536,7 @@ export default function TenantInbox() {
   useEffect(() => {
     const interval = setInterval(() => {
       loadInbox({ silent: true });
+      loadContracts({ silent: true });
 
       const currentActiveId = getBookingId(active);
       if (currentActiveId) {
@@ -674,15 +738,31 @@ export default function TenantInbox() {
     nav(`/public/listings/${listingId}`);
   };
 
+  const openContract = () => {
+    const contractId = getContractId(active);
+    const bookingId = getBookingId(active);
+
+    if (!contractId) {
+      setToast({ type: "error", msg: "Contract not found for this booking." });
+      return;
+    }
+
+    const params = new URLSearchParams();
+    params.set("from", "inbox");
+    if (bookingId) {
+      params.set("booking", String(bookingId));
+    }
+
+    nav(`/tenant/contracts/${contractId}?${params.toString()}`);
+  };
+
   const activeId = getBookingId(active);
   const activeStatus = getStatus(active);
+  const activeContractId = getContractId(active);
+  const activeContractStatus = getContractStatus(active);
 
-  const canPay =
-    activeStatus === "accepted" ||
-    activeStatus === "approved" ||
-    activeStatus === "confirmed" ||
-    activeStatus === "payment_pending" ||
-    activeStatus === "awaiting_payment";
+  const canPay = activeContractStatus === "pending_owner";
+  const contractIsActive = activeContractStatus === "active";
 
   const filteredRequests = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -752,7 +832,7 @@ export default function TenantInbox() {
   return (
     <Shell
       title="My Inbox"
-      subtitle="See owner replies, track booking status, and continue conversation here."
+      subtitle="See owner replies, track booking status, review contracts, and continue conversation here."
       right={
         <div className="flex flex-wrap gap-2">
           <button
@@ -764,7 +844,7 @@ export default function TenantInbox() {
           </button>
 
           <button
-            onClick={() => loadInbox()}
+            onClick={() => loadAll()}
             type="button"
             className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${colors.button}`}
           >
@@ -799,6 +879,10 @@ export default function TenantInbox() {
               Inbox {totalUnread > 0 ? `(${totalUnread})` : ""}
             </div>
           </div>
+
+          {contractsLoading ? (
+            <div className={`mb-3 text-xs ${colors.muted2}`}>Syncing contracts…</div>
+          ) : null}
 
           <div className="grid gap-3">
             <input
@@ -851,12 +935,13 @@ export default function TenantInbox() {
                       }
                     }}
                     type="button"
-                    className={`w-full rounded-2xl border px-3 py-3 text-left transition ${isActive
+                    className={`w-full rounded-2xl border px-3 py-3 text-left transition ${
+                      isActive
                         ? isDark
                           ? "border border-sky-400/40 bg-[#1a4775] shadow-sm text-white"
                           : "border border-blue-300 bg-blue-50 shadow-sm text-slate-900"
                         : colors.softCard
-                      }`}
+                    }`}
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="line-clamp-1 text-sm font-semibold">
@@ -881,7 +966,11 @@ export default function TenantInbox() {
                       📍 {getListingAddress(b)}
                     </div>
 
-                    <div className={`mt-2 line-clamp-2 text-xs ${isDark ? "text-slate-100" : "text-slate-700"}`}>
+                    <div
+                      className={`mt-2 line-clamp-2 text-xs ${
+                        isDark ? "text-slate-100" : "text-slate-700"
+                      }`}
+                    >
                       {getFirstMessage(b) || "—"}
                     </div>
 
@@ -940,7 +1029,59 @@ export default function TenantInbox() {
                 </div>
               </div>
 
-              {canPay && (
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  onClick={openProperty}
+                  type="button"
+                  className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${colors.button}`}
+                >
+                  View Property
+                </button>
+
+                {activeContractId ? (
+                  <button
+                    onClick={openContract}
+                    type="button"
+                    className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${colors.button}`}
+                  >
+                    Contract
+                  </button>
+                ) : null}
+
+                {canPay ? (
+                  <button
+                    onClick={openPayment}
+                    type="button"
+                    className="rounded-2xl border border-emerald-300 bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-700"
+                  >
+                    Pay Now
+                  </button>
+                ) : null}
+              </div>
+
+              {activeContractId && !canPay && !contractIsActive ? (
+                <div
+                  className={
+                    isDark
+                      ? "mt-4 rounded-2xl border border-amber-400/25 bg-amber-500/12 p-4"
+                      : "mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4"
+                  }
+                >
+                  <div className={`text-base font-semibold ${isDark ? "text-white" : "text-amber-800"}`}>
+                    Contract Review Required
+                  </div>
+
+                  <div className={`mt-1 text-sm ${isDark ? "text-slate-100" : "text-amber-700"}`}>
+                    Please open <strong>{getContractTitle(active)}</strong>, read it carefully, and accept it before payment.
+                  </div>
+
+                  <div className={`mt-2 text-xs ${colors.muted2}`}>
+                    Contract status: {activeContractStatus || "not available"}
+                  </div>
+                </div>
+              ) : null}
+
+              {contractIsActive ? (
                 <div
                   className={
                     isDark
@@ -949,46 +1090,30 @@ export default function TenantInbox() {
                   }
                 >
                   <div className={`text-base font-semibold ${isDark ? "text-white" : "text-emerald-800"}`}>
-                    Payment Available
+                    Agreement Active
                   </div>
 
                   <div className={`mt-1 text-sm ${isDark ? "text-slate-100" : "text-emerald-700"}`}>
-                    Your booking request has been accepted. You can now proceed to payment.
-                  </div>
-
-                  <div className={`mt-3 text-sm ${isDark ? "text-slate-100" : "text-slate-700"}`}>
-                    Amount: <span className="font-semibold">Rs {getPaymentAmount(active) || "Not set"}</span>
-                  </div>
-
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <button
-                      onClick={openPayment}
-                      type="button"
-                      className="rounded-2xl border border-emerald-300 bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-700"
-                    >
-                      Pay Now
-                    </button>
-
-                    <button
-                      onClick={openProperty}
-                      type="button"
-                      className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${colors.button}`}
-                    >
-                      View Property
-                    </button>
+                    This contract is already active. Payment for this agreement has already been completed.
                   </div>
                 </div>
-              )}
+              ) : null}
 
-              {!canPay && (
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <button
-                    onClick={openProperty}
-                    type="button"
-                    className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${colors.button}`}
-                  >
-                    View Property
-                  </button>
+              {!activeContractId && (
+                <div
+                  className={
+                    isDark
+                      ? "mt-4 rounded-2xl border border-slate-400/25 bg-slate-500/10 p-4"
+                      : "mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                  }
+                >
+                  <div className={`text-base font-semibold ${isDark ? "text-white" : "text-slate-800"}`}>
+                    Waiting for Contract
+                  </div>
+
+                  <div className={`mt-1 text-sm ${isDark ? "text-slate-100" : "text-slate-700"}`}>
+                    Once the owner creates the contract for this accepted booking, it will appear here. After you review and accept it, payment will unlock.
+                  </div>
                 </div>
               )}
 
@@ -1029,8 +1154,9 @@ export default function TenantInbox() {
                             className={`flex ${isMine ? "justify-end" : "justify-start"}`}
                           >
                             <div
-                              className={`max-w-[70%] rounded-2xl p-3 shadow-sm ${isMine ? colors.myMsg : colors.otherMsg
-                                }`}
+                              className={`max-w-[70%] rounded-2xl p-3 shadow-sm ${
+                                isMine ? colors.myMsg : colors.otherMsg
+                              }`}
                             >
                               <div className="flex items-center justify-between gap-3">
                                 <div className={`text-xs font-semibold ${isDark ? "text-slate-100" : "text-slate-800"}`}>
@@ -1046,8 +1172,9 @@ export default function TenantInbox() {
                                   <img
                                     src={imageUrl}
                                     alt="chat upload"
-                                    className={`max-w-[220px] rounded-2xl border ${isDark ? "border-[#5077a1]" : "border-slate-200"
-                                      }`}
+                                    className={`max-w-[220px] rounded-2xl border ${
+                                      isDark ? "border-[#5077a1]" : "border-slate-200"
+                                    }`}
                                     onError={(e) => {
                                       console.log("TenantInbox image failed:", imageUrl, m);
                                       e.currentTarget.style.display = "none";
@@ -1150,8 +1277,9 @@ export default function TenantInbox() {
                       <img
                         src={previewUrl}
                         alt="preview"
-                        className={`max-w-[180px] rounded-2xl border ${isDark ? "border-[#5077a1]" : "border-slate-200"
-                          }`}
+                        className={`max-w-[180px] rounded-2xl border ${
+                          isDark ? "border-[#5077a1]" : "border-slate-200"
+                        }`}
                       />
                       <div className="mt-2">
                         <button

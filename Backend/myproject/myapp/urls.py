@@ -118,6 +118,22 @@ from .view.admin_dashboard_views import (
     admin_all_communications,
 )
 from myapp.view.contact_views import public_contact_create, admin_contact_messages
+
+from myapp.view.contract_views import (
+    OwnerContractListView,
+    OwnerContractDetailView,
+    OwnerSendContractView,
+    OwnerFinalizeContractView,
+    TenantContractListView,
+    TenantContractDetailView,
+    TenantRespondContractView,
+)
+from .view.owner_agreement_views import (
+    OwnerPlatformAgreementView,
+    OwnerPlatformAgreementRespondView,
+)
+
+
 urlpatterns = [
     path("register_user/", register_user),
     path("verify-otp/", verify_otp),
@@ -209,9 +225,7 @@ urlpatterns = [
     path("owner/listings/<int:listing_id>/facilities/add/", owner_add_facility),
     path("owner/facilities/<int:facility_id>/delete/", owner_delete_facility),
 
-    # =========================
     # OWNER ↔ PROVIDER MAINTENANCE CHAT
-    # =========================
     path("owner/maintenance/<int:req_id>/messages/", owner_get_maintenance_messages),
     path("owner/maintenance/<int:req_id>/messages/send/", owner_send_maintenance_message),
     path("owner/maintenance/messages/<int:message_id>/update/", owner_update_maintenance_message),
@@ -223,14 +237,10 @@ urlpatterns = [
     path("provider/maintenance/messages/<int:message_id>/update/", provider_update_job_message),
     path("provider/maintenance/messages/<int:message_id>/delete/", provider_delete_job_message),
 
-    # =========================
     # AI
-    # =========================
     path("tenant/ai/suggest/", tenant_ai_suggest_nearby),
 
-    # =========================
     # ROOMMATE FINDER
-    # =========================
     path("tenant/roommates/profile/", roommate_my_profile),
     path("tenant/roommates/matches/", roommate_matches),
     path("tenant/roommates/request/send/", roommate_send_request),
@@ -291,4 +301,17 @@ urlpatterns = [
 
     path("public/contact/", public_contact_create, name="public_contact_create"),
     path("admin/contact-messages/", admin_contact_messages, name="admin_contact_messages"),
+
+     path("owner/contracts/", OwnerContractListView.as_view(), name="owner-contract-list"),
+    path("owner/contracts/<int:pk>/", OwnerContractDetailView.as_view(), name="owner-contract-detail"),
+    path("owner/contracts/<int:pk>/send/", OwnerSendContractView.as_view(), name="owner-send-contract"),
+    path("owner/contracts/<int:pk>/finalize/", OwnerFinalizeContractView.as_view(), name="owner-finalize-contract"),
+
+    path("tenant/contracts/", TenantContractListView.as_view(), name="tenant-contract-list"),
+    path("tenant/contracts/<int:pk>/", TenantContractDetailView.as_view(), name="tenant-contract-detail"),
+    path("tenant/contracts/<int:pk>/respond/", TenantRespondContractView.as_view(), name="tenant-respond-contract"),
+
+    path("owner/platform-agreement/", OwnerPlatformAgreementView.as_view(), name="owner-platform-agreement"),
+    path("owner/platform-agreement/respond/", OwnerPlatformAgreementRespondView.as_view(), name="owner-platform-agreement-respond"),
+
 ]

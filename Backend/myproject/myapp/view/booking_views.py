@@ -6,7 +6,13 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 
-from myapp.models import Listing, BookingRequest, BookingMessage, Notification
+from myapp.models import (
+    Listing,
+    BookingRequest,
+    BookingMessage,
+    Notification,
+    RentalContract,
+)
 from myapp.serializers import (
     BookingRequestCreateSerializer,
     BookingRequestListSerializer,
@@ -91,6 +97,214 @@ def _set_text_on_message(msg, value):
         msg.message = value
         return "message"
     return None
+
+
+def _create_booking_thread_message(booking, sender, text, image=None):
+    try:
+        return BookingMessage.objects.create(
+            request=booking,
+            sender=sender,
+            text=text,
+            image=image,
+        )
+    except TypeError:
+        try:
+            return BookingMessage.objects.create(
+                booking=booking,
+                sender=sender,
+                text=text,
+                image=image,
+            )
+        except TypeError:
+            return BookingMessage.objects.create(
+                booking=booking,
+                sender=sender,
+                message=text,
+                image=image,
+            )
+
+
+# =========================
+# CONTRACT HELPERS
+# =========================
+def _get_user_display_name(user):
+    try:
+        full_name = user.get_full_name()
+        if full_name:
+            return full_name
+    except Exception:
+        pass
+
+    for attr in ["full_name", "name", "username", "email"]:
+        value = getattr(user, attr, "")
+        if value:
+            return str(value)
+
+    return "User"
+
+
+def _get_listing_title(listing):
+    return (
+        getattr(listing, "title", None)
+        or getattr(listing, "property_name", None)
+        or getattr(listing, "name", None)
+        or f"Listing #{listing.id}"
+    )
+
+
+def _get_listing_address(listing):
+    return (
+        getattr(listing, "address", None)
+        or getattr(listing, "location", None)
+        or getattr(listing, "city", None)
+        or "N/A"
+    )
+
+
+def _get_listing_rent_amount(listing):
+    for attr in ["price_per_month", "price", "rent_price", "monthly_rent"]:
+        value = getattr(listing, attr, None)
+        if value is not None:
+            return value
+    return 0
+
+
+def build_contract_text(contract):
+    owner_name = _get_user_display_name(contract.owner)
+    tenant_name = _get_user_display_name(contract.tenant)
+    listing_title = _get_listing_title(contract.listing)
+    listing_address = _get_listing_address(contract.listing)
+
+    start_date = contract.start_date.isoformat() if contract.start_date else "Not set"
+    end_date = contract.end_date.isoformat() if contract.end_date else "Not set"
+
+    return f"""
+RENTAL AGREEMENT
+
+Contract Title:
+{contract.contract_title or f"Rental Contract - {listing_title}"}
+
+OWNER DETAILS
+Name: {owner_name}
+
+TENANT DETAILS
+Name: {tenant_name}
+
+PROPERTY DETAILS
+Property: {listing_title}
+Address: {listing_address}
+
+RENTAL TERMS
+Monthly Rent: {contract.rent_amount}
+Security Deposit: {contract.security_deposit}
+Payment Due Day: {contract.payment_due_day}
+Start Date: {start_date}
+End Date: {end_date}
+
+UTILITY TERMS
+{contract.utility_terms or "Utilities will be handled as agreed by both parties."}
+
+HOUSE RULES
+{contract.house_rules or "Tenant must maintain cleanliness, avoid damage, respect neighbours, and follow property rules."}
+
+SPECIAL TERMS
+{contract.special_terms or "No additional special terms."}
+
+SIGNING STATUS
+Owner Signed: {"Yes" if contract.owner_signed else "No"}
+Tenant Signed: {"Yes" if contract.tenant_signed else "No"}
+
+This agreement is digitally managed through the Smart Rental House Finder platform.
+""".strip()
+
+
+def _get_existing_contract_for_booking(booking):
+    try:
+        return booking.contract
+    except Exception:
+        return None
+
+
+def create_contract_for_accepted_booking(booking, owner_user):
+    """
+    When owner accepts a booking:
+    - create/reuse a contract
+    - move it to pending_tenant so tenant can review and agree
+    - generate contract preview text
+    """
+    listing = booking.listing
+    tenant = booking.tenant
+    rent_amount = _get_listing_rent_amount(listing)
+
+    contract, created = RentalContract.objects.get_or_create(
+        booking=booking,
+        defaults={
+            "listing": listing,
+            "owner": owner_user,
+            "tenant": tenant,
+            "contract_title": f"Rental Contract - {_get_listing_title(listing)}",
+            "rent_amount": rent_amount,
+            "security_deposit": 0,
+            "payment_due_day": 5,
+            "utility_terms": "Electricity, water, internet and other utility terms will be as agreed.",
+            "house_rules": "Tenant must maintain cleanliness, avoid damage, respect neighbours, and follow property rules.",
+            "special_terms": "",
+            "status": "pending_tenant",
+        },
+    )
+
+    if not created:
+        changed_fields = []
+
+        if contract.owner_id != owner_user.id:
+            contract.owner = owner_user
+            changed_fields.append("owner")
+
+        if contract.tenant_id != tenant.id:
+            contract.tenant = tenant
+            changed_fields.append("tenant")
+
+        if contract.listing_id != listing.id:
+            contract.listing = listing
+            changed_fields.append("listing")
+
+        if not contract.contract_title:
+            contract.contract_title = f"Rental Contract - {_get_listing_title(listing)}"
+            changed_fields.append("contract_title")
+
+        if not contract.rent_amount:
+            contract.rent_amount = rent_amount
+            changed_fields.append("rent_amount")
+
+        # Reopen editable states for tenant agreement
+        reopen_states = ["rejected", "cancelled", "expired", "draft", "pending_tenant"]
+        if str(contract.status).lower() in reopen_states:
+            contract.status = "pending_tenant"
+            changed_fields.append("status")
+
+            if getattr(contract, "tenant_signed", False):
+                contract.tenant_signed = False
+                changed_fields.append("tenant_signed")
+
+            if getattr(contract, "tenant_signed_at", None):
+                contract.tenant_signed_at = None
+                changed_fields.append("tenant_signed_at")
+
+            if getattr(contract, "owner_signed", False):
+                contract.owner_signed = False
+                changed_fields.append("owner_signed")
+
+            if getattr(contract, "owner_signed_at", None):
+                contract.owner_signed_at = None
+                changed_fields.append("owner_signed_at")
+
+        if changed_fields:
+            contract.save(update_fields=list(set(changed_fields + ["updated_at"])))
+
+    contract.generated_text = build_contract_text(contract)
+    contract.save(update_fields=["generated_text", "updated_at"])
+
+    return contract
 
 
 # =========================
@@ -197,12 +411,7 @@ def tenant_create_booking_request(request):
     owner = getattr(booking.listing, "owner", None)
     if owner:
         tenant_label = request.user.email or request.user.username or "A tenant"
-        listing_label = (
-            getattr(booking.listing, "title", None)
-            or getattr(booking.listing, "property_name", None)
-            or getattr(booking.listing, "name", None)
-            or f"Listing #{booking.listing.id}"
-        )
+        listing_label = _get_listing_title(booking.listing)
 
         _create_notification(
             user=owner,
@@ -337,37 +546,11 @@ def booking_send_message(request, booking_id):
             status=status.HTTP_403_FORBIDDEN,
         )
 
-    try:
-        msg = BookingMessage.objects.create(
-            request=booking,
-            sender=request.user,
-            text=text,
-            image=image,
-        )
-    except TypeError:
-        try:
-            msg = BookingMessage.objects.create(
-                booking=booking,
-                sender=request.user,
-                text=text,
-                image=image,
-            )
-        except TypeError:
-            msg = BookingMessage.objects.create(
-                booking=booking,
-                sender=request.user,
-                message=text,
-                image=image,
-            )
+    msg = _create_booking_thread_message(booking, request.user, text, image=image)
 
     receiver = booking.listing.owner if request.user.id == booking.tenant_id else booking.tenant
     sender_label = request.user.email or request.user.username or "Someone"
-    listing_label = (
-        getattr(booking.listing, "title", None)
-        or getattr(booking.listing, "property_name", None)
-        or getattr(booking.listing, "name", None)
-        or f"Listing #{booking.listing.id}"
-    )
+    listing_label = _get_listing_title(booking.listing)
 
     if receiver:
         _create_notification(
@@ -577,7 +760,7 @@ def booking_delete_message(request, message_id):
 # =========================
 # OWNER: Accept / Reject booking
 # POST /api/owner/booking-requests/<booking_id>/status/
-# body: { "status": "accepted" } or { "status": "rejected" }
+# body: { "status": "accepted" } or { "status": "rejected" } or { "status": "pending" }
 # =========================
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
@@ -623,6 +806,8 @@ def owner_set_booking_status(request, booking_id):
         )
 
     listing = booking.listing
+    contract = None
+    contract_link = ""
 
     with transaction.atomic():
         booking.status = new_status
@@ -634,28 +819,49 @@ def owner_set_booking_status(request, booking_id):
 
         booking.save(update_fields=update_fields)
 
-        # IMPORTANT:
-        # Always refresh listing state after booking status change.
-        # This fixes the issue where a previously booked listing stays booked
-        # even after the accepted booking gets rejected.
+        if booking.status == accepted_val:
+            contract = create_contract_for_accepted_booking(booking, request.user)
+            contract_link = f"/tenant/contracts/{contract.id}/"
+
+        elif booking.status == rejected_val:
+            existing_contract = _get_existing_contract_for_booking(booking)
+            if existing_contract and existing_contract.status != "active":
+                existing_contract.status = "rejected"
+                existing_contract.generated_text = build_contract_text(existing_contract)
+                existing_contract.save(update_fields=["status", "generated_text", "updated_at"])
+
+        elif booking.status == pending_val:
+            existing_contract = _get_existing_contract_for_booking(booking)
+            if existing_contract and existing_contract.status != "active":
+                existing_contract.status = "draft"
+                existing_contract.generated_text = build_contract_text(existing_contract)
+                existing_contract.save(update_fields=["status", "generated_text", "updated_at"])
+
         _refresh_listing_state_from_bookings(listing)
 
     tenant_user = booking.tenant
-    listing_label = (
-        getattr(listing, "title", None)
-        or getattr(listing, "property_name", None)
-        or getattr(listing, "name", None)
-        or f"Listing #{listing.id}"
-    )
+    listing_label = _get_listing_title(listing)
 
     if tenant_user:
         if booking.status == accepted_val:
+            notify_text = (
+                f"Your booking request for {listing_label} has been accepted. "
+                f"Please read the rental agreement and accept it before payment."
+            )
+
             _create_notification(
                 user=tenant_user,
-                title="Booking accepted",
-                message=f"Your booking request for {listing_label} has been accepted.",
-                link=f"/tenant/book/{listing.id}",
+                title="Booking accepted - review contract",
+                message=notify_text,
+                link=contract_link,
             )
+
+            _create_booking_thread_message(
+                booking=booking,
+                sender=request.user,
+                text=f"{notify_text} Contract link: {contract_link}",
+            )
+
         elif booking.status == rejected_val:
             _create_notification(
                 user=tenant_user,
@@ -663,11 +869,20 @@ def owner_set_booking_status(request, booking_id):
                 message=f"Your booking request for {listing_label} was rejected.",
                 link=f"/tenant/inbox?open={booking.id}",
             )
+
+            _create_booking_thread_message(
+                booking=booking,
+                sender=request.user,
+                text="Your booking request was rejected by the owner.",
+            )
+
         else:
             _create_notification(
                 user=tenant_user,
                 title="Booking request updated",
-                message=f"Your booking request for {listing_label} is now {booking.status}.",
+                message=(
+                    f"Your booking request for {listing_label} is now {booking.status}."
+                ),
                 link=f"/tenant/inbox?open={booking.id}",
             )
 
@@ -678,8 +893,16 @@ def owner_set_booking_status(request, booking_id):
             "listing_id": listing.id,
             "listing_is_available": getattr(listing, "is_available", None),
             "listing_status": getattr(listing, "status", None),
-            "payment_allowed": booking.status == accepted_val,
-            "payment_link": f"/tenant/book/{listing.id}" if booking.status == accepted_val else "",
+            "payment_allowed": False if booking.status == accepted_val else booking.status == pending_val,
+            "payment_link": "",
+            "contract_created": booking.status == accepted_val,
+            "contract_link": contract_link,
+            "action_required": "read_contract" if booking.status == accepted_val else "",
+            "detail": (
+                "Booking accepted. Tenant must review the contract before payment."
+                if booking.status == accepted_val
+                else "Booking status updated successfully."
+            ),
         },
         status=status.HTTP_200_OK,
     )
@@ -727,37 +950,11 @@ def create_message_legacy(request):
             status=status.HTTP_403_FORBIDDEN,
         )
 
-    try:
-        msg = BookingMessage.objects.create(
-            request=booking,
-            sender=request.user,
-            text=text,
-            image=image,
-        )
-    except TypeError:
-        try:
-            msg = BookingMessage.objects.create(
-                booking=booking,
-                sender=request.user,
-                text=text,
-                image=image,
-            )
-        except TypeError:
-            msg = BookingMessage.objects.create(
-                booking=booking,
-                sender=request.user,
-                message=text,
-                image=image,
-            )
+    msg = _create_booking_thread_message(booking, request.user, text, image=image)
 
     receiver = booking.listing.owner if request.user.id == booking.tenant_id else booking.tenant
     sender_label = request.user.email or request.user.username or "Someone"
-    listing_label = (
-        getattr(booking.listing, "title", None)
-        or getattr(booking.listing, "property_name", None)
-        or getattr(booking.listing, "name", None)
-        or f"Listing #{booking.listing.id}"
-    )
+    listing_label = _get_listing_title(booking.listing)
 
     if receiver:
         _create_notification(

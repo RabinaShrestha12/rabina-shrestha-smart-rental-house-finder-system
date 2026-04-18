@@ -5,22 +5,14 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
-from ...models import Listing
+from ...models import Listing, PropertyGalleryImage
 from ...serializers import ListingSerializer
-
-
-class IsOwnerRole(BasePermission):
-    def has_permission(self, request, view):
-        return bool(
-            request.user
-            and request.user.is_authenticated
-            and getattr(request.user, "role", "") == "owner"
-        )
+from ...permissions import IsOwnerRole, HasAcceptedPlatformAgreement
 
 
 class OwnerCreateListingView(generics.CreateAPIView):
     authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAuthenticated, IsOwnerRole]
+    permission_classes = [IsAuthenticated, IsOwnerRole, HasAcceptedPlatformAgreement]
     serializer_class = ListingSerializer
     parser_classes = [MultiPartParser, FormParser]
     queryset = Listing.objects.all()
@@ -50,4 +42,14 @@ class OwnerCreateListingView(generics.CreateAPIView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         self.perform_create(serializer)
+        listing = serializer.instance
+
+        # ✅ SAVE GALLERY IMAGES
+        gallery_files = request.FILES.getlist("gallery_images")
+        for image_file in gallery_files:
+            PropertyGalleryImage.objects.create(
+                listing=listing,
+                image=image_file,
+            )
+
         return Response(serializer.data, status=status.HTTP_201_CREATED)

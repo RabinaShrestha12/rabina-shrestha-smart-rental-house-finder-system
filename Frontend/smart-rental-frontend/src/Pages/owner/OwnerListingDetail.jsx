@@ -14,6 +14,9 @@ import {
   Zap,
   Wallet,
   Building2,
+  Maximize2,
+  X,
+  ImageIcon,
 } from "lucide-react";
 
 const BACKEND = "http://127.0.0.1:8000";
@@ -38,6 +41,7 @@ export default function OwnerListingDetail() {
   const [toast, setToast] = useState({ type: "info", msg: "" });
   const [row, setRow] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [selectedImg, setSelectedImg] = useState(null);
 
   useEffect(() => {
     (async () => {
@@ -267,11 +271,87 @@ export default function OwnerListingDetail() {
             </div>
           </div>
 
-          <div className="mt-6">
-            <div className={`${softCard} p-4`}>
-              <h3 className={`mb-4 text-lg font-black ${headingText}`}>Location Map</h3>
-              <ListingMapPanel listing={row} />
+          <div className="mt-8">
+            <h3 className={`flex items-center gap-3 text-xl font-black ${headingText}`}>
+              <ImageIcon className="h-6 w-6 text-blue-500" />
+              Space & Room Gallery
+            </h3>
+            
+            {row.gallery_images && row.gallery_images.length > 0 ? (
+              <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {row.gallery_images.map((img, idx) => (
+                  <div 
+                    key={img.id || idx} 
+                    className={`${softCard} group relative cursor-pointer overflow-hidden transition-all duration-500 hover:border-blue-500/30 hover:shadow-2xl hover:shadow-blue-500/10`}
+                    onClick={() => setSelectedImg(toImageSrc(img.image_url || img.image))}
+                  >
+                    <div className="absolute inset-0 z-10 hidden items-center justify-center bg-blue-600/20 opacity-0 backdrop-blur-[2px] transition-all duration-300 group-hover:flex group-hover:opacity-100">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-blue-600 shadow-xl">
+                        <Maximize2 className="h-6 w-6" />
+                      </div>
+                    </div>
+                    
+                    <img
+                      src={toImageSrc(img.image_url || img.image)}
+                      alt={`Space ${idx + 1}`}
+                      className="aspect-square w-full object-cover transition-transform duration-700 group-hover:scale-110"
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src = "/no-image.png";
+                      }}
+                    />
+                    <div className="absolute bottom-4 left-4 z-20">
+                      <div className="rounded-lg bg-black/60 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-white backdrop-blur-md border border-white/10">
+                        Space #{idx + 1}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className={`mt-6 rounded-[32px] border-2 border-dashed p-12 text-center transition-colors ${isDark ? "border-white/10 bg-white/5" : "border-slate-200 bg-slate-50"}`}>
+                <ImageIcon className={`mx-auto h-12 w-12 mb-4 ${isDark ? "text-slate-600" : "text-slate-300"}`} />
+                <p className={`text-sm font-bold uppercase tracking-widest ${mutedText}`}>No extra space images uploaded</p>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-8">
+            <div className={`${softCard} p-4 overflow-hidden`}>
+              <h3 className={`mb-6 flex items-center gap-3 text-lg font-black ${headingText}`}>
+                <MapPin className="h-5 w-5 text-red-500" />
+                Physical Location
+              </h3>
+              <div className="h-[350px] overflow-hidden rounded-[24px]">
+                <ListingMapPanel listing={row} />
+              </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lightbox Modal */}
+      {selectedImg && (
+        <div 
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/95 backdrop-blur-xl animate-in fade-in duration-300"
+          onClick={() => setSelectedImg(null)}
+        >
+          <button 
+            className="absolute right-8 top-8 z-[10000] flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10 text-white backdrop-blur-md transition-all hover:bg-white/20 hover:scale-110 active:scale-95 border border-white/10"
+            onClick={() => setSelectedImg(null)}
+          >
+            <X className="h-8 w-8" />
+          </button>
+          
+          <div 
+            className="relative max-h-[90vh] max-w-[95vw] overflow-hidden rounded-[40px] shadow-2xl shadow-blue-500/20 border border-white/10 animate-in zoom-in-95 duration-500"
+            onClick={e => e.stopPropagation()}
+          >
+            <img 
+              src={selectedImg} 
+              alt="Fullscreen Preview" 
+              className="max-h-[90vh] w-auto object-contain"
+            />
           </div>
         </div>
       )}

@@ -16,7 +16,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 
-from ..models import Listing, BookingPayment, Notification
+from ..models import Listing, BookingPayment, Notification, RentalContract, BookingRequest
 from ..serializers import BookingPaymentSerializer
 
 
@@ -49,7 +49,7 @@ def generate_esewa_signature(total_amount, transaction_uuid, product_code, secre
     digest = hmac.new(
         secret_key.encode("utf-8"),
         message.encode("utf-8"),
-        hashlib.sha256
+        hashlib.sha256,
     ).digest()
     return base64.b64encode(digest).decode("utf-8")
 
@@ -70,32 +70,34 @@ def to_money(value):
 
 def apply_payment_split(payment):
     """
-    Business rule:
-    - First COMPLETE payment for same tenant + same listing:
-      Admin gets 20%, Owner gets 80%
-    - Later COMPLETE payments for same tenant + same listing:
-      Admin gets 0%, Owner gets 100%
+    Tenant-owner only payment logic:
+    - Owner gets 100%
+    - Admin gets 0%
     """
-    previous_success_exists = BookingPayment.objects.filter(
-        tenant=payment.tenant,
-        listing=payment.listing,
-        payment_status__iexact="COMPLETE",
-    ).exclude(id=payment.id).exists()
-
     amount = to_money(payment.amount)
 
-    if not previous_success_exists:
-        payment.is_first_property_payment = True
-        payment.admin_share_percent = to_money("20.00")
-        payment.admin_share_amount = to_money(amount * Decimal("0.20"))
-        payment.owner_share_percent = to_money("80.00")
-        payment.owner_share_amount = to_money(amount * Decimal("0.80"))
-    else:
-        payment.is_first_property_payment = False
-        payment.admin_share_percent = to_money("0.00")
-        payment.admin_share_amount = to_money("0.00")
-        payment.owner_share_percent = to_money("100.00")
-        payment.owner_share_amount = amount
+    payment.is_first_property_payment = False
+    payment.admin_share_percent = to_money("0.00")
+    payment.admin_share_amount = to_money("0.00")
+    payment.owner_share_percent = to_money("100.00")
+    payment.owner_share_amount = amount
+
+
+def get_latest_contract_for_tenant_listing(tenant, listing):
+    return (
+        RentalContract.objects.filter(tenant=tenant, listing=listing)
+        .order_by("-updated_at", "-created_at")
+        .first()
+    )
+
+
+def has_owner_accepted_booking(tenant, listing):
+    accepted_statuses = ["accepted", "approved", "confirmed", "booked"]
+    return BookingRequest.objects.filter(
+        tenant=tenant,
+        listing=listing,
+        status__in=accepted_statuses,
+    ).exists()
 
 
 @api_view(["POST"])
@@ -104,23 +106,23 @@ def initiate_esewa_booking_payment(request):
     if not is_tenant(request.user):
         return Response(
             {"detail": "Only tenant can start eSewa payment."},
-            status=status.HTTP_403_FORBIDDEN
+            status=status.HTTP_403_FORBIDDEN,
         )
 
     listing_id = request.data.get("listing_id")
     amount = request.data.get("amount")
-    payment_month = request.data.get("payment_month", "").strip()
+    payment_month = str(request.data.get("payment_month", "")).strip()
 
     if not listing_id:
         return Response(
             {"detail": "listing_id is required."},
-            status=status.HTTP_400_BAD_REQUEST
+            status=status.HTTP_400_BAD_REQUEST,
         )
 
     if not amount:
         return Response(
             {"detail": "amount is required."},
-            status=status.HTTP_400_BAD_REQUEST
+            status=status.HTTP_400_BAD_REQUEST,
         )
 
     try:
@@ -128,13 +130,13 @@ def initiate_esewa_booking_payment(request):
     except Exception:
         return Response(
             {"detail": "Invalid amount."},
-            status=status.HTTP_400_BAD_REQUEST
+            status=status.HTTP_400_BAD_REQUEST,
         )
 
     if amount_decimal <= 0:
         return Response(
             {"detail": "Amount must be greater than zero."},
-            status=status.HTTP_400_BAD_REQUEST
+            status=status.HTTP_400_BAD_REQUEST,
         )
 
     try:
@@ -142,17 +144,43 @@ def initiate_esewa_booking_payment(request):
     except Listing.DoesNotExist:
         return Response(
             {"detail": "Listing not found."},
-            status=status.HTTP_404_NOT_FOUND
+            status=status.HTTP_404_NOT_FOUND,
         )
 
     owner = getattr(listing, "owner", None)
     if not owner:
         return Response(
             {"detail": "Listing owner not found."},
-            status=status.HTTP_400_BAD_REQUEST
+            status=status.HTTP_400_BAD_REQUEST,
         )
 
-    # Prevent duplicate successful payment for same tenant + same property + same month
+    # Owner must accept booking first
+    if not has_owner_accepted_booking(request.user, listing):
+        return Response(
+            {"detail": "Payment is only allowed after the owner accepts your booking request."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # Tenant must accept contract first
+    contract = get_latest_contract_for_tenant_listing(request.user, listing)
+    if not contract:
+        return Response(
+            {"detail": "No rental agreement found for this property yet."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if not contract.tenant_signed:
+        return Response(
+            {"detail": "Please accept the rental agreement before payment."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if str(contract.status).lower() != "pending_owner":
+        return Response(
+            {"detail": "Payment is only available after you accept the agreement."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
     if payment_month:
         already_paid_same_month = BookingPayment.objects.filter(
             tenant=request.user,
@@ -164,7 +192,7 @@ def initiate_esewa_booking_payment(request):
         if already_paid_same_month:
             return Response(
                 {"detail": f"Payment for {payment_month} is already completed for this property."},
-                status=status.HTTP_400_BAD_REQUEST
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
     transaction_uuid = str(uuid.uuid4())
@@ -226,7 +254,7 @@ def esewa_success(request):
     if not encoded_data:
         return Response(
             {"detail": "Missing transaction details."},
-            status=status.HTTP_400_BAD_REQUEST
+            status=status.HTTP_400_BAD_REQUEST,
         )
 
     decoded_data = decode_esewa_data(encoded_data)
@@ -234,7 +262,7 @@ def esewa_success(request):
     if not decoded_data:
         return Response(
             {"detail": "Invalid eSewa response data."},
-            status=status.HTTP_400_BAD_REQUEST
+            status=status.HTTP_400_BAD_REQUEST,
         )
 
     transaction_uuid = decoded_data.get("transaction_uuid")
@@ -248,7 +276,7 @@ def esewa_success(request):
                 "detail": "Missing transaction_uuid or total_amount in decoded eSewa data.",
                 "decoded_data": decoded_data,
             },
-            status=status.HTTP_400_BAD_REQUEST
+            status=status.HTTP_400_BAD_REQUEST,
         )
 
     status_url = (
@@ -264,7 +292,7 @@ def esewa_success(request):
     except Exception as e:
         return Response(
             {"detail": f"Status check failed: {str(e)}"},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
 
     try:
@@ -272,7 +300,7 @@ def esewa_success(request):
     except BookingPayment.DoesNotExist:
         return Response(
             {"detail": "Payment record not found."},
-            status=status.HTTP_404_NOT_FOUND
+            status=status.HTTP_404_NOT_FOUND,
         )
 
     final_status = str(
@@ -287,24 +315,34 @@ def esewa_success(request):
     payment.ref_id = status_data.get("ref_id") or transaction_code or ""
 
     if final_status == "COMPLETE":
-        # Safety: if same transaction is hit again, do not recalculate repeatedly
         if not payment.verified_at:
             apply_payment_split(payment)
             payment.verified_at = timezone.now()
-            
-            # --- CRITICAL: Once payment is complete, lock the listing ---
+
+            # Direct tenant-owner payment completed
+            payment.owner_payout_status = "paid"
+            payment.owner_payout_date = timezone.now()
+            payment.owner_payout_note = "Paid directly by tenant through eSewa."
+
+            # Activate the related contract now that tenant accepted + paid
+            contract = get_latest_contract_for_tenant_listing(payment.tenant, payment.listing)
+            if contract and contract.tenant_signed:
+                contract.owner_signed = True
+                if not contract.owner_signed_at:
+                    contract.owner_signed_at = timezone.now()
+                contract.status = "active"
+                contract.save(update_fields=["owner_signed", "owner_signed_at", "status", "updated_at"])
+
+            # Lock listing and reject others
             listing = payment.listing
             listing.mark_booked()
 
-            # Reject all other requests for this listing
-            from ..models import BookingRequest
             BookingRequest.objects.filter(listing=listing).exclude(
                 tenant=payment.tenant
             ).update(
                 status="rejected",
-                decided_at=timezone.now()
+                decided_at=timezone.now(),
             )
-            # -------------------------------------------------------------
 
             payment.save()
         else:
@@ -312,13 +350,13 @@ def esewa_success(request):
 
         create_notification(
             user=payment.tenant,
-            title="Booking payment successful",
+            title="Payment successful",
             message=(
                 f"Your payment of Rs. {payment.amount} for "
-                f"{getattr(payment.listing, 'title', 'property')} "
-                f"for {payment.payment_month or 'this period'} was successful."
+                f"{getattr(payment.listing, 'title', 'property')} was successful. "
+                f"Your agreement is now active."
             ),
-            link="/tenant/payment-success"
+            link="/tenant/contracts/",
         )
 
         create_notification(
@@ -326,31 +364,14 @@ def esewa_success(request):
             title="Tenant payment received",
             message=(
                 f"Tenant {getattr(payment.tenant, 'username', 'Tenant')} paid "
-                f"Rs. {payment.amount} for {getattr(payment.listing, 'title', 'your property')} "
-                f"for {payment.payment_month or 'this period'}. "
-                f"Owner share: Rs. {payment.owner_share_amount}."
+                f"Rs. {payment.amount} for {getattr(payment.listing, 'title', 'your property')}. "
+                f"The agreement is now active."
             ),
-            link="/owner/booking-payments/"
+            link="/owner/contracts/",
         )
-
-        admin_users = type(payment.tenant).objects.filter(role__iexact="admin")
-        for admin in admin_users:
-            create_notification(
-                user=admin,
-                title="Booking payment completed",
-                message=(
-                    f"Tenant {getattr(payment.tenant, 'username', 'Tenant')} paid "
-                    f"Rs. {payment.amount} for {getattr(payment.listing, 'title', 'property')} "
-                    f"for {payment.payment_month or 'this period'}. "
-                    f"Admin share: Rs. {payment.admin_share_amount}, "
-                    f"Owner share: Rs. {payment.owner_share_amount}."
-                ),
-                link="/admin/booking-payments/"
-            )
 
         return redirect("http://localhost:3000/tenant/payment-success")
 
-    # Do not mark verified_at for failed/pending
     payment.save(update_fields=["raw_response", "payment_status", "ref_id"])
     return redirect("http://localhost:3000/tenant/payment-failed")
 
@@ -366,7 +387,7 @@ def my_booking_payments(request):
     if not is_tenant(request.user):
         return Response(
             {"detail": "Only tenant can view booking payments."},
-            status=status.HTTP_403_FORBIDDEN
+            status=status.HTTP_403_FORBIDDEN,
         )
 
     qs = BookingPayment.objects.filter(tenant=request.user).order_by("-created_at")
@@ -380,7 +401,7 @@ def admin_booking_payments(request):
     if not is_admin(request.user):
         return Response(
             {"detail": "Only admin can view booking payments."},
-            status=status.HTTP_403_FORBIDDEN
+            status=status.HTTP_403_FORBIDDEN,
         )
 
     qs = BookingPayment.objects.all().order_by("-created_at")
@@ -394,7 +415,7 @@ def mark_owner_booking_paid(request, payment_id):
     if not is_admin(request.user):
         return Response(
             {"detail": "Only admin can mark owner payout."},
-            status=status.HTTP_403_FORBIDDEN
+            status=status.HTTP_403_FORBIDDEN,
         )
 
     try:
@@ -402,19 +423,19 @@ def mark_owner_booking_paid(request, payment_id):
     except BookingPayment.DoesNotExist:
         return Response(
             {"detail": "Booking payment not found."},
-            status=status.HTTP_404_NOT_FOUND
+            status=status.HTTP_404_NOT_FOUND,
         )
 
     if str(payment.payment_status).upper() != "COMPLETE":
         return Response(
             {"detail": "Owner payout can only be marked after payment is complete."},
-            status=status.HTTP_400_BAD_REQUEST
+            status=status.HTTP_400_BAD_REQUEST,
         )
 
     if str(payment.owner_payout_status).lower() == "paid":
         return Response(
             {"detail": "Owner payout is already marked as paid."},
-            status=status.HTTP_400_BAD_REQUEST
+            status=status.HTTP_400_BAD_REQUEST,
         )
 
     payment.owner_payout_status = "paid"
@@ -429,7 +450,7 @@ def mark_owner_booking_paid(request, payment_id):
             f"Your payout of Rs. {payment.owner_share_amount} for "
             f"{getattr(payment.listing, 'title', 'property')} has been sent."
         ),
-        link="/owner/booking-payments/"
+        link="/owner/booking-payments/",
     )
 
     return Response(BookingPaymentSerializer(payment).data, status=status.HTTP_200_OK)
@@ -441,7 +462,7 @@ def owner_booking_payments(request):
     if not is_owner(request.user):
         return Response(
             {"detail": "Only owner can view this."},
-            status=status.HTTP_403_FORBIDDEN
+            status=status.HTTP_403_FORBIDDEN,
         )
 
     qs = BookingPayment.objects.filter(owner=request.user).order_by("-created_at")

@@ -23,8 +23,6 @@ def owner_register(request):
     username = data.get("username")
     password = data.get("password")
     email = data.get("email")
-    phone = data.get("phone", "")
-    address = data.get("address", "")
 
     if not username or not password or not email:
         return Response(
@@ -33,19 +31,32 @@ def owner_register(request):
         )
 
     if User.objects.filter(username=username).exists():
-        return Response({"detail": "Username already exists."}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {"detail": "Username already exists."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
     if User.objects.filter(email=email).exists():
-        return Response({"detail": "Email already exists."}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {"detail": "Email already exists."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
-    # ✅ Create user (custom user model) and set role=owner
-    user = User.objects.create_user(username=username, password=password, email=email)
+    user = User.objects.create_user(
+        username=username,
+        password=password,
+        email=email,
+    )
+
     if hasattr(user, "role"):
         user.role = "owner"
         user.save(update_fields=["role"])
 
-    # ✅ Create owner profile (avoid duplicates)
-    Owner.objects.get_or_create(user=user, defaults={"phone": phone, "address": address})
+    # Owner model in your shared code has user + location only
+    Owner.objects.get_or_create(
+        user=user,
+        defaults={"location": ""},
+    )
 
     tokens = get_tokens_for_user(user)
     return Response(
@@ -63,37 +74,55 @@ def owner_login(request):
 
     user = authenticate(username=username, password=password)
     if user is None:
-        return Response({"detail": "Invalid username or password."}, status=status.HTTP_401_UNAUTHORIZED)
+        return Response(
+            {"detail": "Invalid username or password."},
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
 
-    # ✅ Ensure role is owner (best) OR owner profile exists (fallback)
     is_owner_role = getattr(user, "role", None) == "owner"
     has_owner_profile = Owner.objects.filter(user=user).exists()
 
     if not is_owner_role and not has_owner_profile:
-        return Response({"detail": "This account is not an owner."}, status=status.HTTP_403_FORBIDDEN)
+        return Response(
+            {"detail": "This account is not an owner."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
 
     tokens = get_tokens_for_user(user)
-    return Response({"detail": "Owner login success.", "tokens": tokens}, status=status.HTTP_200_OK)
+    return Response(
+        {"detail": "Owner login success.", "tokens": tokens},
+        status=status.HTTP_200_OK,
+    )
 
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def get_owner_profile(request):
-    # ✅ Load via DB (doesn't depend on related_name like owner_profile)
     profile = Owner.objects.filter(user=request.user).first()
     if not profile:
-        return Response({"detail": "Owner profile not found."}, status=status.HTTP_404_NOT_FOUND)
+        return Response(
+            {"detail": "Owner profile not found."},
+            status=status.HTTP_404_NOT_FOUND,
+        )
 
-    return Response(OwnerSerializer(profile).data, status=status.HTTP_200_OK)
+    return Response(
+        OwnerSerializer(profile).data,
+        status=status.HTTP_200_OK,
+    )
 
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def get_all_owners(request):
-    # ✅ Admin only (works even if not staff but role=admin)
     is_admin_role = getattr(request.user, "role", None) == "admin"
     if not request.user.is_staff and not is_admin_role:
-        return Response({"detail": "Admin only."}, status=status.HTTP_403_FORBIDDEN)
+        return Response(
+            {"detail": "Admin only."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
 
     owners = Owner.objects.all().order_by("-id")
-    return Response(OwnerSerializer(owners, many=True).data, status=status.HTTP_200_OK)
+    return Response(
+        OwnerSerializer(owners, many=True).data,
+        status=status.HTTP_200_OK,
+    )

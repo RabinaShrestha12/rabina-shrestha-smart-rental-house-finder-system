@@ -1,5 +1,3 @@
-# myapp/view/auth_views.py
-
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
 from rest_framework.decorators import api_view, permission_classes

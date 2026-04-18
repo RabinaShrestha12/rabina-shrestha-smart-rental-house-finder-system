@@ -4,7 +4,16 @@ import api from "../../api/axios";
 import Shell from "../../components/Shell";
 import Toast from "../../components/Toast";
 import { useTheme } from "../../components/ThemeContext";
-import { ArrowLeft, Save, Home } from "lucide-react";
+import { 
+  ArrowLeft, 
+  Save, 
+  Home, 
+  Plus, 
+  Trash2, 
+  ImageIcon, 
+  CheckCircle2,
+  X
+} from "lucide-react";
 
 export default function OwnerListingEdit() {
   const { id } = useParams();
@@ -27,6 +36,10 @@ export default function OwnerListingEdit() {
     owner_contact_email: "",
   });
 
+  const [existingGallery, setExistingGallery] = useState([]);
+  const [removedIds, setRemovedIds] = useState([]);
+  const [newSpaces, setNewSpaces] = useState([]);
+
   useEffect(() => {
     (async () => {
       try {
@@ -43,6 +56,7 @@ export default function OwnerListingEdit() {
           owner_contact_number: d.owner_contact_number || "",
           owner_contact_email: d.owner_contact_email || "",
         });
+        setExistingGallery(d.gallery_images || []);
       } catch {
         setToast({ type: "error", msg: "Failed to load property." });
       } finally {
@@ -58,9 +72,23 @@ export default function OwnerListingEdit() {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.patch(`/owner/my-listings/${id}/update/`, form);
+      const fd = new FormData();
+      Object.entries(form).forEach(([k, v]) => fd.append(k, v));
+      
+      // Removed IDs
+      removedIds.forEach(rid => fd.append("remove_gallery_image_ids", rid));
+      
+      // New Gallery Images
+      newSpaces.forEach(s => {
+        if (s.image) fd.append("gallery_images", s.image);
+      });
+
+      await api.patch(`/owner/my-listings/${id}/update/`, fd, {
+        headers: { "Content-Type": "multipart/form-data" }
+      });
+      
       setToast({ type: "success", msg: "Updated successfully." });
-      nav(`/owner/listing/${id}`);
+      setTimeout(() => nav(`/owner/listing/${id}`), 1000);
     } catch (err) {
       setToast({
         type: "error",
@@ -69,6 +97,23 @@ export default function OwnerListingEdit() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleAddSpace = () => {
+    setNewSpaces([...newSpaces, { id: Date.now(), image: null }]);
+  };
+
+  const handleRemoveSpace = (id) => {
+    setNewSpaces(newSpaces.filter(s => s.id !== id));
+  };
+
+  const handleFileChange = (id, file) => {
+    setNewSpaces(newSpaces.map(s => s.id === id ? { ...s, image: file } : s));
+  };
+
+  const handleRemoveExisting = (id) => {
+    setRemovedIds([...removedIds, id]);
+    setExistingGallery(existingGallery.filter(g => g.id !== id));
   };
 
   const pageCard = isDark
@@ -257,16 +302,107 @@ export default function OwnerListingEdit() {
                   />
                 </div>
               </div>
+            </div>
 
-              <div className="pt-2">
+            <div className="mt-8 border-t border-blue-400/10 pt-8">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className={`text-lg font-black ${isDark ? "text-white" : "text-slate-900"}`}>
+                    Property Gallery
+                  </h3>
+                  <p className={`text-xs ${helperText}`}>
+                    Manage existing photos and add new ones for spaces like bedrooms, kitchen, etc.
+                  </p>
+                </div>
                 <button
-                  disabled={saving}
-                  className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-500 px-5 text-sm font-bold text-white shadow-[0_12px_30px_rgba(37,99,235,0.30)] transition hover:scale-[1.01] hover:from-blue-500 hover:via-blue-500 hover:to-indigo-400 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
+                  type="button"
+                  onClick={handleAddSpace}
+                  className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-blue-500"
                 >
-                  <Save className="h-4 w-4" />
-                  {saving ? "Saving..." : "Save Changes"}
+                  <Plus className="h-4 w-4" />
+                  Add More Space
                 </button>
               </div>
+
+              {/* Existing Gallery */}
+              {existingGallery.length > 0 && (
+                <div className="mb-8">
+                  <h4 className={`text-xs font-black uppercase tracking-widest mb-4 ${isDark ? "text-blue-300/60" : "text-slate-400"}`}>
+                    Current Photos
+                  </h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {existingGallery.map((img) => (
+                      <div key={img.id} className="group relative aspect-square overflow-hidden rounded-2xl border border-blue-400/10">
+                        <img 
+                          src={img.image_url || img.image} 
+                          className="h-full w-full object-cover grayscale-[0.3] transition-all group-hover:scale-105 group-hover:grayscale-0"
+                          alt="Gallery"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveExisting(img.id)}
+                          className="absolute right-2 top-2 h-8 w-8 rounded-lg bg-red-500/80 text-white opacity-0 transition hover:bg-red-600 group-hover:opacity-100"
+                        >
+                          <Trash2 className="mx-auto h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* New Photo Uploads */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                {newSpaces.map((s) => (
+                  <div key={s.id} className="relative group aspect-square">
+                    <div className={`flex h-full w-full flex-col items-center justify-center rounded-2xl border-2 border-dashed transition ${
+                      s.image 
+                        ? "border-blue-500/50 bg-blue-500/5" 
+                        : isDark ? "border-white/10" : "border-slate-200"
+                    }`}>
+                      {s.image ? (
+                        <>
+                          <img 
+                            src={URL.createObjectURL(s.image)} 
+                            className="h-full w-full object-cover rounded-2xl" 
+                            alt="New pick"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveSpace(s.id)}
+                            className="absolute right-2 top-2 h-8 w-8 rounded-lg bg-black/60 text-white transition hover:bg-black/80"
+                          >
+                            <X className="mx-auto h-4 w-4" />
+                          </button>
+                        </>
+                      ) : (
+                        <label className="flex h-full w-full cursor-pointer flex-col items-center justify-center p-4 text-center">
+                          <input
+                            type="file"
+                            className="hidden"
+                            accept="image/*"
+                            onChange={(e) => e.target.files?.[0] && handleFileChange(s.id, e.target.files[0])}
+                          />
+                          <ImageIcon className={`mb-2 h-6 w-6 ${isDark ? "text-slate-600" : "text-slate-300"}`} />
+                          <span className={`text-[10px] font-bold uppercase tracking-widest ${isDark ? "text-slate-500" : "text-slate-400"}`}>
+                            Click to Upload
+                          </span>
+                        </label>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="pt-6">
+              <button
+                disabled={saving}
+                className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-500 px-5 text-sm font-bold text-white shadow-[0_12px_30px_rgba(37,99,235,0.30)] transition hover:scale-[1.01] hover:from-blue-500 hover:via-blue-500 hover:to-indigo-400 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Save className="h-4 w-4" />
+                {saving ? "Saving..." : "Save Changes"}
+              </button>
             </div>
           </form>
         </div>

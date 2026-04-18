@@ -3,7 +3,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 
-from ..models import Listing
+from ..models import Listing, PropertyGalleryImage
 from ..serializers import ListingSerializer
 
 
@@ -26,7 +26,6 @@ def owner_my_listing_detail(request, pk):
     return Response(data, status=status.HTTP_200_OK)
 
 
-# ✅ NEW: UPDATE (Edit button)
 @api_view(["PATCH", "PUT"])
 @permission_classes([IsAuthenticated])
 def owner_my_listing_update(request, pk):
@@ -37,18 +36,51 @@ def owner_my_listing_update(request, pk):
     serializer = ListingSerializer(
         obj,
         data=request.data,
-        partial=True,  # ✅ PATCH style update
+        partial=True,
         context={"request": request},
     )
 
-    if serializer.is_valid():
-        serializer.save()
-        return Response(serializer.data, status=status.HTTP_200_OK)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    listing = serializer.save()
+
+    # add new extra gallery images
+    gallery_files = request.FILES.getlist("gallery_images")
+    for image_file in gallery_files:
+        PropertyGalleryImage.objects.create(
+            listing=listing,
+            image=image_file,
+        )
+
+    # remove selected old gallery images if frontend sends ids
+    remove_ids = []
+    if hasattr(request.data, "getlist"):
+        remove_ids = request.data.getlist("remove_gallery_image_ids")
+    else:
+        value = request.data.get("remove_gallery_image_ids", [])
+        if isinstance(value, list):
+            remove_ids = value
+        elif value:
+            remove_ids = [value]
+
+    valid_ids = []
+    for item in remove_ids:
+        try:
+            valid_ids.append(int(item))
+        except (TypeError, ValueError):
+            pass
+
+    if valid_ids:
+        PropertyGalleryImage.objects.filter(
+            listing=listing,
+            id__in=valid_ids,
+        ).delete()
+
+    data = ListingSerializer(listing, context={"request": request}).data
+    return Response(data, status=status.HTTP_200_OK)
 
 
-# ✅ NEW: DELETE (Delete button)
 @api_view(["DELETE"])
 @permission_classes([IsAuthenticated])
 def owner_my_listing_delete(request, pk):

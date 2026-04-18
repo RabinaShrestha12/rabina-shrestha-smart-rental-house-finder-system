@@ -13,6 +13,9 @@ import {
   Phone,
   Star,
   Calendar,
+  Maximize2,
+  X,
+  ImageIcon
 } from "lucide-react";
 
 const BACKEND = "http://127.0.0.1:8000";
@@ -37,6 +40,7 @@ export default function PublicListingDetails() {
   const isDark = theme === "dark";
 
   const [listing, setListing] = useState(null);
+  const [selectedImg, setSelectedImg] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
 
@@ -48,20 +52,20 @@ export default function PublicListingDetails() {
   const role = (localStorage.getItem("role") || "").toLowerCase();
 
   const ui = {
-    bg: isDark ? "bg-[#071120]" : "bg-neutral-50",
+    bg: isDark ? "bg-[#071120]" : "bg-[#eef6ff]",
     card: isDark
       ? "bg-[#0f2947] border border-white/10"
-      : "bg-white border border-neutral-100 shadow-xl shadow-neutral-900/5",
+      : "bg-[#f6fbff] border border-[#dbeafe] shadow-xl shadow-blue-100/40",
     innerCard: isDark
       ? "bg-[#10233f] border border-white/5"
-      : "bg-neutral-50 border border-neutral-100",
+      : "bg-[#edf6ff] border border-[#dbeafe]",
     text: isDark ? "text-white" : "text-neutral-900",
-    subText: isDark ? "text-slate-400" : "text-neutral-500",
-    mutedText: isDark ? "text-slate-500" : "text-neutral-400",
+    subText: isDark ? "text-slate-400" : "text-slate-600",
+    mutedText: isDark ? "text-slate-500" : "text-slate-500",
     btnSecondary: isDark
       ? "bg-[#12345c] text-white border-white/10 hover:bg-[#163d6d]"
-      : "bg-white text-neutral-600 border-neutral-200 hover:bg-neutral-50",
-    divider: isDark ? "border-white/5" : "border-neutral-100",
+      : "bg-[#f4f9ff] text-neutral-700 border border-[#dbeafe] hover:bg-[#e8f3ff]",
+    divider: isDark ? "border-white/5" : "border-[#dbeafe]",
   };
 
   const axiosErr = (e, fallback) =>
@@ -368,6 +372,93 @@ export default function PublicListingDetails() {
             </div>
           </div>
         </div>
+
+        <div className={`rounded-[32px] p-8 mb-12 shadow-sm ${ui.card}`}>
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h3 className={`text-2xl font-black tracking-tight ${ui.text}`}>Space & Room Gallery</h3>
+              <p className={`text-sm ${ui.mutedText}`}>
+                Authentic photos of the property's interiors and common areas.
+              </p>
+            </div>
+
+            {listing.gallery_images?.length > 0 && (
+              <span
+                className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest ${
+                  isDark
+                    ? "bg-blue-500/10 text-blue-400 border border-blue-400/20"
+                    : "bg-blue-50 text-blue-700 border border-blue-100"
+                }`}
+              >
+                {listing.gallery_images.length} Photos
+              </span>
+            )}
+          </div>
+
+          {listing.gallery_images && listing.gallery_images.length > 0 ? (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              {listing.gallery_images.map((img, idx) => (
+                <div
+                  key={img.id || idx}
+                  className={`group relative aspect-square cursor-pointer overflow-hidden rounded-[24px] border transition-all duration-500 hover:border-blue-500/30 hover:shadow-2xl hover:shadow-blue-500/10 ${
+                    isDark ? "bg-white/5 border-white/5" : "bg-[#f4f9ff] border-[#dbeafe]"
+                  }`}
+                  onClick={() => setSelectedImg(toImageSrc(img.image_url || img.image))}
+                >
+                  <img
+                    src={toImageSrc(img.image_url || img.image)}
+                    alt={`Property room ${idx + 1}`}
+                    className="h-full w-full object-cover grayscale-[0.3] transition-all duration-700 group-hover:scale-110 group-hover:grayscale-0"
+                  />
+
+                  <div className="absolute inset-0 bg-blue-600/0 group-hover:bg-blue-600/10 transition-colors flex items-center justify-center">
+                    <div className="bg-white/90 backdrop-blur h-10 w-10 rounded-full flex items-center justify-center scale-75 opacity-0 group-hover:scale-100 group-hover:opacity-100 transition-all duration-300">
+                      <Maximize2 className="w-5 h-5 text-blue-600" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div
+              className={`mt-6 rounded-[32px] border-2 border-dashed p-12 text-center transition-colors ${
+                isDark ? "border-white/10 bg-white/5" : "border-[#dbeafe] bg-[#f4f9ff]"
+              }`}
+            >
+              <ImageIcon className={`mx-auto h-12 w-12 mb-4 ${isDark ? "text-slate-600" : "text-slate-300"}`} />
+              <p className={`text-sm font-bold uppercase tracking-widest ${ui.mutedText}`}>
+                Only cover photo available
+              </p>
+            </div>
+          )}
+        </div>
+
+        {selectedImg && (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 md:p-10">
+            <div
+              className="absolute inset-0 bg-black/95 backdrop-blur-md"
+              onClick={() => setSelectedImg(null)}
+            />
+
+            <div className="relative max-h-full w-full max-w-5xl animate-in zoom-in-95 duration-300">
+              <img
+                src={selectedImg}
+                className="mx-auto block max-h-[85vh] w-auto rounded-2xl shadow-2xl"
+                alt="Enlarged view"
+              />
+
+              <button
+                className="absolute -top-12 right-0 flex h-10 items-center gap-2 text-white hover:text-blue-400 transition-colors"
+                onClick={() => setSelectedImg(null)}
+              >
+                <span className="text-sm font-bold uppercase tracking-widest">Close</span>
+                <div className="p-2 border border-white/20 rounded-full bg-white/5">
+                  <X className="h-5 w-5" />
+                </div>
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
           <div className={`lg:col-span-2 rounded-[32px] p-8 shadow-sm ${ui.card}`}>

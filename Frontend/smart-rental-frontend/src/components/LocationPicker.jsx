@@ -2,6 +2,7 @@
 import React from "react";
 import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
 import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 
 // Fix marker icon issue
 import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
@@ -15,7 +16,7 @@ L.Icon.Default.mergeOptions({
   shadowUrl: markerShadow,
 });
 
-// ✅ Focus Morang/Sunsari (Itahari area)
+// Focus Morang / Sunsari (Itahari area)
 const BOUNDS = L.latLngBounds(L.latLng(26.45, 86.85), L.latLng(26.90, 87.45));
 const DEFAULT_CENTER = [26.6636, 87.2747]; // Itahari
 
@@ -23,15 +24,21 @@ function ClickHandler({ onPick }) {
   useMapEvents({
     click(e) {
       const { lat, lng } = e.latlng;
-      onPick({ lat, lng });
+
+      if (typeof onPick === "function") {
+        onPick({ lat, lng });
+      } else {
+        console.error("LocationPicker error: onPick is not a function");
+      }
     },
   });
+
   return null;
 }
 
-export default function LocationPicker({ value, onChange, height = 320 }) {
+export default function LocationPicker({ picked, onPick, height = 320 }) {
   const center =
-    value?.lat && value?.lng ? [value.lat, value.lng] : DEFAULT_CENTER;
+    picked?.lat && picked?.lng ? [picked.lat, picked.lng] : DEFAULT_CENTER;
 
   return (
     <div
@@ -55,11 +62,11 @@ export default function LocationPicker({ value, onChange, height = 320 }) {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
 
-        <ClickHandler onPick={onChange} />
+        <ClickHandler onPick={onPick} />
 
-        {value?.lat && value?.lng && (
-          <Marker position={[value.lat, value.lng]} />
-        )}
+        {picked?.lat && picked?.lng ? (
+          <Marker position={[picked.lat, picked.lng]} />
+        ) : null}
       </MapContainer>
     </div>
   );

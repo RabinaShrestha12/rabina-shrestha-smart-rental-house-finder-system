@@ -16,6 +16,7 @@ import {
   UserRound,
   Wallet,
   Wrench,
+  X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -41,8 +42,8 @@ function haversineMeters(lat1, lon1, lat2, lon2) {
   const a =
     Math.sin(dLat / 2) ** 2 +
     Math.cos(toRad(lat1)) *
-      Math.cos(toRad(lat2)) *
-      Math.sin(dLon / 2) ** 2;
+    Math.cos(toRad(lat2)) *
+    Math.sin(dLon / 2) ** 2;
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 }
@@ -130,8 +131,11 @@ export default function OwnerDashboard() {
 
   const [toast, setToast] = useState({ type: "info", msg: "" });
   const [profile, setProfile] = useState(null);
+  const [agreement, setAgreement] = useState(null);
+  const [agreementLoading, setAgreementLoading] = useState(false);
 
   const [showAddProperty, setShowAddProperty] = useState(false);
+  const [showAgreementModal, setShowAgreementModal] = useState(false);
   const [showReviews, setShowReviews] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showPayments, setShowPayments] = useState(false);
@@ -237,7 +241,7 @@ export default function OwnerDashboard() {
   const saveSeenIds = (key, ids) => {
     try {
       localStorage.setItem(key, JSON.stringify(ids));
-    } catch {}
+    } catch { }
   };
 
   const getBookingId = (b) => b?.id ?? b?.booking_id ?? b?.pk;
@@ -425,23 +429,19 @@ export default function OwnerDashboard() {
 
   const getGroupedBody = (group) => {
     if (group.kind === "booking") {
-      return `${group.sender} sent ${group.count} booking notification${
-        group.count > 1 ? "s" : ""
-      } to you.`;
+      return `${group.sender} sent ${group.count} booking notification${group.count > 1 ? "s" : ""
+        } to you.`;
     }
     if (group.kind === "provider") {
-      return `${group.sender} sent ${group.count} provider notification${
-        group.count > 1 ? "s" : ""
-      } to you.`;
+      return `${group.sender} sent ${group.count} provider notification${group.count > 1 ? "s" : ""
+        } to you.`;
     }
     if (group.kind === "review") {
-      return `${group.sender} sent ${group.count} review notification${
-        group.count > 1 ? "s" : ""
-      } to you.`;
+      return `${group.sender} sent ${group.count} review notification${group.count > 1 ? "s" : ""
+        } to you.`;
     }
-    return `${group.sender} sent ${group.count} notification${
-      group.count > 1 ? "s" : ""
-    } to you.`;
+    return `${group.sender} sent ${group.count} notification${group.count > 1 ? "s" : ""
+      } to you.`;
   };
 
   const getPaymentId = (p, idx) => p?.id ?? p?.payment_id ?? p?.pk ?? `${idx}`;
@@ -562,17 +562,22 @@ export default function OwnerDashboard() {
   };
 
   const handleToggleAddProperty = () => {
-  const next = !showAddProperty;
+    const next = !showAddProperty;
 
-  setShowAddProperty(next);
+    if (next && agreement?.status !== "accepted") {
+      setShowAgreementModal(true);
+      return; 
+    }
 
-  if (next) {
-    setActiveTopPanel(null);
-    setShowReviews(false);
-    setShowNotifications(false);
-    setShowPayments(false);
-    scrollToRef(addPropertyRef);
-  }
+    setShowAddProperty(next);
+
+    if (next) {
+      setActiveTopPanel(null);
+      setShowReviews(false);
+      setShowNotifications(false);
+      setShowPayments(false);
+      scrollToRef(addPropertyRef);
+    }
   };
 
   const handleToggleReviews = () => openTopPanel("reviews");
@@ -793,8 +798,8 @@ export default function OwnerDashboard() {
       const list = Array.isArray(res.data)
         ? res.data
         : Array.isArray(res.data?.results)
-        ? res.data.results
-        : [];
+          ? res.data.results
+          : [];
       setPayments(list);
     } catch (err) {
       if (!silent) {
@@ -803,6 +808,46 @@ export default function OwnerDashboard() {
       setPayments([]);
     } finally {
       if (!silent) setPaymentsLoading(false);
+    }
+  };
+
+  const loadAgreement = async (silent = false) => {
+    if (!silent) setAgreementLoading(true);
+    try {
+      const res = await api.get("owner/platform-agreement/");
+      setAgreement(res.data);
+    } catch (err) {
+      console.error("Failed to load platform agreement", err);
+    } finally {
+      if (!silent) setAgreementLoading(false);
+    }
+  };
+
+  const respondToAgreement = async (action) => {
+    setAgreementLoading(true);
+    try {
+      const res = await api.post("owner/platform-agreement/respond/", { action });
+      setAgreement(res.data);
+      if (action === "accept") {
+        setToast({ type: "success", msg: "Agreement accepted! You can now add properties." });
+        setShowAgreementModal(false);
+        setShowAddProperty(true);
+        setTimeout(() => {
+          if (addPropertyRef.current) {
+            addPropertyRef.current.scrollIntoView({ behavior: "smooth" });
+          }
+        }, 100);
+      } else {
+        setToast({ type: "info", msg: "Agreement rejected. You must accept it to add properties." });
+        setShowAgreementModal(false);
+      }
+    } catch (err) {
+      setToast({
+        type: "error",
+        msg: err?.response?.data?.detail || "Failed to respond to agreement.",
+      });
+    } finally {
+      setAgreementLoading(false);
     }
   };
 
@@ -837,7 +882,7 @@ export default function OwnerDashboard() {
           })
         );
         return;
-      } catch {}
+      } catch { }
     }
   };
 
@@ -1192,6 +1237,10 @@ out center;
       }
     };
 
+    const loadAgreementOnMount = async () => {
+      await loadAgreement(false);
+    };
+
     const loadInbox = async (silent = false) => {
       if (!silent) setLoadingMsgs(true);
 
@@ -1220,17 +1269,20 @@ out center;
     loadNotifications(false);
     loadReviews(false);
     loadPayments(false);
+    loadAgreementOnMount();
 
     const inboxInterval = setInterval(() => loadInbox(true), 5000);
-    const notifInterval = setInterval(() => loadNotifications(true), 5000);
-    const reviewInterval = setInterval(() => loadReviews(true), 5000);
-    const paymentInterval = setInterval(() => loadPayments(true), 5000);
+    const notifInterval = setInterval(() => loadNotifications(true), 10000);
+    const reviewInterval = setInterval(() => loadReviews(true), 15000);
+    const paymentInterval = setInterval(() => loadPayments(true), 20000);
+    const agreementInterval = setInterval(() => loadAgreement(true), 30000);
 
     return () => {
       clearInterval(inboxInterval);
       clearInterval(notifInterval);
       clearInterval(reviewInterval);
       clearInterval(paymentInterval);
+      clearInterval(agreementInterval);
       if (notifToastTimerRef.current) clearTimeout(notifToastTimerRef.current);
       if (reviewToastTimerRef.current) clearTimeout(reviewToastTimerRef.current);
     };
@@ -1491,117 +1543,117 @@ out center;
       : "border-red-200 bg-red-50 text-red-700";
   };
 
- const QuickAction = ({
-  icon: Icon,
-  label,
-  subtitle,
-  onClick,
-  active = false,
-  count,
-  accent = "blue",
-}) => {
-  const accentMap = {
-    blue: {
-      bg: "bg-blue-100",
-      border: "border-blue-200",
-      hover: "hover:bg-blue-100",
-      icon: "bg-blue-200 text-blue-700",
-      iconHover: "group-hover:bg-blue-300",
-      countBg: "bg-blue-100",
-      countBorder: "border-blue-200",
-      countText: "text-blue-700",
-    },
-    green: {
-      bg: "bg-emerald-100",
-      border: "border-emerald-200",
-      hover: "hover:bg-blue-100",
-      icon: "bg-emerald-200 text-emerald-700",
-      iconHover: "group-hover:bg-emerald-300",
-      countBg: "bg-emerald-100",
-      countBorder: "border-emerald-200",
-      countText: "text-emerald-700",
-    },
-    pink: {
-      bg: "bg-pink-100",
-      border: "border-pink-200",
-      hover: "hover:bg-blue-100",
-      icon: "bg-pink-200 text-pink-700",
-      iconHover: "group-hover:bg-pink-300",
-      countBg: "bg-pink-100",
-      countBorder: "border-pink-200",
-      countText: "text-pink-700",
-    },
-    purple: {
-      bg: "bg-violet-100",
-      border: "border-violet-200",
-      hover: "hover:bg-blue-100",
-      icon: "bg-violet-200 text-violet-700",
-      iconHover: "group-hover:bg-violet-300",
-      countBg: "bg-violet-100",
-      countBorder: "border-violet-200",
-      countText: "text-violet-700",
-    },
-    amber: {
-      bg: "bg-amber-100",
-      border: "border-amber-200",
-      hover: "hover:bg-blue-100",
-      icon: "bg-amber-200 text-amber-700",
-      iconHover: "group-hover:bg-amber-300",
-      countBg: "bg-amber-100",
-      countBorder: "border-amber-200",
-      countText: "text-amber-700",
-    },
-    cyan: {
-      bg: "bg-cyan-100",
-      border: "border-cyan-200",
-      hover: "hover:bg-blue-100",
-      icon: "bg-cyan-200 text-cyan-700",
-      iconHover: "group-hover:bg-cyan-300",
-      countBg: "bg-cyan-100",
-      countBorder: "border-cyan-200",
-      countText: "text-cyan-700",
-    },
-    indigo: {
-      bg: "bg-indigo-100",
-      border: "border-indigo-200",
-      hover: "hover:bg-blue-100",
-      icon: "bg-indigo-200 text-indigo-700",
-      iconHover: "group-hover:bg-indigo-300",
-      countBg: "bg-indigo-100",
-      countBorder: "border-indigo-200",
-      countText: "text-indigo-700",
-    },
-  };
+  const QuickAction = ({
+    icon: Icon,
+    label,
+    subtitle,
+    onClick,
+    active = false,
+    count,
+    accent = "blue",
+  }) => {
+    const accentMap = {
+      blue: {
+        bg: "bg-blue-100",
+        border: "border-blue-200",
+        hover: "hover:bg-blue-100",
+        icon: "bg-blue-200 text-blue-700",
+        iconHover: "group-hover:bg-blue-300",
+        countBg: "bg-blue-100",
+        countBorder: "border-blue-200",
+        countText: "text-blue-700",
+      },
+      green: {
+        bg: "bg-emerald-100",
+        border: "border-emerald-200",
+        hover: "hover:bg-blue-100",
+        icon: "bg-emerald-200 text-emerald-700",
+        iconHover: "group-hover:bg-emerald-300",
+        countBg: "bg-emerald-100",
+        countBorder: "border-emerald-200",
+        countText: "text-emerald-700",
+      },
+      pink: {
+        bg: "bg-pink-100",
+        border: "border-pink-200",
+        hover: "hover:bg-blue-100",
+        icon: "bg-pink-200 text-pink-700",
+        iconHover: "group-hover:bg-pink-300",
+        countBg: "bg-pink-100",
+        countBorder: "border-pink-200",
+        countText: "text-pink-700",
+      },
+      purple: {
+        bg: "bg-violet-100",
+        border: "border-violet-200",
+        hover: "hover:bg-blue-100",
+        icon: "bg-violet-200 text-violet-700",
+        iconHover: "group-hover:bg-violet-300",
+        countBg: "bg-violet-100",
+        countBorder: "border-violet-200",
+        countText: "text-violet-700",
+      },
+      amber: {
+        bg: "bg-amber-100",
+        border: "border-amber-200",
+        hover: "hover:bg-blue-100",
+        icon: "bg-amber-200 text-amber-700",
+        iconHover: "group-hover:bg-amber-300",
+        countBg: "bg-amber-100",
+        countBorder: "border-amber-200",
+        countText: "text-amber-700",
+      },
+      cyan: {
+        bg: "bg-cyan-100",
+        border: "border-cyan-200",
+        hover: "hover:bg-blue-100",
+        icon: "bg-cyan-200 text-cyan-700",
+        iconHover: "group-hover:bg-cyan-300",
+        countBg: "bg-cyan-100",
+        countBorder: "border-cyan-200",
+        countText: "text-cyan-700",
+      },
+      indigo: {
+        bg: "bg-indigo-100",
+        border: "border-indigo-200",
+        hover: "hover:bg-blue-100",
+        icon: "bg-indigo-200 text-indigo-700",
+        iconHover: "group-hover:bg-indigo-300",
+        countBg: "bg-indigo-100",
+        countBorder: "border-indigo-200",
+        countText: "text-indigo-700",
+      },
+    };
 
-  const acc = accentMap[accent] || accentMap.blue;
-  const activeClass = active ? "ring-2 ring-slate-300" : "";
+    const acc = accentMap[accent] || accentMap.blue;
+    const activeClass = active ? "ring-2 ring-slate-300" : "";
 
-  return (
-    <button
-      onClick={onClick}
-      className={`group flex h-full min-h-[130px] flex-col justify-between rounded-3xl border p-5 text-left transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${acc.bg} ${acc.border} ${acc.hover} ${activeClass}`}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className={`flex h-12 w-12 items-center justify-center rounded-2xl transition-colors ${acc.icon} ${acc.iconHover}`}>
-          <Icon className="h-5 w-5" />
+    return (
+      <button
+        onClick={onClick}
+        className={`group flex h-full min-h-[130px] flex-col justify-between rounded-3xl border p-5 text-left transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${acc.bg} ${acc.border} ${acc.hover} ${activeClass}`}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className={`flex h-12 w-12 items-center justify-center rounded-2xl transition-colors ${acc.icon} ${acc.iconHover}`}>
+            <Icon className="h-5 w-5" />
+          </div>
+
+          {count !== undefined ? (
+            <span
+              className={`inline-flex min-w-[28px] items-center justify-center rounded-full border px-2 py-1 text-[11px] font-extrabold transition-colors ${acc.countBorder} ${acc.countBg} ${acc.countText}`}
+            >
+              {count}
+            </span>
+          ) : null}
         </div>
 
-        {count !== undefined ? (
-          <span
-            className={`inline-flex min-w-[28px] items-center justify-center rounded-full border px-2 py-1 text-[11px] font-extrabold transition-colors ${acc.countBorder} ${acc.countBg} ${acc.countText}`}
-          >
-            {count}
-          </span>
-        ) : null}
-      </div>
-
-      <div>
-        <h3 className="text-sm font-black text-slate-900">{label}</h3>
-        <p className="mt-1 text-xs leading-5 text-slate-600">{subtitle}</p>
-      </div>
-    </button>
-  );
-};
+        <div>
+          <h3 className="text-sm font-black text-slate-900">{label}</h3>
+          <p className="mt-1 text-xs leading-5 text-slate-600">{subtitle}</p>
+        </div>
+      </button>
+    );
+  };
 
   const StatCard = ({ label, value, icon: Icon, accent = "blue" }) => {
     const accentMap = {
@@ -1648,73 +1700,17 @@ out center;
               {value}
             </h3>
           </div>
-          <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${
-            isDark
-              ? "bg-white/10 border border-white/20"
-              : "bg-white/80 border border-white/60 shadow-sm"
-          }`}>
+          <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${isDark
+            ? "bg-white/10 border border-white/20"
+            : "bg-white/80 border border-white/60 shadow-sm"
+            }`}>
             <Icon className="h-5 w-5" />
           </div>
         </div>
       </div>
     );
   };
-
-  const SectionTitle = ({ title, right }) => (
-    <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-      <h2 className={`text-xl font-black tracking-tight ${ui.heading}`}>{title}</h2>
-      {right}
-    </div>
-  );
-
-  const FileField = ({ label, onChange, required = false }) => (
-    <div>
-      <label className={`mb-2 block text-sm font-semibold ${ui.heading}`}>
-        {label} {required ? <span className="text-red-500">*</span> : null}
-      </label>
-      <label
-        className={`flex min-h-[52px] cursor-pointer items-center gap-3 rounded-2xl border px-4 transition ${
-          isDark
-            ? "border-white/10 bg-[#16345c] hover:bg-[#1a3b67]"
-            : "border-slate-200 bg-white hover:bg-slate-50"
-        }`}
-      >
-        <ImageIcon className={`h-4 w-4 ${ui.muted}`} />
-        <span className={`text-sm ${ui.sub}`}>Choose image</span>
-        <input
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={(e) => onChange(e.target.files?.[0] || null)}
-        />
-      </label>
-    </div>
-  );
-
-  const NearbyList = ({ title, items }) => (
-    <div className={`rounded-3xl p-4 ${ui.soft}`}>
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <div className={`text-sm font-semibold ${ui.heading}`}>{title}</div>
-        <div className={`text-xs ${ui.muted}`}>{items.length}</div>
-      </div>
-
-      {items.length === 0 ? (
-        <div className={`text-sm ${ui.muted}`}>No places found.</div>
-      ) : (
-        <div className="grid gap-3">
-          {items.map((it) => (
-            <div key={it.id} className={`rounded-2xl p-3 ${ui.card}`}>
-              <div className={`text-sm font-semibold ${ui.heading}`}>{it.name}</div>
-              <div className={`mt-1 text-xs ${ui.sub}`}>
-                {it.kind ? `Type: ${it.kind} • ` : ""}
-                Distance: {kmOrM(it.distance_m)}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+/* --- Sub-components moved outside for stability --- */
 
   const renderFocusedTopPanel = () => {
     if (!activeTopPanel) return null;
@@ -1752,11 +1748,10 @@ out center;
             </div>
           ) : reviewsError ? (
             <div
-              className={`rounded-2xl border p-5 text-sm ${
-                isDark
-                  ? "border-red-500/20 bg-red-500/10 text-red-300"
-                  : "border-red-200 bg-red-50 text-red-700"
-              }`}
+              className={`rounded-2xl border p-5 text-sm ${isDark
+                ? "border-red-500/20 bg-red-500/10 text-red-300"
+                : "border-red-200 bg-red-50 text-red-700"
+                }`}
             >
               {reviewsError}
             </div>
@@ -1769,11 +1764,10 @@ out center;
               {filteredReviews.map((review, idx) => (
                 <div
                   key={getReviewId(review, idx)}
-                  className={`rounded-3xl border p-5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${
-                    isDark
-                      ? "border-amber-400/20 bg-gradient-to-br from-amber-500/10 to-amber-600/5"
-                      : "border-amber-200 bg-gradient-to-br from-amber-50 to-amber-25"
-                  }`}
+                  className={`rounded-3xl border p-5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${isDark
+                    ? "border-amber-400/20 bg-gradient-to-br from-amber-500/10 to-amber-600/5"
+                    : "border-amber-200 bg-gradient-to-br from-amber-50 to-amber-25"
+                    }`}
                 >
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div>
@@ -1840,11 +1834,10 @@ out center;
             </div>
           ) : notifError ? (
             <div
-              className={`rounded-2xl border p-5 text-sm ${
-                isDark
-                  ? "border-red-500/20 bg-red-500/10 text-red-300"
-                  : "border-red-200 bg-red-50 text-red-700"
-              }`}
+              className={`rounded-2xl border p-5 text-sm ${isDark
+                ? "border-red-500/20 bg-red-500/10 text-red-300"
+                : "border-red-200 bg-red-50 text-red-700"
+                }`}
             >
               {notifError}
             </div>
@@ -1859,11 +1852,10 @@ out center;
                   key={group.key}
                   type="button"
                   onClick={() => openNotificationGroup(group)}
-                  className={`rounded-3xl border p-5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${
-                    isDark
-                      ? "border-white/10 bg-gradient-to-br from-slate-800/60 to-slate-700/40 hover:bg-blue-100 hover:border-blue-200"
-                      : "border-slate-200 bg-gradient-to-br from-white to-slate-50/60 hover:bg-blue-100 hover:border-blue-200"
-                  }`}
+                  className={`rounded-3xl border p-5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${isDark
+                    ? "border-white/10 bg-gradient-to-br from-slate-800/60 to-slate-700/40 hover:bg-blue-100 hover:border-blue-200"
+                    : "border-slate-200 bg-gradient-to-br from-white to-slate-50/60 hover:bg-blue-100 hover:border-blue-200"
+                    }`}
                 >
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div>
@@ -1940,11 +1932,10 @@ out center;
             </div>
           ) : paymentsError ? (
             <div
-              className={`rounded-2xl border p-5 text-sm ${
-                isDark
-                  ? "border-red-500/20 bg-red-500/10 text-red-300"
-                  : "border-red-200 bg-red-50 text-red-700"
-              }`}
+              className={`rounded-2xl border p-5 text-sm ${isDark
+                ? "border-red-500/20 bg-red-500/10 text-red-300"
+                : "border-red-200 bg-red-50 text-red-700"
+                }`}
             >
               {paymentsError}
             </div>
@@ -1962,19 +1953,18 @@ out center;
                 return (
                   <div
                     key={getPaymentId(payment, idx)}
-                    className={`rounded-3xl border p-5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${
-                      status === "COMPLETE"
-                        ? isDark
-                          ? "border-emerald-400/20 bg-gradient-to-br from-emerald-500/10 to-emerald-600/5"
-                          : "border-emerald-200 bg-gradient-to-br from-emerald-50 to-emerald-25"
-                        : status === "PENDING"
+                    className={`rounded-3xl border p-5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${status === "COMPLETE"
+                      ? isDark
+                        ? "border-emerald-400/20 bg-gradient-to-br from-emerald-500/10 to-emerald-600/5"
+                        : "border-emerald-200 bg-gradient-to-br from-emerald-50 to-emerald-25"
+                      : status === "PENDING"
                         ? isDark
                           ? "border-amber-400/20 bg-gradient-to-br from-amber-500/10 to-amber-600/5"
                           : "border-amber-200 bg-gradient-to-br from-amber-50 to-amber-25"
                         : isDark
-                        ? "border-slate-400/20 bg-gradient-to-br from-slate-500/10 to-slate-600/5"
-                        : "border-slate-200 bg-gradient-to-br from-slate-50 to-slate-25"
-                    }`}
+                          ? "border-slate-400/20 bg-gradient-to-br from-slate-500/10 to-slate-600/5"
+                          : "border-slate-200 bg-gradient-to-br from-slate-50 to-slate-25"
+                      }`}
                   >
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                       <div className="space-y-2">
@@ -2029,11 +2019,10 @@ out center;
         <div className="flex items-center gap-3">
           <button
             onClick={handleLogout}
-            className={`flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-bold transition ${
-              isDark
-                ? "bg-red-500/10 text-red-300 hover:bg-red-500/20"
-                : "bg-red-50 text-red-600 hover:bg-red-100"
-            }`}
+            className={`flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-bold transition ${isDark
+              ? "bg-red-500/10 text-red-300 hover:bg-red-500/20"
+              : "bg-red-50 text-red-600 hover:bg-red-100"
+              }`}
           >
             <LogOut className="h-4 w-4" />
             Logout
@@ -2064,6 +2053,30 @@ out center;
                     manage service updates, and track payments in one professional dashboard.
                   </p>
 
+                  {agreement && agreement.status !== "accepted" && (
+                    <div className={`mt-6 rounded-2xl border p-4 ${isDark ? "border-amber-500/20 bg-amber-500/10" : "border-amber-200 bg-amber-50"}`}>
+                      <div className="flex items-center gap-3">
+                        <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${isDark ? "bg-amber-500/20" : "bg-amber-100"}`}>
+                          <FileText className={`h-5 w-5 ${isDark ? "text-amber-300" : "text-amber-700"}`} />
+                        </div>
+                        <div className="flex-1">
+                          <h4 className={`text-sm font-bold ${isDark ? "text-amber-200" : "text-amber-900"}`}>
+                            Platform Agreement Required
+                          </h4>
+                          <p className={`text-xs ${isDark ? "text-amber-300/80" : "text-amber-700/80"}`}>
+                            You must accept the listing agreement before you can post properties.
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => nav("/owner/contract")}
+                          className={`rounded-xl px-4 py-2 text-xs font-bold transition ${isDark ? "bg-amber-500 text-white hover:bg-amber-600" : "bg-amber-600 text-white hover:bg-amber-700"}`}
+                        >
+                          View Agreement
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {profile ? (
                     <div className={`mt-4 flex flex-wrap items-center gap-3 text-sm ${ui.sub}`}>
                       <span className={`rounded-full px-3 py-1 ${ui.soft}`}>
@@ -2079,7 +2092,7 @@ out center;
 
                 <div className="flex flex-wrap gap-3">
                   <button
-                    onClick={handleToggleAddProperty}
+                    onClick={() => nav("/owner/listings/create")}
                     className="inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-blue-700"
                   >
                     <PlusCircle className="h-4 w-4" />
@@ -2088,11 +2101,10 @@ out center;
 
                   <button
                     onClick={() => nav("/owner/my-properties")}
-                    className={`inline-flex items-center gap-2 rounded-2xl px-5 py-3 text-sm font-bold transition ${
-                      isDark
-                        ? "bg-white/10 text-white hover:bg-white/15"
-                        : "bg-slate-100 text-slate-800 hover:bg-slate-200"
-                    }`}
+                    className={`inline-flex items-center gap-2 rounded-2xl px-5 py-3 text-sm font-bold transition ${isDark
+                      ? "bg-white/10 text-white hover:bg-white/15"
+                      : "bg-slate-100 text-slate-800 hover:bg-slate-200"
+                      }`}
                   >
                     <Building2 className="h-4 w-4" />
                     My Properties
@@ -2131,7 +2143,7 @@ out center;
 
           <div className="mt-8">
             <SectionTitle title="Owner Tools Hub" />
-            <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-8">
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-9">
               <QuickAction
                 icon={Building2}
                 label="My Properties"
@@ -2143,17 +2155,24 @@ out center;
                 icon={PlusCircle}
                 label="Add Property"
                 subtitle="Create a new property listing"
-                onClick={handleToggleAddProperty}
-                active={showAddProperty}
+                onClick={() => nav("/owner/listings/create")}
                 accent="green"
               />
 
               <QuickAction
                 icon={FileText}
-                label="Contract"
+                label="Owner Agreement"
                 subtitle="Read owner agreement and commission rules"
                 onClick={() => nav("/owner/contract")}
                 accent="indigo"
+              />
+
+              <QuickAction
+                icon={FileText}
+                label="Rental Contracts"
+                subtitle="View, edit, send, and finalize tenant rental contracts"
+                onClick={() => nav("/owner/contracts")}
+                accent="cyan"
               />
 
               <QuickAction
@@ -2225,260 +2244,58 @@ out center;
 
           {renderFocusedTopPanel()}
 
-          {showAddProperty && (
-            <div ref={addPropertyRef} className={`mt-8 rounded-[32px] p-6 lg:p-8 ${ui.card}`}>
-              <SectionTitle
-                title="Add New Property"
-                right={
-                  <button
-                    onClick={() => setShowAddProperty(false)}
-                    className={`rounded-2xl px-4 py-2 text-sm font-bold transition ${ui.smallAction}`}
-                  >
-                    Close
-                  </button>
-                }
-              />
-
-              {!validation.ok && (
-                <div
-                  className={`mb-6 rounded-2xl border p-4 text-sm ${
-                    isDark
-                      ? "border-amber-500/20 bg-amber-500/10 text-amber-200"
-                      : "border-amber-200 bg-amber-50 text-amber-700"
-                  }`}
-                >
-                  {validation.errors[0]}
-                </div>
-              )}
-
-              <form onSubmit={submitProperty} className="grid gap-6">
-                <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-                  <div>
-                    <label className={`mb-2 block text-sm font-semibold ${ui.heading}`}>
-                      Property Title
-                    </label>
-                    <input
-                      name="title"
-                      value={form.title}
-                      onChange={onChange}
-                      placeholder="Enter property title"
-                      className={`h-12 w-full rounded-2xl border px-4 outline-none ${ui.input}`}
-                    />
+          {showAgreementModal && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+              <div className={`w-full max-w-2xl rounded-[32px] border p-8 lg:p-10 ${ui.card} shadow-2xl`}>
+                <div className="mb-6 flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${isDark ? "bg-amber-500/10 border border-amber-500/20" : "bg-amber-50 border border-amber-200"}`}>
+                      <FileText className={`h-6 w-6 ${isDark ? "text-amber-400" : "text-amber-600"}`} />
+                    </div>
+                    <div>
+                      <h3 className={`text-2xl font-black ${ui.heading}`}>Platform Agreement</h3>
+                      <p className={`text-sm ${ui.muted}`}>Agreement required to list properties</p>
+                    </div>
                   </div>
+                  <button
+                    onClick={() => setShowAgreementModal(false)}
+                    className={`rounded-full p-2 transition hover:bg-white/10 ${ui.muted}`}
+                  >
+                    <X className="h-6 w-6" />
+                  </button>
+                </div>
 
-                  <div>
-                    <label className={`mb-2 block text-sm font-semibold ${ui.heading}`}>
-                      Property Type
-                    </label>
-                    <select
-                      name="property_type"
-                      value={form.property_type}
-                      onChange={onChange}
-                      className={`h-12 w-full rounded-2xl border px-4 outline-none ${ui.input}`}
+                <div className={`mb-8 max-h-[450px] overflow-y-auto rounded-3xl border p-6 leading-8 transition-all ${isDark ? "border-white/5 bg-[#071120] text-slate-300" : "border-slate-200 bg-white text-slate-700"}`}>
+                  <div className="whitespace-pre-wrap text-[15px]">
+                    {agreement?.agreement_text || "Loading platform agreement..."}
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-4">
+                  <button
+                    onClick={() => respondToAgreement("accept")}
+                    disabled={agreementLoading}
+                    className="w-full rounded-2xl bg-blue-600 py-4 text-base font-black text-white transition hover:-translate-y-1 hover:bg-blue-700 hover:shadow-xl disabled:opacity-50"
+                  >
+                    {agreementLoading ? "Accepting..." : "I Accept & Want to Add Property"}
+                  </button>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => respondToAgreement("reject")}
+                      disabled={agreementLoading}
+                      className={`flex-1 rounded-2xl border py-4 text-sm font-black transition disabled:opacity-50 ${ui.smallAction}`}
                     >
-                      <option value="house">House</option>
-                      <option value="apartment">Apartment</option>
-                      <option value="room">Room</option>
-                      <option value="flat">Flat</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className={`mb-2 block text-sm font-semibold ${ui.heading}`}>
-                      Price Per Month
-                    </label>
-                    <input
-                      name="price_per_month"
-                      value={form.price_per_month}
-                      onChange={onChange}
-                      placeholder="Enter monthly price (e.g. Rs 5000)"
-                      className={`h-12 w-full rounded-2xl border px-4 outline-none ${ui.input}`}
-                    />
-                  </div>
-
-                  <div>
-                    <label className={`mb-2 block text-sm font-semibold ${ui.heading}`}>
-                      Electricity Bill
-                    </label>
-                    <input
-                      name="electricity_bill"
-                      value={form.electricity_bill}
-                      onChange={onChange}
-                      placeholder="Optional"
-                      className={`h-12 w-full rounded-2xl border px-4 outline-none ${ui.input}`}
-                    />
-                  </div>
-
-                  <div>
-                    <label className={`mb-2 block text-sm font-semibold ${ui.heading}`}>
-                      Owner Contact Number
-                    </label>
-                    <input
-                      name="owner_contact_number"
-                      value={form.owner_contact_number}
-                      onChange={onChange}
-                      placeholder="Enter contact number"
-                      className={`h-12 w-full rounded-2xl border px-4 outline-none ${ui.input}`}
-                    />
-                  </div>
-
-                  <div>
-                    <label className={`mb-2 block text-sm font-semibold ${ui.heading}`}>
-                      Owner Contact Email
-                    </label>
-                    <input
-                      name="owner_contact_email"
-                      value={form.owner_contact_email}
-                      onChange={onChange}
-                      placeholder="Enter contact email"
-                      className={`h-12 w-full rounded-2xl border px-4 outline-none ${ui.input}`}
-                    />
+                      Reject
+                    </button>
+                    <button
+                      onClick={() => setShowAgreementModal(false)}
+                      className={`flex-1 rounded-2xl border py-4 text-sm font-black transition ${ui.smallAction}`}
+                    >
+                      Maybe Later
+                    </button>
                   </div>
                 </div>
-
-                <div>
-                  <label className={`mb-2 block text-sm font-semibold ${ui.heading}`}>
-                    Description
-                  </label>
-                  <textarea
-                    name="description"
-                    value={form.description}
-                    onChange={onChange}
-                    rows={5}
-                    placeholder="Describe your property"
-                    className={`w-full rounded-2xl border px-4 py-3 outline-none ${ui.input}`}
-                  />
-                </div>
-
-                <div>
-                  <label className={`mb-2 block text-sm font-semibold ${ui.heading}`}>
-                    Location
-                  </label>
-                  <input
-                    name="location"
-                    value={form.location}
-                    onChange={onChange}
-                    placeholder="Pick from map or enter location"
-                    className={`h-12 w-full rounded-2xl border px-4 outline-none ${ui.input}`}
-                  />
-                </div>
-
-                <div className={`rounded-3xl p-4 ${ui.soft}`}>
-                  <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <h3 className={`text-base font-black ${ui.heading}`}>Pick Property Location</h3>
-                      <p className={`mt-1 text-sm ${ui.sub}`}>
-                        Click on the map to select the property.
-                      </p>
-                    </div>
-
-                    <div className="flex flex-wrap gap-3">
-                      <button
-                        type="button"
-                        onClick={clearPicked}
-                        className={`rounded-2xl px-4 py-2 text-sm font-bold transition ${ui.smallAction}`}
-                      >
-                        Clear
-                      </button>
-                    </div>
-                  </div>
-
-                  <LocationPicker onPick={onPick} picked={picked} />
-
-                  <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <div className={`rounded-2xl p-4 ${ui.card}`}>
-                      <div className={`text-sm font-semibold ${ui.heading}`}>Latitude</div>
-                      <div className={`mt-1 text-sm ${ui.sub}`}>{form.latitude || "-"}</div>
-                    </div>
-
-                    <div className={`rounded-2xl p-4 ${ui.card}`}>
-                      <div className={`text-sm font-semibold ${ui.heading}`}>Longitude</div>
-                      <div className={`mt-1 text-sm ${ui.sub}`}>{form.longitude || "-"}</div>
-                    </div>
-                  </div>
-
-                  <div className="mt-4">
-                    <div className={`rounded-2xl p-4 ${ui.card}`}>
-                      <div className={`text-sm font-semibold ${ui.heading}`}>
-                        Reverse Geocoding
-                      </div>
-                      <div className={`mt-2 text-sm ${ui.sub}`}>
-                        {geoLoading ? "Detecting address..." : place.display || "No address yet."}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-                  <FileField label="Cover Image" required onChange={setCoverImage} />
-                  <FileField label="360 Front" required onChange={(f) => onPanoChange("front", f)} />
-                  <FileField label="360 Back" required onChange={(f) => onPanoChange("back", f)} />
-                  <FileField label="360 Left" required onChange={(f) => onPanoChange("left", f)} />
-                  <FileField label="360 Right" required onChange={(f) => onPanoChange("right", f)} />
-                  <FileField label="360 Up" required onChange={(f) => onPanoChange("up", f)} />
-                  <FileField label="360 Down" required onChange={(f) => onPanoChange("down", f)} />
-                </div>
-
-                <div className={`rounded-3xl p-5 ${ui.soft}`}>
-                  <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <h3 className={`text-base font-black ${ui.heading}`}>Nearby Facilities</h3>
-                      <p className={`mt-1 text-sm ${ui.sub}`}>
-                        Nearby places are shown based on selected map location.
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <MapPin className={`h-4 w-4 ${ui.muted}`} />
-                      <select
-                        value={radius}
-                        onChange={(e) => setRadius(Number(e.target.value))}
-                        className={`h-11 rounded-2xl border px-4 outline-none ${ui.input}`}
-                      >
-                        <option value={500}>500 m</option>
-                        <option value={800}>800 m</option>
-                        <option value={1200}>1.2 km</option>
-                        <option value={2000}>2 km</option>
-                        <option value={3000}>3 km</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {nearbyLoading ? (
-                    <div className={`rounded-2xl p-4 ${ui.card}`}>
-                      <div className={`text-sm ${ui.sub}`}>Loading nearby places...</div>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-                      <NearbyList title="Schools" items={nearby.schools} />
-                      <NearbyList title="Colleges" items={nearby.colleges} />
-                      <NearbyList title="Hospitals" items={nearby.hospitals} />
-                      <NearbyList title="Markets" items={nearby.markets} />
-                      <NearbyList title="Bus Stops" items={nearby.bus} />
-                      <NearbyList title="ATMs" items={nearby.atms} />
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex flex-wrap gap-3">
-                  <button
-                    type="submit"
-                    disabled={posting}
-                    className="inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
-                  >
-                    <Send className="h-4 w-4" />
-                    {posting ? "Posting..." : "Post Property"}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setShowAddProperty(false)}
-                    className={`rounded-2xl px-5 py-3 text-sm font-bold transition ${ui.smallAction}`}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
+              </div>
             </div>
           )}
 
@@ -2520,10 +2337,10 @@ out center;
                       status === "accepted"
                         ? ui.badgeGreen
                         : status === "rejected"
-                        ? (isDark
+                          ? (isDark
                             ? "border-red-500/20 bg-red-500/10 text-red-300"
                             : "border-red-200 bg-red-50 text-red-700")
-                        : ui.badgeAmber;
+                          : ui.badgeAmber;
 
                     return (
                       <div key={bookingId || idx} className={`rounded-3xl p-5 ${ui.soft}`}>
@@ -2613,3 +2430,88 @@ out center;
     </Shell>
   );
 }
+
+/* --- Stabilized Sub-components (Moved outside to prevent re-mounting) --- */
+const SectionTitle = ({ title, right, ui }) => (
+  <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+    <h2 className={`text-xl font-black tracking-tight ${ui?.heading || ""}`}>{title}</h2>
+    {right}
+  </div>
+);
+
+const FileField = ({ label, value, onChange, required = false, isDark, ui }) => {
+  const preview = useMemo(() => {
+    if (!value || !(value instanceof File)) return null;
+    try {
+      return URL.createObjectURL(value);
+    } catch (e) {
+      return null;
+    }
+  }, [value]);
+
+  return (
+    <div>
+      <label className={`mb-2 block text-sm font-semibold ${ui?.heading || ""}`}>
+        {label} {required ? <span className="text-red-500">*</span> : null}
+      </label>
+      <div
+        className={`relative overflow-hidden flex min-h-[140px] flex-col items-center justify-center rounded-2xl border transition ${isDark
+          ? "border-white/10 bg-[#16345c] hover:bg-[#1a3b67]"
+          : "border-slate-200 bg-white hover:bg-slate-50"
+          }`}
+      >
+        {preview ? (
+          <div className="relative h-full w-full p-2">
+            <img src={preview} alt={label} className="h-24 w-full rounded-xl object-cover shadow-sm" />
+            <div className="mt-2 text-center">
+              <div className={`truncate text-[10px] font-bold ${ui?.heading || ""}`}>{value.name}</div>
+              <button
+                type="button"
+                onClick={() => onChange(null)}
+                className="mt-1 text-[10px] font-black text-red-500 uppercase tracking-widest hover:text-red-600 transition"
+              >
+                Remove File
+              </button>
+            </div>
+          </div>
+        ) : (
+          <label className="flex h-full w-full cursor-pointer flex-col items-center justify-center p-4">
+            <ImageIcon className={`mb-2 h-7 w-7 ${ui?.muted || ""} opacity-40`} />
+            <span className={`text-[11px] font-black uppercase tracking-widest ${ui?.heading || ""}`}>Choose image</span>
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => onChange(e.target.files?.[0] || null)}
+            />
+          </label>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const NearbyList = ({ title, items, ui }) => (
+  <div className={`rounded-3xl p-4 ${ui?.soft || ""}`}>
+    <div className="mb-3 flex items-center justify-between gap-2">
+      <div className={`text-sm font-semibold ${ui?.heading || ""}`}>{title}</div>
+      <div className={`text-xs ${ui?.muted || ""}`}>{items.length}</div>
+    </div>
+
+    {items.length === 0 ? (
+      <div className={`text-sm ${ui?.muted || ""}`}>No places found.</div>
+    ) : (
+      <div className="grid gap-3">
+        {items.map((it) => (
+          <div key={it.id} className={`rounded-2xl p-3 ${ui?.card || ""}`}>
+            <div className={`text-sm font-semibold ${ui?.heading || ""}`}>{it.name}</div>
+            <div className={`mt-1 text-xs ${ui?.sub || ""}`}>
+              {it.kind ? `Type: ${it.kind} • ` : ""}
+              Distance: {it.distance_m > 1000 ? (it.distance_m / 1000).toFixed(1) + "km" : it.distance_m + "m"}
+            </div>
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
+);

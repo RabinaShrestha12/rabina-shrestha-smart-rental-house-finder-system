@@ -28,6 +28,9 @@ from .models import (
     TenantExpense,
     TenantRoomImageSave,
     ContactMessage,
+    RentalContract,
+    OwnerPlatformAgreement,
+    PropertyGalleryImage,
 )
 
 User = get_user_model()
@@ -53,8 +56,6 @@ class UserSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "created_at", "updated_at"]
 
 
-# OWNER / TENANT SERIALIZERS (linked tables)
-# NOTE: Owner/Tenant models now only have: user + location + created/updated
 class OwnerSerializer(serializers.ModelSerializer):
     user_id = serializers.IntegerField(source="user.id", read_only=True)
     username = serializers.CharField(source="user.username", read_only=True, default=None)
@@ -124,6 +125,19 @@ class ServiceProviderProfileSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id", "user_id", "username", "email", "created_at", "updated_at"]
 
+class PropertyGalleryImageSerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PropertyGalleryImage
+        fields = ["id", "image", "image_url", "created_at"]
+
+    def get_image_url(self, obj):
+        request = self.context.get("request")
+        if obj.image and hasattr(obj.image, "url"):
+            return request.build_absolute_uri(obj.image.url) if request else obj.image.url
+        return None
+
 
 # LISTING SERIALIZER (+360 + owner info + lat/lng + optional distance_km)
 class ListingSerializer(serializers.ModelSerializer):
@@ -145,6 +159,7 @@ class ListingSerializer(serializers.ModelSerializer):
     has_360 = serializers.SerializerMethodField()
 
     distance_km = serializers.SerializerMethodField()
+    gallery_images = PropertyGalleryImageSerializer(many=True, read_only=True)
 
     def _abs(self, request, filefield):
         if not filefield:
@@ -322,6 +337,7 @@ class ListingSerializer(serializers.ModelSerializer):
             "is_available",
             "status",
             "created_at",
+            "gallery_images",
         ]
         read_only_fields = [
             "id",
@@ -513,6 +529,9 @@ class BookingRequestListSerializer(serializers.ModelSerializer):
     owner_email = serializers.EmailField(source="listing.owner.email", read_only=True)
 
     last_message = serializers.SerializerMethodField()
+    contract_id = serializers.SerializerMethodField()
+    contract_link = serializers.SerializerMethodField()
+    contract_status = serializers.SerializerMethodField()
 
     class Meta:
         model = BookingRequest
@@ -528,6 +547,9 @@ class BookingRequestListSerializer(serializers.ModelSerializer):
             "created_at",
             "decided_at",
             "last_message",
+            "contract_id",
+            "contract_link",
+            "contract_status",
         ]
 
     def get_last_message(self, obj):
@@ -540,6 +562,23 @@ class BookingRequestListSerializer(serializers.ModelSerializer):
             "sender": m.sender.username,
         }
 
+    def _get_contract(self, obj):
+        try:
+            return obj.contract
+        except Exception:
+            return None
+
+    def get_contract_id(self, obj):
+        contract = self._get_contract(obj)
+        return contract.id if contract else None
+
+    def get_contract_link(self, obj):
+        contract = self._get_contract(obj)
+        return f"/tenant/contracts/{contract.id}/" if contract else ""
+
+    def get_contract_status(self, obj):
+        contract = self._get_contract(obj)
+        return getattr(contract, "status", "") if contract else ""
 
 # Reviews
 class ReviewSerializer(serializers.ModelSerializer):
@@ -687,8 +726,6 @@ class RoommateChatThreadSerializer(serializers.ModelSerializer):
             "sender_id": m.sender_id,
             "sender_username": m.sender.username,
         }
-
-
 
 
 class RoommateRequestSerializer(serializers.ModelSerializer):
@@ -873,3 +910,259 @@ class ContactMessageSerializer(serializers.ModelSerializer):
         model = ContactMessage
         fields = ["id", "name", "email", "phone", "subject", "message", "created_at"]
         read_only_fields = ["id", "created_at"]
+
+
+class RentalContractCreateSerializer(serializers.Serializer):
+    booking_id = serializers.IntegerField()
+    contract_title = serializers.CharField(required=False, allow_blank=True)
+    rent_amount = serializers.DecimalField(
+        max_digits=10, decimal_places=2, required=False
+    )
+    security_deposit = serializers.DecimalField(
+        max_digits=10, decimal_places=2, required=False
+    )
+    payment_due_day = serializers.IntegerField(required=False, default=5)
+    start_date = serializers.DateField(required=False, allow_null=True)
+    end_date = serializers.DateField(required=False, allow_null=True)
+    utility_terms = serializers.CharField(required=False, allow_blank=True)
+    house_rules = serializers.CharField(required=False, allow_blank=True)
+    special_terms = serializers.CharField(required=False, allow_blank=True)
+
+    def validate_payment_due_day(self, value):
+        if value < 1 or value > 31:
+            raise serializers.ValidationError("Payment due day must be between 1 and 31.")
+        return value
+
+    def validate(self, attrs):
+        request = self.context["request"]
+        owner = request.user
+
+        booking = (
+            BookingRequest.objects.select_related("listing", "tenant")
+            .filter(id=attrs["booking_id"], listing__owner=owner)
+            .first()
+        )
+        if not booking:
+            raise serializers.ValidationError(
+                {"booking_id": "Booking not found for this owner."}
+            )
+
+        allowed_statuses = {"accepted", "approved", "confirmed", "booked"}
+        booking_status = str(getattr(booking, "status", "")).strip().lower()
+        if booking_status not in allowed_statuses:
+            raise serializers.ValidationError(
+                {"booking_id": "Only accepted bookings can be used to create a contract."}
+            )
+
+        if RentalContract.objects.filter(booking=booking).exists():
+            raise serializers.ValidationError(
+                {"booking_id": "A contract already exists for this booking."}
+            )
+
+        start_date = attrs.get("start_date")
+        end_date = attrs.get("end_date")
+        if start_date and end_date and end_date <= start_date:
+            raise serializers.ValidationError(
+                {"end_date": "End date must be after start date."}
+            )
+
+        attrs["booking_obj"] = booking
+        return attrs
+
+    def create(self, validated_data):
+        booking = validated_data.pop("booking_obj")
+        validated_data.pop("booking_id", None)
+
+        listing = booking.listing
+        owner = self.context["request"].user
+        tenant = booking.tenant
+
+        default_title = (
+            validated_data.get("contract_title")
+            or f"Rental Contract - {getattr(listing, 'title', 'Property')}"
+        )
+
+        contract = RentalContract.objects.create(
+            booking=booking,
+            listing=listing,
+            owner=owner,
+            tenant=tenant,
+            contract_title=default_title,
+            rent_amount=validated_data.get(
+                "rent_amount", getattr(listing, "price_per_month", 0) or 0
+            ),
+            security_deposit=validated_data.get("security_deposit", 0),
+            payment_due_day=validated_data.get("payment_due_day", 5),
+            start_date=validated_data.get("start_date"),
+            end_date=validated_data.get("end_date"),
+            utility_terms=validated_data.get("utility_terms", ""),
+            house_rules=validated_data.get("house_rules", ""),
+            special_terms=validated_data.get("special_terms", ""),
+            status="draft",
+        )
+        return contract
+
+
+class RentalContractListSerializer(serializers.ModelSerializer):
+    booking = serializers.IntegerField(source="booking.id", read_only=True)
+    listing_title = serializers.CharField(source="listing.title", read_only=True)
+    owner_name = serializers.SerializerMethodField()
+    tenant_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = RentalContract
+        fields = [
+            "id",
+            "booking",
+            "contract_title",
+            "listing_title",
+            "owner_name",
+            "tenant_name",
+            "rent_amount",
+            "security_deposit",
+            "status",
+            "start_date",
+            "end_date",
+            "created_at",
+            "updated_at",
+        ]
+
+    def get_owner_name(self, obj):
+        try:
+            return obj.owner.get_full_name() or obj.owner.email or obj.owner.username
+        except Exception:
+            return "Owner"
+
+    def get_tenant_name(self, obj):
+        try:
+            return obj.tenant.get_full_name() or obj.tenant.email or obj.tenant.username
+        except Exception:
+            return "Tenant"
+
+
+class RentalContractDetailSerializer(serializers.ModelSerializer):
+    listing_title = serializers.CharField(source="listing.title", read_only=True)
+    listing_address = serializers.SerializerMethodField()
+    owner_name = serializers.SerializerMethodField()
+    tenant_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = RentalContract
+        fields = [
+            "id",
+            "booking",
+            "listing",
+            "listing_title",
+            "listing_address",
+            "owner",
+            "owner_name",
+            "tenant",
+            "tenant_name",
+            "contract_title",
+            "rent_amount",
+            "security_deposit",
+            "payment_due_day",
+            "start_date",
+            "end_date",
+            "utility_terms",
+            "house_rules",
+            "special_terms",
+            "generated_text",
+            "owner_signed",
+            "tenant_signed",
+            "owner_signed_at",
+            "tenant_signed_at",
+            "status",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "generated_text",
+            "owner_signed",
+            "tenant_signed",
+            "owner_signed_at",
+            "tenant_signed_at",
+            "status",
+            "created_at",
+            "updated_at",
+        ]
+
+    def get_owner_name(self, obj):
+        try:
+            return obj.owner.get_full_name() or obj.owner.email or obj.owner.username
+        except Exception:
+            return "Owner"
+
+    def get_tenant_name(self, obj):
+        try:
+            return obj.tenant.get_full_name() or obj.tenant.email or obj.tenant.username
+        except Exception:
+            return "Tenant"
+
+    def get_listing_address(self, obj):
+        return getattr(obj.listing, "address", "") or getattr(obj.listing, "location", "") or ""
+
+
+class RentalContractOwnerUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RentalContract
+        fields = [
+            "contract_title",
+            "rent_amount",
+            "security_deposit",
+            "payment_due_day",
+            "start_date",
+            "end_date",
+            "utility_terms",
+            "house_rules",
+            "special_terms",
+        ]
+
+    def validate_payment_due_day(self, value):
+        if value < 1 or value > 31:
+            raise serializers.ValidationError("Payment due day must be between 1 and 31.")
+        return value
+
+    def validate(self, attrs):
+        start_date = attrs.get("start_date", getattr(self.instance, "start_date", None))
+        end_date = attrs.get("end_date", getattr(self.instance, "end_date", None))
+
+        if start_date and end_date and end_date <= start_date:
+            raise serializers.ValidationError("End date must be after start date.")
+        return attrs
+
+
+class OwnerPlatformAgreementSerializer(serializers.ModelSerializer):
+    owner_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = OwnerPlatformAgreement
+        fields = [
+            "id",
+            "owner",
+            "owner_name",
+            "agreement_key",
+            "agreement_title",
+            "agreement_version",
+            "agreement_text",
+            "platform_first_payment_percent",
+            "owner_first_payment_percent",
+            "future_payment_owner_percent",
+            "status",
+            "accepted_at",
+            "rejected_at",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "id",
+            "owner",
+            "owner_name",
+            "accepted_at",
+            "rejected_at",
+            "created_at",
+            "updated_at",
+        ]
+
+    def get_owner_name(self, obj):
+        return getattr(obj.owner, "name", None) or getattr(obj.owner, "email", "Owner")

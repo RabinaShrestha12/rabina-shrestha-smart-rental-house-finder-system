@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import { useTheme } from "../../components/ThemeContext";
-import { Search, MapPin, Building, Filter, Star } from "lucide-react";
+import { Search, MapPin, Building, Filter, Star, Layers } from "lucide-react";
 
 const BACKEND = "http://127.0.0.1:8000";
 
@@ -379,6 +379,18 @@ export default function PublicListings() {
                           Booked
                         </span>
                       )}
+                    </div>
+
+                    <div className="absolute right-4 top-4">
+                      {(() => {
+                        const count = 1 + (l.pano_front_url ? 6 : 0) + (l.gallery_images?.length || 0);
+                        return (
+                          <div className="flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1 text-[10px] font-black uppercase tracking-tight text-white backdrop-blur border border-white/10">
+                            <Layers className="h-3 w-3 text-blue-400" />
+                            {count} Assets
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     {l.pano_front_url && (

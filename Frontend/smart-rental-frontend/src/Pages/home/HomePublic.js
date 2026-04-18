@@ -106,11 +106,9 @@ export default function HomePublic() {
 
   return (
     <div
-      className="w-full min-h-screen transition-colors duration-300"
-      style={{
-        background: "var(--bg-color)",
-        color: "var(--text-color)",
-      }}
+      className={`w-full min-h-screen transition-colors duration-300 ${
+        isDark ? "bg-[#071120] text-white" : "bg-[#eef6ff] text-neutral-900"
+      }`}
     >
       {/* Hero Section */}
       <section className="relative flex min-h-[90vh] items-center overflow-hidden pt-32 pb-40 md:pt-48 md:pb-52">
@@ -169,21 +167,21 @@ export default function HomePublic() {
           className={`flex flex-col gap-4 rounded-3xl p-4 shadow-2xl md:flex-row md:p-6 ${
             isDark
               ? "border border-white/10 bg-[#0b1b33] shadow-black/30"
-              : "border border-neutral-100 bg-white shadow-neutral-900/10"
+              : "border border-[#dbeafe] bg-[#f8fbff] shadow-blue-100/50"
           }`}
         >
           <div
             className={`flex flex-1 items-center gap-3 rounded-2xl p-4 transition-colors ${
               isDark
                 ? "border border-white/10 bg-[#10233f]"
-                : "border border-neutral-200 bg-neutral-50"
+                : "border border-[#dbeafe] bg-[#edf6ff]"
             }`}
           >
             <MapPin className="h-6 w-6 shrink-0 text-blue-500" />
             <div className="flex w-full flex-1 flex-col">
               <span
                 className={`text-xs font-semibold uppercase tracking-wider ${
-                  isDark ? "text-slate-300" : "text-neutral-500"
+                  isDark ? "text-slate-300" : "text-slate-500"
                 }`}
               >
                 Location
@@ -196,7 +194,7 @@ export default function HomePublic() {
                 className={`w-full border-none bg-transparent font-medium outline-none ${
                   isDark
                     ? "text-white placeholder:text-slate-400"
-                    : "text-neutral-900 placeholder:text-neutral-400"
+                    : "text-neutral-900 placeholder:text-slate-400"
                 }`}
               />
             </div>
@@ -206,14 +204,14 @@ export default function HomePublic() {
             className={`flex flex-1 items-center gap-3 rounded-2xl p-4 transition-colors ${
               isDark
                 ? "border border-white/10 bg-[#10233f]"
-                : "border border-neutral-200 bg-neutral-50"
+                : "border border-[#dbeafe] bg-[#edf6ff]"
             }`}
           >
             <Building className="h-6 w-6 shrink-0 text-blue-500" />
             <div className="flex w-full flex-1 flex-col">
               <span
                 className={`text-xs font-semibold uppercase tracking-wider ${
-                  isDark ? "text-slate-300" : "text-neutral-500"
+                  isDark ? "text-slate-300" : "text-slate-500"
                 }`}
               >
                 Property Type
@@ -254,7 +252,7 @@ export default function HomePublic() {
             >
               Featured <span className="text-blue-600">Properties</span>
             </h2>
-            <p className={`text-lg ${isDark ? "text-slate-300" : "text-neutral-500"}`}>
+            <p className={`text-lg ${isDark ? "text-slate-300" : "text-slate-600"}`}>
               Browse our handpicked selection of rental properties, updated daily.
             </p>
           </div>
@@ -273,7 +271,7 @@ export default function HomePublic() {
               <div
                 key={i}
                 className={`h-[400px] animate-pulse rounded-3xl ${
-                  isDark ? "bg-[#10233f]" : "bg-neutral-200"
+                  isDark ? "bg-[#10233f]" : "bg-[#dbeafe]"
                 }`}
               ></div>
             ))}
@@ -283,10 +281,10 @@ export default function HomePublic() {
             className={`rounded-3xl py-20 text-center ${
               isDark
                 ? "border border-white/10 bg-[#0b1b33]"
-                : "border border-neutral-200 bg-neutral-100"
+                : "border border-[#dbeafe] bg-[#f4f9ff]"
             }`}
           >
-            <p className={`text-lg ${isDark ? "text-slate-300" : "text-neutral-500"}`}>
+            <p className={`text-lg ${isDark ? "text-slate-300" : "text-slate-600"}`}>
               No properties found at the moment.
             </p>
           </div>
@@ -298,7 +296,7 @@ export default function HomePublic() {
                 className={`group flex flex-col overflow-hidden rounded-3xl transition-all duration-300 hover:shadow-xl ${
                   isDark
                     ? "border border-white/10 bg-[#0b1b33] shadow-black/20"
-                    : "border border-neutral-200 bg-white shadow-sm"
+                    : "border border-[#dbeafe] bg-[#f8fbff] shadow-sm shadow-blue-100/40"
                 }`}
               >
                 <div className="relative h-64 overflow-hidden">
@@ -322,7 +320,7 @@ export default function HomePublic() {
                 <div className="flex flex-1 flex-col p-6">
                   <div
                     className={`mb-3 flex items-center gap-1 text-sm ${
-                      isDark ? "text-slate-300" : "text-neutral-500"
+                      isDark ? "text-slate-300" : "text-slate-600"
                     }`}
                   >
                     <MapPin className="h-4 w-4 text-blue-500" />
@@ -339,7 +337,7 @@ export default function HomePublic() {
 
                   <p
                     className={`mb-6 line-clamp-2 flex-1 text-sm ${
-                      isDark ? "text-slate-300" : "text-neutral-500"
+                      isDark ? "text-slate-300" : "text-slate-600"
                     }`}
                   >
                     {l.description ||
@@ -348,7 +346,7 @@ export default function HomePublic() {
 
                   <div
                     className={`flex items-center justify-between pt-4 ${
-                      isDark ? "border-t border-white/10" : "border-t border-neutral-100"
+                      isDark ? "border-t border-white/10" : "border-t border-[#dbeafe]"
                     }`}
                   >
                     <div>
@@ -357,7 +355,7 @@ export default function HomePublic() {
                       </span>
                       <span
                         className={`text-sm font-medium ${
-                          isDark ? "text-slate-300" : "text-neutral-500"
+                          isDark ? "text-slate-300" : "text-slate-600"
                         }`}
                       >
                         {" "}
@@ -370,7 +368,7 @@ export default function HomePublic() {
                       className={`flex h-10 w-10 items-center justify-center rounded-full transition-colors ${
                         isDark
                           ? "bg-[#10233f] text-slate-200 group-hover:bg-blue-600 group-hover:text-white"
-                          : "bg-neutral-100 text-neutral-600 group-hover:bg-blue-600 group-hover:text-white"
+                          : "bg-[#eaf4ff] text-neutral-600 group-hover:bg-blue-600 group-hover:text-white"
                       }`}
                     >
                       <ChevronRight className="h-5 w-5" />
@@ -458,7 +456,7 @@ export default function HomePublic() {
           >
             What Our <span className="text-blue-600">Users Say</span>
           </h2>
-          <p className={`text-lg ${isDark ? "text-slate-300" : "text-neutral-500"}`}>
+          <p className={`text-lg ${isDark ? "text-slate-300" : "text-slate-600"}`}>
             Real feedback from tenants who gave highly rated reviews on Smart
             Rental.
           </p>
@@ -469,10 +467,10 @@ export default function HomePublic() {
             className={`rounded-3xl py-20 text-center ${
               isDark
                 ? "border border-white/10 bg-[#0b1b33]"
-                : "border border-neutral-200 bg-neutral-100"
+                : "border border-[#dbeafe] bg-[#f4f9ff]"
             }`}
           >
-            <p className={`text-lg ${isDark ? "text-slate-300" : "text-neutral-500"}`}>
+            <p className={`text-lg ${isDark ? "text-slate-300" : "text-slate-600"}`}>
               No tenant reviews above 3 stars are available right now.
             </p>
           </div>
@@ -501,7 +499,7 @@ export default function HomePublic() {
                   className={`rounded-3xl p-8 transition-transform hover:-translate-y-1 ${
                     isDark
                       ? "border border-white/10 bg-[#0b1b33] shadow-xl shadow-black/20"
-                      : "border border-neutral-100 bg-white shadow-xl shadow-neutral-100"
+                      : "border border-[#dbeafe] bg-[#f8fbff] shadow-xl shadow-blue-100/40"
                   }`}
                 >
                   <div className="mb-4 flex gap-1 text-orange-400">
@@ -512,7 +510,7 @@ export default function HomePublic() {
 
                   <p
                     className={`mb-6 min-h-[84px] italic ${
-                      isDark ? "text-slate-300" : "text-neutral-600"
+                      isDark ? "text-slate-300" : "text-slate-600"
                     }`}
                   >
                     "{reviewText}"
@@ -520,7 +518,7 @@ export default function HomePublic() {
 
                   <div
                     className={`mb-5 rounded-2xl px-4 py-3 text-sm ${
-                      isDark ? "bg-[#10233f] text-slate-300" : "bg-neutral-50 text-neutral-600"
+                      isDark ? "bg-[#10233f] text-slate-300" : "bg-[#edf6ff] text-slate-600"
                     }`}
                   >
                     <span className="font-semibold">Property:</span>{" "}

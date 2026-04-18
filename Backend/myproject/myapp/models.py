@@ -143,9 +143,10 @@ class ServiceProviderProfile(models.Model):
 # LISTING MODEL
 class Listing(models.Model):
     PROPERTY_TYPE_CHOICES = [
-        ("room", "Room"),
-        ("house", "House"),
-        ("apartment", "Apartment"),
+    ("room", "Room"),
+    ("flat", "Flat"),
+    ("house", "House"),
+    ("apartment", "Apartment"),
     ]
 
     owner = models.ForeignKey(
@@ -203,6 +204,14 @@ class Listing(models.Model):
     def __str__(self):
         return f"{self.title} - {self.location}"
 
+class PropertyGalleryImage(models.Model):
+    listing = models.ForeignKey(
+        Listing,
+        on_delete=models.CASCADE,
+        related_name="gallery_images",
+    )
+    image = models.ImageField(upload_to="listings/gallery/")
+    created_at = models.DateTimeField(auto_now_add=True)
 
 # BOOKING + CHAT (Tenant <-> Owner)
 class BookingRequest(models.Model):
@@ -771,4 +780,156 @@ class ContactMessage(models.Model):
         ordering = ["-created_at"]
 
     def __str__(self):
-        return f"{self.name} - {self.email}"
+        return f"{self.name} - {self.email}" 
+    
+
+class RentalContract(models.Model):
+    STATUS_CHOICES = [
+        ("draft", "Draft"),
+        ("pending_tenant", "Pending Tenant"),
+        ("pending_owner", "Pending Owner"),
+        ("active", "Active"),
+        ("rejected", "Rejected"),
+        ("cancelled", "Cancelled"),
+        ("expired", "Expired"),
+    ]
+
+    booking = models.OneToOneField(
+        "BookingRequest",
+        on_delete=models.CASCADE,
+        related_name="contract"
+    )
+    listing = models.ForeignKey(
+        "Listing",
+        on_delete=models.CASCADE,
+        related_name="contracts"
+    )
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="owner_contracts"
+    )
+    tenant = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="tenant_contracts"
+    )
+
+    contract_title = models.CharField(max_length=255, blank=True)
+    rent_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    security_deposit = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    payment_due_day = models.PositiveIntegerField(default=5)
+
+    start_date = models.DateField(null=True, blank=True)
+    end_date = models.DateField(null=True, blank=True)
+
+    utility_terms = models.TextField(blank=True, default="")
+    house_rules = models.TextField(blank=True, default="")
+    special_terms = models.TextField(blank=True, default="")
+
+    generated_text = models.TextField(blank=True, default="")
+
+    owner_signed = models.BooleanField(default=False)
+    tenant_signed = models.BooleanField(default=False)
+    owner_signed_at = models.DateTimeField(null=True, blank=True)
+    tenant_signed_at = models.DateTimeField(null=True, blank=True)
+
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="draft")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.contract_title or 'Rental Contract'} - {self.status}"
+
+    def save(self, *args, **kwargs):
+        if not self.contract_title:
+            listing_title = getattr(self.listing, "title", "Property")
+            self.contract_title = f"Rental Contract - {listing_title}"
+        super().save(*args, **kwargs)
+
+
+
+def default_owner_agreement_text():
+    return """
+PROPERTY LISTING AGREEMENT
+
+1. Purpose of Agreement
+This agreement outlines the terms and conditions between the property owner and the platform.
+By listing your property, you agree to follow the rules and payment structure defined below.
+
+2. Commission Structure
+- When a tenant books your property, the first payment will be divided as:
+  20% -> Platform
+  80% -> Property Owner
+- This commission applies only to the first payment made by a tenant.
+- Any future payments from the same tenant will go 100% to the owner.
+- If a new tenant rents the same property, the first payment again follows:
+  20% -> Platform
+  80% -> Owner
+
+3. Why This Contract Is Necessary
+- It creates transparency between the platform and the owner.
+- It clearly explains the first-payment commission rule.
+- It prevents confusion about future tenant payments.
+- It helps both owners and the platform work fairly.
+
+4. Owner Responsibilities
+- Provide correct property details before listing.
+- Keep contact information accurate and active.
+- Respect booking and rental commitments.
+- Follow platform rules while using the website.
+""".strip()
+
+
+class OwnerPlatformAgreement(models.Model):
+    STATUS_PENDING = "pending"
+    STATUS_ACCEPTED = "accepted"
+    STATUS_REJECTED = "rejected"
+
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "Pending"),
+        (STATUS_ACCEPTED, "Accepted"),
+        (STATUS_REJECTED, "Rejected"),
+    ]
+
+    owner = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="platform_agreement",
+    )
+
+    agreement_key = models.CharField(max_length=100, default="property_listing_v1")
+    agreement_title = models.CharField(max_length=255, default="Property Listing Agreement")
+    agreement_version = models.CharField(max_length=50, default="v1")
+
+    agreement_text = models.TextField(default=default_owner_agreement_text)
+
+    platform_first_payment_percent = models.DecimalField(max_digits=5, decimal_places=2, default=20.00)
+    owner_first_payment_percent = models.DecimalField(max_digits=5, decimal_places=2, default=80.00)
+    future_payment_owner_percent = models.DecimalField(max_digits=5, decimal_places=2, default=100.00)
+
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
+
+    accepted_at = models.DateTimeField(null=True, blank=True)
+    rejected_at = models.DateTimeField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def mark_accepted(self):
+        self.status = self.STATUS_ACCEPTED
+        self.accepted_at = timezone.now()
+        self.rejected_at = None
+        self.save(update_fields=["status", "accepted_at", "rejected_at", "updated_at"])
+
+    def mark_rejected(self):
+        self.status = self.STATUS_REJECTED
+        self.rejected_at = timezone.now()
+        self.save(update_fields=["status", "rejected_at", "updated_at"])
+
+    def __str__(self):
+        return f"{self.owner} - {self.agreement_title} ({self.status})"

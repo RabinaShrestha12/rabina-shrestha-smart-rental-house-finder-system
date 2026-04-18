@@ -61,8 +61,8 @@ export function AuthProvider({ children }) {
     return { ...tokens, role: finalRole, email: em };
   };
 
-  const logout = (redirectTo = "/") => {
-    // Preserving UI logic (e.g. unread counts, last_seen) while clearing user auth
+  const logout = () => {
+    // Preserve logic (e.g. unread counts, last_seen) while clearing user auth
     localStorage.removeItem("access");
     localStorage.removeItem("refresh");
     localStorage.removeItem("role");
@@ -70,7 +70,6 @@ export function AuthProvider({ children }) {
     setAccess("");
     setRole("");
     setEmail("");
-    window.location.href = redirectTo;
   };
 
   // ✅ register: uses selected role
@@ -129,7 +128,7 @@ export function AuthProvider({ children }) {
       login,
       logout,
     }),
-    [isAuthed, access, role, email]
+    [isAuthed, access, role, email, startRegister, verifyOtp, login, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -20,6 +20,7 @@ import {
   ChevronRight,
   Lock,
   Unlock,
+  ArrowLeft,
 } from "lucide-react";
 
 const BACKEND =
@@ -31,6 +32,9 @@ const toImageSrc = (value) => {
   }
   const s = String(value).trim();
   if (s.startsWith("http://") || s.startsWith("https://")) return s;
+  if (s.startsWith("/media/http://") || s.startsWith("/media/https://")) {
+    return s.replace(/^\/media\//, "");
+  }
   if (s.startsWith("/")) return `${BACKEND}${s}`;
   return `${BACKEND}/${s}`;
 };
@@ -102,7 +106,19 @@ export default function OwnerMyProperties() {
       title="Property Portfolio"
       subtitle="Manage your active listings, track performance, and update details."
       right={
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap justify-end">
+          <button
+            onClick={() => nav("/owner")}
+            className={`px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-widest transition-all flex items-center gap-2 ${
+              isDark
+                ? "bg-[#143861] text-white hover:bg-[#1a4678] border border-white/10 shadow-[0_8px_25px_rgba(0,0,0,0.25)]"
+                : "bg-white text-neutral-700 hover:bg-neutral-50 border border-neutral-200 shadow-sm"
+            }`}
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to Dashboard
+          </button>
+
           <button
             onClick={() => nav("/owner/listings/create")}
             className={`px-6 py-2.5 rounded-xl font-bold text-xs uppercase tracking-widest transition-all flex items-center gap-2 ${
@@ -311,8 +327,8 @@ export default function OwnerMyProperties() {
                     : "bg-white text-neutral-700 border border-neutral-200 hover:bg-neutral-50"
                 }`}
               >
+                <ArrowLeft className="w-4 h-4" />
                 Back to Dashboard
-                <ChevronRight className="w-4 h-4" />
               </button>
             </div>
           </div>
@@ -426,6 +442,17 @@ export default function OwnerMyProperties() {
                         />
                         {p.views || 0}
                       </div>
+
+                      {/* Image Count Badge */}
+                      <div
+                        className={`absolute bottom-4 right-4 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm flex items-center gap-1.5 backdrop-blur-md border border-white/10 bg-black/40 text-white`}
+                      >
+                        <Layers className="w-3.5 h-3.5 text-blue-300" />
+                        {1 + 
+                          (p.gallery_images?.length || 0) + 
+                          ([p.pano_front, p.pano_back, p.pano_left, p.pano_right, p.pano_up, p.pano_down].filter(Boolean).length)
+                        } Assets
+                      </div>
                     </div>
 
                     <div className="p-6 flex-1 flex flex-col justify-between">
@@ -524,7 +551,19 @@ export default function OwnerMyProperties() {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-4 gap-2">
+                        <button
+                          onClick={() => nav(`/owner/listing/${p.id}`)}
+                          title="View Full Details"
+                          className={`py-3 rounded-xl flex items-center justify-center transition-colors border ${
+                            isDark
+                              ? "bg-blue-600 text-white hover:bg-blue-500 border-white/10"
+                              : "bg-blue-600 text-white hover:bg-blue-700 border-transparent shadow-lg shadow-blue-500/20"
+                          }`}
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+
                         <button
                           onClick={() => nav(`/public/listings/${p.id}`)}
                           title="View Public Listing"
