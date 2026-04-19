@@ -4,13 +4,15 @@ import { Route, Routes } from "react-router-dom";
 import PublicLayout from "./components/PublicLayout";
 import AboutPage from "./pages/home/AboutPage";
 import ContactPage from "./pages/home/ContactPage";
+import GoDashboard from "./pages/home/GoDashboard";
 import HomePublic from "./pages/home/HomePublic";
 import Listing360Page from "./pages/home/Listing360Page";
+import MapSearch from "./pages/home/MapSearch";
+import NotFound from "./pages/home/NotFound";
 import PublicListingDetails from "./pages/home/PublicListingDetails";
 import PublicListings from "./pages/home/PublicListings";
-
-// MAP SEARCH
-import MapSearch from "./pages/home/MapSearch";
+import TenantBookPage from "./pages/home/TenantBookPage";
+import Unauthorized from "./pages/home/Unauthorized";
 
 // AUTH
 import AdminLogin from "./pages/auth/AdminLogin";
@@ -23,6 +25,7 @@ import AdminSetup from "./pages/admin/AdminSetup";
 
 // DASHBOARDS
 import AdminDashboard from "./pages/dashboard/AdminDashboard";
+import EmailBroadcast from "./pages/dashboard/EmailBroadcast";
 import OwnerDashboard from "./pages/dashboard/OwnerDashboard";
 import ProviderDashboard from "./pages/dashboard/ProviderDashboard";
 import TenantDashboard from "./pages/dashboard/TenantDashboard";
@@ -61,24 +64,15 @@ import ProviderInbox from "./pages/provider/ProviderInbox";
 import ProviderNotifications from "./pages/provider/ProviderNotifications";
 import ProviderOtp from "./pages/provider/ProviderOtp";
 
-// ADMIN PAGE
+// ADMIN PAGES
 import AdminBookingPayments from "./pages/admin/AdminBookingPayments";
 import Furnitures from "./pages/admin/Furnitures";
-import EmailBroadcast from "./pages/dashboard/EmailBroadcast";
-
-// TENANT BOOK PAGE
-import TenantBookPage from "./pages/home/TenantBookPage";
 
 // TOOLS
 import BudgetSplitCalculator from "./pages/tools/BudgetSplitCalculator";
 
 // REMINDERS
 import RemindersPage from "./pages/common/RemindersPage";
-
-// COMMON
-import GoDashboard from "./pages/GoDashboard";
-import NotFound from "./pages/NotFound";
-import Unauthorized from "./pages/Unauthorized";
 
 // PROTECTED
 import ProtectedRoute from "./auth/ProtectedRoute";
@@ -192,8 +186,6 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-
-        {/* OWNER WEBSITE AGREEMENT */}
         <Route
           path="/owner/contract"
           element={
@@ -202,8 +194,6 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-
-        {/* OWNER ↔ TENANT RENTAL CONTRACTS */}
         <Route
           path="/owner/contracts"
           element={
@@ -374,8 +364,6 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-
-        {/* TENANT RENTAL CONTRACTS */}
         <Route
           path="/tenant/contracts"
           element={
