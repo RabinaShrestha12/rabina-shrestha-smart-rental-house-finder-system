@@ -158,14 +158,12 @@ urlpatterns = [
     path("owner/listings/create/", OwnerCreateListingView.as_view()),
     path("owner-profile/", owner_profile),
 
-    path("owner/my-listings/", owner_my_listings),
-    path("owner/my-listings/<int:pk>/", owner_my_listing_detail),
-    path("owner/my-listings/<int:pk>/update/", owner_my_listing_update),
-    path("owner/my-listings/<int:pk>/delete/", owner_my_listing_delete),
+    path("owner/my-listings/", owner_my_listings, name="owner_my_listings"),
+    path("owner/my-listings/<int:pk>/", owner_my_listing_detail, name="owner_my_listing_detail"),
+    path("owner/my-listings/<int:pk>/update/", owner_my_listing_update, name="owner_my_listing_update"),
+    path("owner/my-listings/<int:pk>/delete/", owner_my_listing_delete, name="owner_my_listing_delete"),
 
-    # =========================
     # BOOKING REQUESTS
-    # =========================
     path("tenant/booking-requests/create/", tenant_create_booking_request),
     path("tenant/request-booking/<int:listing_id>/", tenant_create_booking_request),
     path("tenant/request-booking/", tenant_create_booking_request),
@@ -183,37 +181,34 @@ urlpatterns = [
     # Legacy booking message create
     path("messages/", create_message_legacy),
 
-    # =========================
     # REVIEWS
-    # =========================
     path("reviews/create/", tenant_create_review),
     path("listings/<int:listing_id>/reviews/", listing_reviews),
     path("owner/reviews/", owner_my_reviews),
 
-        # =========================
     # MAINTENANCE
-    # =========================
-    path("owner/maintenance/create/", owner_create_maintenance_request),
-    path("owner/maintenance/", owner_maintenance_requests),
+    path("owner/maintenance/create/", owner_create_maintenance_request, name="owner_create_maintenance_request"),
+    path("owner/maintenance/", owner_maintenance_requests, name="owner_maintenance_requests"),
 
-    # NEW: maintenance request CRUD
-    path("owner/maintenance/<int:req_id>/", owner_maintenance_request_detail),
-    path("owner/maintenance/<int:req_id>/update/", owner_update_maintenance_request),
-    path("owner/maintenance/<int:req_id>/delete/", owner_delete_maintenance_request),
+    path("owner/maintenance/<int:req_id>/", owner_maintenance_request_detail, name="owner_maintenance_request_detail"),
+    path("owner/maintenance/<int:req_id>/update/", owner_update_maintenance_request, name="owner_update_maintenance_request"),
+    path("owner/maintenance/<int:req_id>/delete/", owner_delete_maintenance_request, name="owner_delete_maintenance_request"),
 
-    # Existing status update
-    path("owner/maintenance/<int:req_id>/status/", owner_update_maintenance_status),
+    path("owner/maintenance/<int:req_id>/status/", owner_update_maintenance_status, name="owner_update_maintenance_status"),
 
-    path("owner/providers/", owner_available_providers),
-    path("owner/maintenance/<int:req_id>/assign/", owner_assign_provider),
+    path("owner/providers/", owner_available_providers, name="owner_available_providers"),
+    path("owner/maintenance/<int:req_id>/assign/", owner_assign_provider, name="owner_assign_provider"),
 
-    path("provider/jobs/", provider_my_jobs),
-    path("provider/jobs/<int:req_id>/accept/", provider_accept_job),
-    path("provider/jobs/<int:req_id>/status/", provider_update_job_status),
+    path("provider/jobs/", provider_my_jobs, name="provider_my_jobs"),
+    path("provider/jobs/<int:req_id>/accept/", provider_accept_job, name="provider_accept_job"),
+    path("provider/jobs/<int:req_id>/status/", provider_update_job_status, name="provider_update_job_status"),
 
     # Notifications
-    path("notifications/", nv.my_notifications),
-    path("notifications/<int:notif_id>/read/", nv.mark_notification_read),
+    path("notifications/", nv.my_notifications, name="my_notifications"),
+    path("notifications/<int:notif_id>/read/", nv.mark_notification_read, name="mark_notification_read"),
+    path("reminders/create/", nv.create_reminder, name="create_reminder"),
+    path("reminders/", nv.my_reminders, name="my_reminders"),
+    path("reminders/<int:reminder_id>/", nv.update_reminder, name="update_reminder"),
 
     # Reminders
     path("reminders/create/", nv.create_reminder),
@@ -224,6 +219,8 @@ urlpatterns = [
     path("listings/<int:listing_id>/facilities/", listing_facilities),
     path("owner/listings/<int:listing_id>/facilities/add/", owner_add_facility),
     path("owner/facilities/<int:facility_id>/delete/", owner_delete_facility),
+
+
 
     # OWNER ↔ PROVIDER MAINTENANCE CHAT
     path("owner/maintenance/<int:req_id>/messages/", owner_get_maintenance_messages),
@@ -255,37 +252,30 @@ urlpatterns = [
     path("tenant/roommates/messages/<int:message_id>/update/", roommate_update_message),
     path("tenant/roommates/messages/<int:message_id>/delete/", roommate_delete_message),
 
-    # =========================
     # FURNITURE MANAGEMENT
-    # =========================
-    path("furniture/", furniture_list),
-    path("admin/furniture/create/", furniture_create),
-    path("admin/furniture/<int:pk>/update/", furniture_update),
-    path("admin/furniture/<int:pk>/delete/", furniture_delete),
+    path("furniture/", furniture_list, name="furniture_list"),
+    path("admin/furniture/create/", furniture_create, name="furniture_create"),
+    path("admin/furniture/<int:pk>/update/", furniture_update, name="furniture_update"),
+    path("admin/furniture/<int:pk>/delete/", furniture_delete, name="furniture_delete"),
 
-    # =========================
     # PAYMENTS
-    # =========================
-    path("payments/esewa/initiate/", initiate_esewa_booking_payment),
-    path("payments/esewa/success/", esewa_success),
-    path("payments/esewa/failure/", esewa_failure),
+    path("payments/esewa/initiate/", initiate_esewa_booking_payment, name="initiate_esewa_booking_payment"),
+    path("payments/esewa/success/", esewa_success, name="esewa_success"),
+    path("payments/esewa/failure/", esewa_failure, name="esewa_failure"),
 
-    path("tenant/booking-payments/my/", my_booking_payments),
-    path("admin/booking-payments/", admin_booking_payments),
-    path("admin/booking-payments/<int:payment_id>/owner-paid/", mark_owner_booking_paid),
-    path("owner/booking-payments/", owner_booking_payments),
+    path("tenant/booking-payments/my/", my_booking_payments, name="my_booking_payments"),
+    path("admin/booking-payments/", admin_booking_payments, name="admin_booking_payments"),
+    path("admin/booking-payments/<int:payment_id>/owner-paid/", mark_owner_booking_paid, name="mark_owner_booking_paid"),
+    path("owner/booking-payments/", owner_booking_payments, name="owner_booking_payments"),
 
-    # =========================
+    
     # EXPENSE TRACKER
-    # =========================
-    path("tenant/expenses/", TenantExpenseListCreateView.as_view()),
-    path("tenant/expenses/<int:pk>/", TenantExpenseDetailView.as_view()),
-    path("tenant/expenses/month-summary/", TenantExpenseMonthSummaryView.as_view()),
-    path("tenant/expenses/generate-month-notification/", GenerateEndOfMonthExpenseNotificationView.as_view()),
-
-    # =========================
+    path("tenant/expenses/", TenantExpenseListCreateView.as_view(), name="tenant_expense_list_create"),
+    path("tenant/expenses/<int:pk>/", TenantExpenseDetailView.as_view(), name="tenant_expense_detail"),
+    path("tenant/expenses/month-summary/", TenantExpenseMonthSummaryView.as_view(), name="tenant_expense_month_summary"),
+    path("tenant/expenses/generate-month-notification/", GenerateEndOfMonthExpenseNotificationView.as_view(), name="generate_end_of_month_expense_notification"),
+   
     # VIRTUAL FURNITURE ROOM IMAGES
-    # =========================
     path(
         "tenant/virtual-furniture/room-images/",
         TenantRoomImageSaveListCreateView.as_view(),
@@ -302,7 +292,7 @@ urlpatterns = [
     path("public/contact/", public_contact_create, name="public_contact_create"),
     path("admin/contact-messages/", admin_contact_messages, name="admin_contact_messages"),
 
-     path("owner/contracts/", OwnerContractListView.as_view(), name="owner-contract-list"),
+    path("owner/contracts/", OwnerContractListView.as_view(), name="owner-contract-list"),
     path("owner/contracts/<int:pk>/", OwnerContractDetailView.as_view(), name="owner-contract-detail"),
     path("owner/contracts/<int:pk>/send/", OwnerSendContractView.as_view(), name="owner-send-contract"),
     path("owner/contracts/<int:pk>/finalize/", OwnerFinalizeContractView.as_view(), name="owner-finalize-contract"),
@@ -313,5 +303,4 @@ urlpatterns = [
 
     path("owner/platform-agreement/", OwnerPlatformAgreementView.as_view(), name="owner-platform-agreement"),
     path("owner/platform-agreement/respond/", OwnerPlatformAgreementRespondView.as_view(), name="owner-platform-agreement-respond"),
-
 ]

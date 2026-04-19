@@ -29,10 +29,7 @@ import {
   MessageCircle,
   Image as ImageIcon,
   PhoneCall,
-  UserRoundSearch,
-  BedDouble,
   FileText,
-  X,
 } from "lucide-react";
 
 function isHtml(x) {
@@ -207,9 +204,9 @@ function getBookedStatus(p) {
   if (p?.is_available === false) return true;
   const s = String(
     p?.status ??
-    p?.booking_status ??
-    p?.property_status ??
-    ""
+      p?.booking_status ??
+      p?.property_status ??
+      ""
   ).toLowerCase();
   return s === "booked" || s === "occupied" || s === "rented";
 }
@@ -371,7 +368,7 @@ export default function AdminDashboard() {
 
   const handleLogout = () => {
     logout();
-    nav("/super-admin-login-9382", { replace: true });
+    nav("/", { replace: true });
   };
 
   const pageBg = isDark ? "bg-white/5 border-white/10" : "bg-white border-slate-200";
@@ -431,7 +428,6 @@ export default function AdminDashboard() {
   const loadCommunications = useCallback(async () => {
     setCommunicationLoading(true);
     try {
-      // ✅ Fetch the unified threads list from our new Admin API
       const res = await api.get("admin/communications/");
       const list = safeArr(res.data);
 
@@ -534,8 +530,6 @@ export default function AdminDashboard() {
   }, [loadProperties, loadCommunications]);
 
   useEffect(() => {
-    // Only redirect if role exists but is NOT admin
-    // If role is empty, we're likely logging out or initializing
     if (role && String(role).toLowerCase() !== "admin") {
       nav("/unauthorized", { replace: true });
       return;
@@ -1452,9 +1446,9 @@ export default function AdminDashboard() {
                   ? isDark
                     ? "bg-blue-500/10 border-blue-400/30"
                     : "bg-blue-50 border-blue-200"
-                  : isDark 
-                    ? "bg-white/5 border-white/10 hover:bg-white/10" 
-                    : "bg-white border-slate-200 hover:bg-slate-50"
+                  : isDark
+                  ? "bg-white/5 border-white/10 hover:bg-white/10"
+                  : "bg-white border-slate-200 hover:bg-slate-50"
               }`}
             >
               <div className={`w-16 h-16 rounded-[22px] flex items-center justify-center ${s.iconWrap}`}>
