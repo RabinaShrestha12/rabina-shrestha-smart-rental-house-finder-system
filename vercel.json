@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "installCommand": "cd Frontend/smart-rental-frontend && npm install",
-  "buildCommand": "cd Frontend/smart-rental-frontend && npm run build",
-  "outputDirectory": "Frontend/smart-rental-frontend/build",
+  "installCommand": "npm install",
+  "buildCommand": "npm run build",
+  "outputDirectory": "build",
   "rewrites": [
     {
       "source": "/(.*)",
