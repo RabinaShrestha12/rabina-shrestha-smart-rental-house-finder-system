@@ -102,91 +102,8 @@ Live Project
 Live URL of the deployed system: https://rabina-shrestha-smart-ren-git-d852bd-rabinashrestha12s-projects.vercel.app/
 
 Project Structure
-rabina-shrestha-smart-rental-system
-│
-├── Backend
-│   ├── myproject
-│   │   ├── myapp
-│   │   │   ├── migrations
-│   │   │   ├── tests
-│   │   │   ├── view
-│   │   │   │   ├── public
-│   │   │   │   ├── admin_dashboard_views.py
-│   │   │   │   ├── ai_suggestions_views.py
-│   │   │   │   ├── auth_views.py
-│   │   │   │   ├── booking_views.py
-│   │   │   │   ├── contact_views.py
-│   │   │   │   ├── contract_views.py
-│   │   │   │   ├── esewa_payment_views.py
-│   │   │   │   ├── expense_views.py
-│   │   │   │   ├── facilities_views.py
-│   │   │   │   ├── furniture_views.py
-│   │   │   │   ├── maintenance_chat_views.py
-│   │   │   │   ├── maintenance_views.py
-│   │   │   │   ├── notifications_views.py
-│   │   │   │   ├── owner_agreement_views.py
-│   │   │   │   ├── owner_my_listings.py
-│   │   │   │   ├── owner_profile_views.py
-│   │   │   │   ├── owner_views.py
-│   │   │   │   ├── reviews_views.py
-│   │   │   │   ├── roommate_chat_views.py
-│   │   │   │   ├── roommate_views.py
-│   │   │   │   ├── tenant_room_image_views.py
-│   │   │   │   └── tenant_views.py
-│   │   │   ├── models.py
-│   │   │   ├── serializers.py
-│   │   │   ├── urls.py
-│   │   │   ├── permissions.py
-│   │   │   ├── contract_utils.py
-│   │   │   └── otp_utils.py
-│   │   ├── manage.py
-│   │   ├── requirements.txt
-│   │   ├── .env
-│   │   ├── build.sh
-│   │   └── db.sqlite3
-│   └── myvenv
-│
-├── Frontend
-│   └── smart-rental-frontend
-│       ├── public
-│       ├── build
-│       ├── node_modules
-│       └── src
-│           ├── api
-│           │   └── axios.jsx
-│           ├── auth
-│           │   ├── AuthContext.jsx
-│           │   ├── ProtectedRoute.jsx
-│           │   └── roleDetector.jsx
-│           ├── components
-│           │   ├── PublicNavbar.jsx
-│           │   ├── PublicFooter.jsx
-│           │   ├── PublicLayout.jsx
-│           │   ├── Shell.jsx
-│           │   ├── ListingMapPanel.jsx
-│           │   ├── LocationPicker.jsx
-│           │   ├── Cubemap360.jsx
-│           │   ├── Panorama360.jsx
-│           │   ├── ReviewsBox.jsx
-│           │   ├── ThemeContext.jsx
-│           │   ├── ThemeToggle.js
-│           │   └── Toast.jsx
-│           ├── pages
-│           │   ├── admin
-│           │   ├── auth
-│           │   ├── common
-│           │   ├── dashboard
-│           │   ├── home
-│           │   ├── owner
-│           │   ├── provider
-│           │   ├── tenant
-│           │   └── tools
-│           ├── App.js
-│           ├── App.css
-│           └── App.test.js
-│
-└── README.md
 
+![alt text](image-20.png)
 
 Screenshots
 
@@ -194,80 +111,86 @@ Add some screenshots of the system here.
 Login page
 You can login by using the email and password that you have insert while register.
 
-![alt text](image-1.png)
+![alt text](image-10.png)
 
 
 Registration page
 In this place you have to filled teh form according to your prefernce like owner, service provider and tenat and teh otp will be send in the email you have to insert that otp after that you can login.
 
-![alt text](image-2.png)
+![alt text](image-11.png)
 
 Public home page
 This is the home page where you can see some features like this in the image.
-![alt text](image-5.png)
-
-![alt text](image-6.png)
-
-![alt text](image-7.png)
-
-![alt text](image-8.png)
-
-Property listing page
-This is the part where any user can see the property list but they cannot book it. 
-
-![alt text](image-4.png)
-
-Property details page
-This is the property details page where you can see the property details like this image.
-
-![alt text](image-9.png)
-
-Tenant Dashboard
-The is the Tenant Dashbord.
-
-![alt text](image-10.png)
-
-Owner Dashboard
-This is teh Owner Dashboard.
-
-![alt text](image-11.png)
-
-Service Provider Dashboard
-This is the Service Provider Dashboard.
 
 ![alt text](image-12.png)
-
-Booking request page
-This is the request booking dashboard where tenant can asked for booking to owner and when the owner accept that request then only user can go for payemnt process but tenant can chat with owner with the same request message help.
 
 ![alt text](image-13.png)
 
 ![alt text](image-14.png)
 
+![alt text](image-15.png)
+
+![alt text](image-16.png)
+
+
+Property listing page
+This is the part where any user can see the property list but they cannot book it. 
+
+![alt text](image-17.png)
+
+Property details page
+This is the property details page where you can see the property details like this image.
+
+![alt text](image-18.png)
+
+Tenant Dashboard
+The is the Tenant Dashbord.
+
+![alt text](image-3.png)
+
+Owner Dashboard
+This is teh Owner Dashboard.
+
+![alt text](image-1.png)
+
+Service Provider Dashboard
+This is the Service Provider Dashboard.
+
+![alt text](image-19.png)
+
+Booking request page
+This is the request booking dashboard where tenant can asked for booking to owner and when the owner accept that request then only user can go for payemnt process but tenant can chat with owner with the same request message help.
+
+![alt text](image-7.png)
+
+![alt text](image-6.png)
+
 Contract page
 This is the contract page of owner and tenant. For owner they have to aggre with teh aggremnt to insert the proeprty whereas tenant have to aggre the contract paper which was send by teh owner.
 
-![alt text](image-15.png)
+![alt text](image-2.png)
+
+![alt text](image-4.png)
 
 Roommate finder page
 This is teh roomate finder page at first yo have to add the requirement of your tehn click on teh finder button and it will show liek this.
 
-![alt text](image-16.png)
+![alt text](image-5.png)
 
 Virtual furniture page
 This is the virtual furniture placement page yu have to insert teh room image and then used other furniture to decorate the room by filling all that form part.
 
-![alt text](image-17.png)
+![alt text](image-8.png)
 
 Expense tracker page
 This is teh Expense page where you can track your expenses.
 
-![alt text](image-18.png)
+![alt text](image-9.png)
 
 Maintenance request page
 This is the maintenance request page where owner can request for service provider for help at first you have fill teh form and teh you have to choose the service provider for that problem.
 
-![alt text](image-19.png)
+![alt text](image.png)
 
 
 How to Start the Project
