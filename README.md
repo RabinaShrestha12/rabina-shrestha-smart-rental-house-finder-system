@@ -108,18 +108,18 @@ Project Structure
 Screenshots
 
 Add some screenshots of the system here.
-Login page
+Login page: 
 You can login by using the email and password that you have insert while register.
 
 ![alt text](image-10.png)
 
-
-Registration page
+ 
+Registration page: 
 In this place you have to filled teh form according to your prefernce like owner, service provider and tenat and teh otp will be send in the email you have to insert that otp after that you can login.
 
 ![alt text](image-11.png)
 
-Public home page
+Public home page: 
 This is the home page where you can see some features like this in the image.
 
 ![alt text](image-12.png)
@@ -133,61 +133,61 @@ This is the home page where you can see some features like this in the image.
 ![alt text](image-16.png)
 
 
-Property listing page
+Property listing page: 
 This is the part where any user can see the property list but they cannot book it. 
 
 ![alt text](image-17.png)
 
-Property details page
+Property details page: 
 This is the property details page where you can see the property details like this image.
 
 ![alt text](image-18.png)
 
-Tenant Dashboard
+Tenant Dashboard: 
 The is the Tenant Dashbord.
 
 ![alt text](image-3.png)
 
-Owner Dashboard
+Owner Dashboard: 
 This is teh Owner Dashboard.
 
 ![alt text](image-1.png)
 
-Service Provider Dashboard
+Service Provider Dashboard: 
 This is the Service Provider Dashboard.
 
 ![alt text](image-19.png)
 
-Booking request page
+Booking request page: 
 This is the request booking dashboard where tenant can asked for booking to owner and when the owner accept that request then only user can go for payemnt process but tenant can chat with owner with the same request message help.
 
 ![alt text](image-7.png)
 
 ![alt text](image-6.png)
 
-Contract page
+Contract page: 
 This is the contract page of owner and tenant. For owner they have to aggre with teh aggremnt to insert the proeprty whereas tenant have to aggre the contract paper which was send by teh owner.
 
 ![alt text](image-2.png)
 
 ![alt text](image-4.png)
 
-Roommate finder page
+Roommate finder page: 
 This is teh roomate finder page at first yo have to add the requirement of your tehn click on teh finder button and it will show liek this.
 
 ![alt text](image-5.png)
 
-Virtual furniture page
+Virtual furniture page: 
 This is the virtual furniture placement page yu have to insert teh room image and then used other furniture to decorate the room by filling all that form part.
 
 ![alt text](image-8.png)
 
-Expense tracker page
+Expense tracker page: 
 This is teh Expense page where you can track your expenses.
 
 ![alt text](image-9.png)
 
-Maintenance request page
+Maintenance request page: 
 This is the maintenance request page where owner can request for service provider for help at first you have fill teh form and teh you have to choose the service provider for that problem.
 
 ![alt text](image.png)
@@ -240,21 +240,32 @@ Possible improvements for the system:
 
 Mobile application version
 Improved user interface and user experience
+
 Stronger payment verification and security features
+
 More advanced map search and location intelligence
+
 Live notification support
+
 Better analytics dashboard
+
 Cloud deployment and scaling
+
 Advanced filtering system
+
 More accurate roommate matching
+
 Improved image upload and 360-degree room support
 
 
 Authors
 
 Student Name: Rabina Shrestha
+
 Project Title: Smart Rental House Finder
+
 Program / Department: Bsc(Hons). Computing
+
 University / College Name: Itahari International College
 
 License
