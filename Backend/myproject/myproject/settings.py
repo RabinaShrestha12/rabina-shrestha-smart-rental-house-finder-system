@@ -37,7 +37,8 @@ EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
+
 
 
 # Application definition
@@ -65,6 +66,7 @@ AUTH_USER_MODEL = "myapp.User"
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",  # keep near top
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",  # Add WhiteNoise here
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -145,6 +147,7 @@ CORS_ALLOW_ALL_ORIGINS = True
 
 # CSRF (VERY IMPORTANT for POST from React)
 CSRF_TRUSTED_ORIGINS = [
+    "https://rabina-shrestha-smart-rental-house-olive.vercel.app",
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "http://localhost:5173",
@@ -177,6 +180,7 @@ USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = "static/"
+STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
 
 # Media (uploads)
 MEDIA_URL = "/media/"
@@ -186,7 +190,6 @@ MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 # Default primary key field type
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
 MEDIA_ROOT = BASE_DIR / "media"
 
 
