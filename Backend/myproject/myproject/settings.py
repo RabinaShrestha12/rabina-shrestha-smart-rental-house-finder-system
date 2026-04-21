@@ -104,7 +104,7 @@ MYSQL_PASSWORD = ENV_FILE_VALUES.get("MYSQL_PASSWORD", os.getenv("MYSQL_PASSWORD
 MYSQL_HOST = ENV_FILE_VALUES.get("MYSQL_HOST", os.getenv("MYSQL_HOST"))
 MYSQL_PORT = ENV_FILE_VALUES.get("MYSQL_PORT", os.getenv("MYSQL_PORT"))
 
-if USE_MYSQL and all([MYSQL_DATABASE, MYSQL_USER, MYSQL_PASSWORD, MYSQL_HOST, MYSQL_PORT]):
+if USE_MYSQL and MYSQL_DATABASE and MYSQL_USER and MYSQL_HOST and MYSQL_PORT:
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.mysql",
@@ -113,18 +113,13 @@ if USE_MYSQL and all([MYSQL_DATABASE, MYSQL_USER, MYSQL_PASSWORD, MYSQL_HOST, MY
             "PASSWORD": MYSQL_PASSWORD,
             "HOST": MYSQL_HOST,
             "PORT": MYSQL_PORT,
-            "OPTIONS": (
-                {"ssl": {"ca": os.getenv("MYSQL_SSL_CA")}}
-                if os.getenv("MYSQL_SSL_CA")
-                else {}
-            ),
         }
     }
 else:
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "db.sqlite3",
+            "NAME": BASE_DIR / "project_db.sqlite3",
         }
     }
 

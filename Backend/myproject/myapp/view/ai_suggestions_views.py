@@ -1,4 +1,3 @@
-# myapp/view/ai_suggestions_views.py
 import math
 import requests
 
