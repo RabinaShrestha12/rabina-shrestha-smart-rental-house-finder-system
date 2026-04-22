@@ -20,9 +20,7 @@ from myapp.serializers import (
 )
 
 
-# =========================
 # Role helpers
-# =========================
 def is_owner(user):
     return str(getattr(user, "role", "")).lower() == "owner"
 

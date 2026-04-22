@@ -862,13 +862,7 @@ export default function TenantDashboard() {
                 tone="amber"
                 onClick={() => nav("/tools/budget-split")}
               />
-              <QuickAction
-                icon={Wallet}
-                label="Expenses"
-                subtitle="Track your rental spending"
-                tone="green"
-                onClick={() => nav("/tenant/expenses")}
-              />
+              
               <QuickAction
                 icon={CreditCard}
                 label="Payments"
@@ -905,13 +899,7 @@ export default function TenantDashboard() {
                 onClick={() => nav("/tenant/expenses")}
               />
 
-              <QuickAction
-                icon={CreditCard}
-                label="Payments"
-                subtitle="See booking payment status"
-                tone="cyan"
-                onClick={() => nav("/tenant/booking-payments")}
-              />
+
 
               <QuickAction
                 icon={FileText}
@@ -920,20 +908,6 @@ export default function TenantDashboard() {
                 tone="cyan"
                 onClick={() => nav("/tenant/contracts")}
               />
-
-              <QuickAction
-                icon={Heart}
-                label="Saved Items"
-                subtitle="Access your favorite listings"
-                tone="pink"
-                onClick={() =>
-                  setToast({
-                    type: "info",
-                    msg: `${favorites.length} properties currently saved.`,
-                  })
-                }
-              />
-
 
               <QuickAction
                 icon={MessageSquare}

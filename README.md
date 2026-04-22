@@ -146,7 +146,7 @@ This is the property details page where you can see the property details like th
 Tenant Dashboard: 
 The is the Tenant Dashbord.
 
-![alt text](image-3.png)
+![alt text](image-21.png)
 
 Owner Dashboard: 
 This is teh Owner Dashboard.
@@ -183,7 +183,7 @@ This is the virtual furniture placement page yu have to insert teh room image an
 ![alt text](image-8.png)
 
 Expense tracker page: 
-This is teh Expense page where you can track your expenses.
+This is the Expense page where you can track your expenses.
 
 ![alt text](image-9.png)
 
