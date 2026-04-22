@@ -90,13 +90,13 @@ Run frontend server
 cd Frontend/smart-rental-frontend
 npm start
 
-## The backend usually runs at: http://127.0.0.1:8000/
+### The backend usually runs at: http://127.0.0.1:8000/
 
-## The frontend usually runs at: http://localhost:3000/
+### The frontend usually runs at: http://localhost:3000/
 
-## Live Project
+# Live Project
 
-## Live URL of the deployed system: https://rabina-shrestha-smart-ren-git-d852bd-rabinashrestha12s-projects.vercel.app/
+### Live URL of the deployed system: https://rabina-shrestha-smart-ren-git-d852bd-rabinashrestha12s-projects.vercel.app/
 
 ## Project Structure
 
@@ -233,8 +233,8 @@ maintenance pages
 
 # Future Improvements
 
-# Possible improvements for the system:
-## Mobile application version
+### Possible improvements for the system:
+### Mobile application version
 * Improved user interface and user experience
 
 * Stronger payment verification and security features
@@ -254,16 +254,12 @@ maintenance pages
 * Improved image upload and 360-degree room support
 
 
-## Authors
+# Authors
 
 ## Student Name: Rabina Shrestha
-
 ## Project Title: Smart Rental House Finder
-
 ## Program / Department: Bsc(Hons). Computing
-
 ## University / College Name: Itahari International College
-
 ## License
 
 This project is created for educational purposes as part of a Final Year Project.
