@@ -1,13 +1,13 @@
-Project Title
+##Project Title
 
-Smart Rental House Finder
+###Smart Rental House Finder
 Smart Rental House Finder is an online rental management system that aims to bring together tenants, property owners, service providers and administrators to manage all activities related to rentals in a single platform. Some of the features offered by the system include user registration, login, property listing management, smart property search, booking requests, rental agreements, payment management, communication management, maintenance support, roommate finder, expense management, virtual furniture placement, notifications, and dashboard-based management. It will simplify, expedite, and streamline the rental process using a role based and user friendly system.
 
 
-Project Objective
+###Project Objective
 The primary aim of this project will be to come up with a smart rental management system that addresses the typical issues encountered in the renting process. The system should enhance user experience with an easy, effective and interactive web interface. It helps users to find the property, interact with one another, make and manage booking, process agreements and payments, get notifications and utilize other smart tools to make better decisions during the rental process.
 
-Features
+##Features
 
 The system provides the following features:
 
@@ -53,14 +53,14 @@ SQLite3
 Deployment
 Vercel / Render / local deployment setup
 
-System Requirements
+##System Requirements
 
-Hardware
+###Hardware
 Computer or laptop
 Internet connection
 Smartphone can also be used for web access if deployed online
 
-Software
+###Software
 Web browser such as Google Chrome or Mozilla Firefox
 Node.js
 Python
@@ -68,7 +68,7 @@ pip
 Virtual environment support
 Code editor such as Visual Studio Code
 
-Installation and Setup
+##Installation and Setup
 
 Steps to run the project locally:
 
@@ -97,29 +97,29 @@ The backend usually runs at: http://127.0.0.1:8000/
 
 The frontend usually runs at: http://localhost:3000/
 
-Live Project
+##Live Project
 
 Live URL of the deployed system: https://rabina-shrestha-smart-ren-git-d852bd-rabinashrestha12s-projects.vercel.app/
 
-Project Structure
+##Project Structure
 
 ![alt text](image-20.png)
 
 Screenshots
 
 Add some screenshots of the system here.
-Login page: 
+###Login page: 
 You can login by using the email and password that you have insert while register.
 
 ![alt text](image-10.png)
 
  
-Registration page: 
+###Registration page: 
 In this place you have to filled teh form according to your prefernce like owner, service provider and tenat and teh otp will be send in the email you have to insert that otp after that you can login.
 
 ![alt text](image-11.png)
 
-Public home page: 
+###Public home page: 
 This is the home page where you can see some features like this in the image.
 
 ![alt text](image-12.png)
@@ -133,77 +133,77 @@ This is the home page where you can see some features like this in the image.
 ![alt text](image-16.png)
 
 
-Property listing page: 
+###Property listing page: 
 This is the part where any user can see the property list but they cannot book it. 
 
 ![alt text](image-17.png)
 
-Property details page: 
+###Property details page: 
 This is the property details page where you can see the property details like this image.
 
 ![alt text](image-18.png)
 
-Tenant Dashboard: 
+###Tenant Dashboard: 
 The is the Tenant Dashbord.
 
 ![alt text](image-21.png)
 
-Owner Dashboard: 
+###Owner Dashboard: 
 This is teh Owner Dashboard.
 
 ![alt text](image-1.png)
 
-Service Provider Dashboard: 
+###Service Provider Dashboard: 
 This is the Service Provider Dashboard.
 
 ![alt text](image-19.png)
 
-Booking request page: 
+###Booking request page: 
 This is the request booking dashboard where tenant can asked for booking to owner and when the owner accept that request then only user can go for payemnt process but tenant can chat with owner with the same request message help.
 
 ![alt text](image-7.png)
 
 ![alt text](image-6.png)
 
-Contract page: 
+###Contract page: 
 This is the contract page of owner and tenant. For owner they have to aggre with teh aggremnt to insert the proeprty whereas tenant have to aggre the contract paper which was send by teh owner.
 
 ![alt text](image-2.png)
 
 ![alt text](image-4.png)
 
-Roommate finder page: 
+###Roommate finder page: 
 This is teh roomate finder page at first yo have to add the requirement of your tehn click on teh finder button and it will show liek this.
 
 ![alt text](image-5.png)
 
-Virtual furniture page: 
+###Virtual furniture page: 
 This is the virtual furniture placement page yu have to insert teh room image and then used other furniture to decorate the room by filling all that form part.
 
 ![alt text](image-8.png)
 
-Expense tracker page: 
+###Expense tracker page: 
 This is the Expense page where you can track your expenses.
 
 ![alt text](image-9.png)
 
-Maintenance request page: 
+###Maintenance request page: 
 This is the maintenance request page where owner can request for service provider for help at first you have fill teh form and teh you have to choose the service provider for that problem.
 
 ![alt text](image.png)
 
 
-How to Start the Project
+##How to Start the Project
 
 To start the project properly, both backend and frontend servers need to run at the same time.
 
 First, start the Django backend server from the backend folder using python manage.py runserver. After that, start the React frontend from the frontend folder using npm start. When both servers are running, open the frontend URL in the browser. The frontend will communicate with the backend APIs to load data, submit forms, authenticate users, and manage the complete system workflow.
 
-How to Run the Project
+##How to Run the Project
 
 The project works in two parts:
 
-Backend
+##Backend
 
 The backend handles:
 
@@ -219,7 +219,7 @@ maintenance and messaging functions
 
 Run backend with:python manage.py runserver
 
-Frontend
+##Frontend
 
 The frontend handles:
 user interface
@@ -234,7 +234,7 @@ maintenance pages
 
 Run frontend with: npm start
 
-Future Improvements
+##Future Improvements
 
 Possible improvements for the system:
 
@@ -258,16 +258,16 @@ More accurate roommate matching
 Improved image upload and 360-degree room support
 
 
-Authors
+##Authors
 
-Student Name: Rabina Shrestha
+##Student Name: Rabina Shrestha
 
-Project Title: Smart Rental House Finder
+##Project Title: Smart Rental House Finder
 
-Program / Department: Bsc(Hons). Computing
+##Program / Department: Bsc(Hons). Computing
 
-University / College Name: Itahari International College
+##University / College Name: Itahari International College
 
-License
+##License
 
 This project is created for educational purposes as part of a Final Year Project.
