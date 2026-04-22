@@ -291,7 +291,7 @@ export default function TenantContractPage() {
           </div>
 
           <div className="mt-8 grid gap-6 lg:grid-cols-[380px_minmax(0,1fr)]">
-            <div className={`rounded-[32px] p-6 ${ui.card}`}>
+            <div className={`rounded-[32px] p-6 h-[820px] overflow-y-auto ${ui.card}`}>
               <h2 className={`text-xl font-black ${ui.heading}`}>All Contracts</h2>
 
               {loading ? (
@@ -337,7 +337,7 @@ export default function TenantContractPage() {
               )}
             </div>
 
-            <div className={`rounded-[32px] p-6 ${ui.card}`}>
+            <div className={`rounded-[32px] p-6 h-[820px] overflow-y-auto ${ui.card}`}>
               {!selected ? (
                 <div className={`rounded-2xl p-6 ${ui.soft}`}>
                   <div className="flex items-center gap-3">

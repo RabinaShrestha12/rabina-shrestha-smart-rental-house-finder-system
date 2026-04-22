@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Eye, EyeOff } from "lucide-react";
 import { useAuth } from "../../auth/AuthContext";
 import { useTheme } from "../../components/ThemeContext";
 import "./UserAuth.css";
@@ -13,6 +14,7 @@ export default function Register() {
 
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   const [form, setForm] = useState({
     username: "",
@@ -180,15 +182,29 @@ export default function Register() {
             />
 
             <label style={styles.label}>Password</label>
-            <input
-              name="password"
-              placeholder="Password"
-              type="password"
-              value={form.password}
-              onChange={onChange}
-              style={styles.input}
-              required
-            />
+            <div style={styles.passwordWrap}>
+              <input
+                name="password"
+                placeholder="Password"
+                type={showPassword ? "text" : "password"}
+                value={form.password}
+                onChange={onChange}
+                style={styles.passwordInput}
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                style={styles.eyeBtn}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? (
+                  <EyeOff size={18} color={isDark ? "#cbd5e1" : "#475569"} />
+                ) : (
+                  <Eye size={18} color={isDark ? "#cbd5e1" : "#475569"} />
+                )}
+              </button>
+            </div>
 
             <button type="submit" disabled={loading} style={styles.primaryBtn}>
               {loading ? "Please wait..." : "Create account"}
@@ -329,6 +345,41 @@ function getStyles(isDark) {
       fontSize: "15px",
       transition: "all 0.25s ease",
       boxSizing: "border-box",
+    },
+
+    passwordWrap: {
+      position: "relative",
+      width: "100%",
+      marginBottom: "12px",
+    },
+
+    passwordInput: {
+      width: "100%",
+      padding: "13px 48px 13px 14px",
+      borderRadius: "14px",
+      border: isDark
+        ? "1px solid rgba(148, 163, 184, 0.16)"
+        : "1px solid rgba(203, 213, 225, 1)",
+      background: isDark ? "rgba(30, 41, 59, 0.82)" : "#f8fafc",
+      color: isDark ? "#ffffff" : "#0f172a",
+      outline: "none",
+      fontSize: "15px",
+      transition: "all 0.25s ease",
+      boxSizing: "border-box",
+    },
+
+    eyeBtn: {
+      position: "absolute",
+      top: "50%",
+      right: "12px",
+      transform: "translateY(-50%)",
+      background: "transparent",
+      border: "none",
+      cursor: "pointer",
+      padding: "4px",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
     },
 
     primaryBtn: {

@@ -351,7 +351,7 @@ export default function HomePublic() {
                   >
                     <div>
                       <span className="text-2xl font-extrabold text-blue-600">
-                        ${l.price_per_month || l.price_per_week * 4 || 0}
+                        Rs. {(l.price_per_month || l.price_per_week * 4 || 0).toLocaleString()}
                       </span>
                       <span
                         className={`text-sm font-medium ${
@@ -393,12 +393,13 @@ export default function HomePublic() {
 
         <div className="relative z-10 mx-auto max-w-7xl px-6 md:px-12">
           <div className="mx-auto mb-20 max-w-3xl text-center">
-            <h2 className="mb-6 text-4xl font-extrabold tracking-tight md:text-5xl">
-              Why Choose{" "}
-              <span className="bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
-                Smart Rental?
-              </span>
-            </h2>
+          <h2 className="mb-6 text-center text-4xl font-extrabold tracking-tight text-white md:text-5xl">
+            Why Choose
+            <br />
+            <span className="bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
+              Smart Rental?
+            </span>
+          </h2>
             <p className="text-lg text-neutral-300">
               We provide a seamless, secure, and modern experience for tenants,
               property owners, and service providers with smart features built

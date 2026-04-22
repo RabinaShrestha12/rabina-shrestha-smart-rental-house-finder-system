@@ -15,6 +15,8 @@ import {
   ChevronLeft,
   KeyRound,
   Fingerprint,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 
 function normalizeRole(r) {
@@ -86,40 +88,62 @@ function extractRole(resData) {
   return normalizeRole(raw);
 }
 
-const InputField = ({ label, icon: Icon, isDark, ...props }) => (
-  <div className="mb-5">
-    {label && (
-      <label
-        className={`block text-[11px] font-black uppercase tracking-widest mb-2 ml-1 ${
-          isDark ? "text-slate-300" : "text-slate-500"
-        }`}
-      >
-        {label}
-      </label>
-    )}
+const InputField = ({ label, icon: Icon, isDark, type = "text", ...props }) => {
+  const [showPassword, setShowPassword] = useState(false);
+  const isPassword = type === "password";
+  const actualType = isPassword ? (showPassword ? "text" : "password") : type;
 
-    <div className="relative group">
-      <div
-        className={`absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-colors z-10 ${
-          isDark
-            ? "text-slate-400 group-focus-within:text-blue-300"
-            : "text-slate-400 group-focus-within:text-blue-600"
-        }`}
-      >
-        <Icon className="w-5 h-5" />
+  return (
+    <div className="mb-5">
+      {label && (
+        <label
+          className={`block text-[11px] font-black uppercase tracking-widest mb-2 ml-1 ${
+            isDark ? "text-slate-300" : "text-slate-500"
+          }`}
+        >
+          {label}
+        </label>
+      )}
+
+      <div className="relative group">
+        <div
+          className={`absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-colors z-10 ${
+            isDark
+              ? "text-slate-400 group-focus-within:text-blue-300"
+              : "text-slate-400 group-focus-within:text-blue-600"
+          }`}
+        >
+          <Icon className="w-5 h-5" />
+        </div>
+
+        <input
+          {...props}
+          type={actualType}
+          className={`block w-full pl-12 ${isPassword ? "pr-12" : "pr-4"} py-4 rounded-2xl transition-all font-medium shadow-sm focus:outline-none focus:ring-4 ${
+            isDark
+              ? "bg-[#17365c] border border-white/10 text-white placeholder:text-slate-400 hover:bg-[#1b3f69] focus:bg-[#1b3f69] focus:border-blue-400/50 focus:ring-blue-300/10"
+              : "bg-[#f8fafc] border border-slate-200 text-slate-900 placeholder:text-slate-400 hover:bg-white focus:bg-white focus:border-blue-500 focus:ring-blue-500/10"
+          }`}
+        />
+
+      {isPassword && (
+        <button
+          type="button"
+          onClick={() => setShowPassword((prev) => !prev)}
+          className="absolute inset-y-0 right-0 px-4 flex items-center z-10 bg-[#dbeafe] text-blue-600 hover:bg-[#bfdbfe] hover:text-blue-700 rounded-r-2xl border-l border-blue-200"
+          aria-label={showPassword ? "Hide password" : "Show password"}
+        >
+          {showPassword ? (
+            <EyeOff className="w-5 h-5" />
+          ) : (
+            <Eye className="w-5 h-5" />
+          )}
+        </button>
+      )}
       </div>
-
-      <input
-        {...props}
-        className={`block w-full pl-12 pr-4 py-4 rounded-2xl transition-all font-medium shadow-sm focus:outline-none focus:ring-4 ${
-          isDark
-            ? "bg-[#17365c] border border-white/10 text-white placeholder:text-slate-400 hover:bg-[#1b3f69] focus:bg-[#1b3f69] focus:border-blue-400/50 focus:ring-blue-300/10"
-            : "bg-[#f8fafc] border border-slate-200 text-slate-900 placeholder:text-slate-400 hover:bg-white focus:bg-white focus:border-blue-500 focus:ring-blue-500/10"
-        }`}
-      />
     </div>
-  </div>
-);
+  );
+};
 
 export default function UserAuth() {
   const nav = useNavigate();
@@ -755,14 +779,16 @@ export default function UserAuth() {
                   {loading ? "Sending Process..." : "Send Reset Code"}
                 </button>
 
-                <button
+               <button
                   type="button"
                   onClick={() => setTab("login")}
-                  className={`w-full flex items-center justify-center gap-2 text-sm font-semibold transition-colors ${
-                    isDark ? "text-blue-300 hover:text-blue-200" : "text-blue-600 hover:text-blue-700"
+                  className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl text-base font-bold transition-all ${
+                    isDark
+                      ? "bg-[#21446e] text-blue-200 hover:bg-[#2b4f7a] border border-white/10"
+                      : "bg-blue-100 text-blue-700 hover:bg-blue-200 border border-blue-200"
                   }`}
                 >
-                  <ChevronLeft className="w-4 h-4" />
+                  <ChevronLeft className="w-5 h-5" />
                   Cancel and Return
                 </button>
               </form>

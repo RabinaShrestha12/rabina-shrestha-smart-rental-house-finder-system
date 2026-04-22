@@ -441,7 +441,7 @@ export default function PublicListings() {
                     >
                       <div>
                         <span className="text-2xl font-extrabold text-blue-600">
-                          Rs {monthPriceText === "-" ? "0" : monthPriceText}
+                          Rs. {(l.price_per_month || l.price_per_week * 4 || 0).toLocaleString()}
                         </span>
                         <span
                           className={`text-sm font-medium ${

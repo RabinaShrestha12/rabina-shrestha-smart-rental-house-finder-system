@@ -6,12 +6,11 @@ import TextField from "../../components/TextField";
 import Toast from "../../components/Toast";
 
 export default function Login() {
-  const [mode, setMode] = useState("admin"); // admin | user
+  const [mode, setMode] = useState("admin");
   const [form, setForm] = useState({ email: "", password: "" });
   const [toast, setToast] = useState({ type: "info", msg: "" });
   const [loading, setLoading] = useState(false);
 
-  // ✅ use the actual functions that exist in AuthContext
   const { loginAdmin, loginUser } = useAuth();
   const nav = useNavigate();
 
@@ -23,6 +22,7 @@ export default function Login() {
     if (r === "admin") return nav("/admin", { replace: true });
     if (r === "owner") return nav("/owner", { replace: true });
     if (r === "tenant") return nav("/tenant", { replace: true });
+    if (r === "provider") return nav("/provider", { replace: true });
     return nav("/unauthorized", { replace: true });
   };
 
@@ -37,7 +37,6 @@ export default function Login() {
           ? await loginAdmin(form.email, form.password)
           : await loginUser(form.email, form.password);
 
-      // ✅ OTP required -> go to OTP page
       if (data?.verification_required) {
         nav("/otp", {
           state: {
@@ -49,7 +48,6 @@ export default function Login() {
         return;
       }
 
-      // ✅ If backend returns tokens directly (OTP disabled)
       if (data?.tokens && data?.role) {
         goByRole(data.role);
         return;
@@ -117,6 +115,7 @@ export default function Login() {
         <TextField
           label="Email"
           name="email"
+          type="email"
           value={form.email}
           onChange={onChange}
           required

@@ -282,7 +282,7 @@ export default function PublicListingDetails() {
 
             <div className="absolute bottom-4 left-4">
               <span className="bg-neutral-900/80 backdrop-blur text-white font-black px-5 py-2.5 rounded-2xl text-xl shadow-2xl border border-white/10">
-                Rs {price.value}
+                Rs. {price.value}
                 <span className="text-xs font-semibold text-white/60 ml-1">{price.label}</span>
               </span>
             </div>
@@ -323,7 +323,7 @@ export default function PublicListingDetails() {
                 </div>
                 <div>
                   <div className={`text-[10px] font-black uppercase tracking-[0.16em] ${ui.mutedText}`}>Rent</div>
-                  <div className={`font-bold ${ui.text}`}>Rs {price.value}</div>
+                  <div className={`font-bold ${ui.text}`}>Rs. {price.value}</div>
                 </div>
               </div>
 
