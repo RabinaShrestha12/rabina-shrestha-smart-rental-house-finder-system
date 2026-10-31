@@ -3,7 +3,7 @@ import api from "../api/axios";
 
 const AuthContext = createContext(null);
 
-// ✅ ONLY accept exact roles, no guessing tenant
+//  ONLY accept exact roles, no guessing tenant
 function normalizeRole(raw) {
   const r = String(raw || "").trim().toLowerCase();
   if (["admin", "owner", "tenant", "provider"].includes(r)) return r;

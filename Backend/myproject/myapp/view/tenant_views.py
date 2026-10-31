@@ -42,13 +42,13 @@ def tenant_register(request):
         return Response({"detail": "Email already exists."},
                         status=status.HTTP_400_BAD_REQUEST)
 
-    # ✅ Create USER in your custom table (myapp_user)
+    # Create USER in your custom table (myapp_user)
     user = User.objects.create_user(
         username=username,
         password=password,
         email=email,
     )
-    # ✅ Ensure role is tenant (your custom field)
+    # Ensure role is tenant (your custom field)
     if hasattr(user, "role"):
         user.role = "tenant"
     if hasattr(user, "address"):
@@ -57,7 +57,7 @@ def tenant_register(request):
         user.phone = phone
     user.save()
 
-    # ✅ Create TENANT row linked to this user (myapp_tenant)
+    # Create TENANT row linked to this user (myapp_tenant)
     Tenant.objects.get_or_create(
         user=user,
         defaults={
@@ -86,7 +86,7 @@ def tenant_login(request):
         return Response({"detail": "Invalid username or password."},
                         status=status.HTTP_401_UNAUTHORIZED)
 
-    # ✅ related_name is "tenant" in your model
+    # related_name is "tenant" in your model
     if not hasattr(user, "tenant"):
         return Response({"detail": "This account is not a tenant."},
                         status=status.HTTP_403_FORBIDDEN)

@@ -139,14 +139,13 @@ class ServiceProviderProfile(models.Model):
     def __str__(self):
         return f"{self.user.username} ({self.category}) - {self.availability}"
 
-
 # LISTING MODEL
 class Listing(models.Model):
     PROPERTY_TYPE_CHOICES = [
-    ("room", "Room"),
-    ("flat", "Flat"),
-    ("house", "House"),
-    ("apartment", "Apartment"),
+        ("room", "Room"),
+        ("flat", "Flat"),
+        ("house", "House"),
+        ("apartment", "Apartment"),
     ]
 
     owner = models.ForeignKey(
@@ -158,36 +157,98 @@ class Listing(models.Model):
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
 
-    property_type = models.CharField(max_length=20, choices=PROPERTY_TYPE_CHOICES, default="room")
+    property_type = models.CharField(
+        max_length=20,
+        choices=PROPERTY_TYPE_CHOICES,
+        default="room",
+    )
     price_per_month = models.DecimalField(max_digits=10, decimal_places=2)
     location = models.CharField(max_length=255)
 
-    latitude = models.DecimalField(max_digits=12, decimal_places=8, null=True, blank=True)
-    longitude = models.DecimalField(max_digits=12, decimal_places=8, null=True, blank=True)
+    latitude = models.DecimalField(
+        max_digits=12,
+        decimal_places=8,
+        null=True,
+        blank=True,
+    )
+    longitude = models.DecimalField(
+        max_digits=12,
+        decimal_places=8,
+        null=True,
+        blank=True,
+    )
 
     electricity_bill = models.CharField(max_length=100, blank=True, default="")
     owner_contact_number = models.CharField(max_length=30, blank=True, default="")
     owner_contact_email = models.EmailField(blank=True, default="")
 
-    image = models.ImageField(upload_to="listings/", blank=True, null=True)
+    # ✅ Fixed: added max_length=255 to prevent long filename/path error
+    image = models.ImageField(
+        upload_to="listings/",
+        blank=True,
+        null=True,
+        max_length=255,
+    )
 
-    pano_360 = models.ImageField(upload_to="listings/pano360/", blank=True, null=True)
-    pano_front = models.ImageField(upload_to="listings/360/", blank=True, null=True)
-    pano_back = models.ImageField(upload_to="listings/360/", blank=True, null=True)
-    pano_left = models.ImageField(upload_to="listings/360/", blank=True, null=True)
-    pano_right = models.ImageField(upload_to="listings/360/", blank=True, null=True)
-    pano_up = models.ImageField(upload_to="listings/360/", blank=True, null=True)
-    pano_down = models.ImageField(upload_to="listings/360/", blank=True, null=True)
+    pano_360 = models.ImageField(
+        upload_to="listings/pano360/",
+        blank=True,
+        null=True,
+        max_length=255,
+    )
+    pano_front = models.ImageField(
+        upload_to="listings/360/",
+        blank=True,
+        null=True,
+        max_length=255,
+    )
+    pano_back = models.ImageField(
+        upload_to="listings/360/",
+        blank=True,
+        null=True,
+        max_length=255,
+    )
+    pano_left = models.ImageField(
+        upload_to="listings/360/",
+        blank=True,
+        null=True,
+        max_length=255,
+    )
+    pano_right = models.ImageField(
+        upload_to="listings/360/",
+        blank=True,
+        null=True,
+        max_length=255,
+    )
+    pano_up = models.ImageField(
+        upload_to="listings/360/",
+        blank=True,
+        null=True,
+        max_length=255,
+    )
+    pano_down = models.ImageField(
+        upload_to="listings/360/",
+        blank=True,
+        null=True,
+        max_length=255,
+    )
 
     is_available = models.BooleanField(default=True)
 
     STATUS_AVAILABLE = "available"
     STATUS_BOOKED = "booked"
+
     STATUS_CHOICES = [
         (STATUS_AVAILABLE, "Available"),
         (STATUS_BOOKED, "Booked"),
     ]
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_AVAILABLE, db_index=True)
+
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_AVAILABLE,
+        db_index=True,
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -203,6 +264,18 @@ class Listing(models.Model):
 
     def __str__(self):
         return f"{self.title} - {self.location}"
+
+
+    # ✅ Fixed: added max_length=255 for gallery images also
+    image = models.ImageField(
+        upload_to="listings/gallery/",
+        max_length=255,
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Gallery image for {self.listing.title}"
 
 class PropertyGalleryImage(models.Model):
     listing = models.ForeignKey(

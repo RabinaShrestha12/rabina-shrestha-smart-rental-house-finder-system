@@ -1,31 +1,47 @@
-import React, { useState, useEffect } from "react";
+import {
+  Building,
+  CheckCircle2,
+  ChevronRight,
+  Clock,
+  MapPin,
+  Search,
+  ShieldCheck,
+  Star,
+} from "lucide-react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import { useAuth } from "../../auth/AuthContext";
 import { useTheme } from "../../components/ThemeContext";
-import {
-  Search,
-  MapPin,
-  Building,
-  Star,
-  ShieldCheck,
-  Clock,
-  ChevronRight,
-  CheckCircle2,
-} from "lucide-react";
 
 const BACKEND = "http://127.0.0.1:8000";
 
 function toImageSrc(value) {
-  if (!value)
+  if (!value) {
     return "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&q=80&w=800";
+  }
+
   const s = String(value).trim();
+
   if (s.startsWith("http://") || s.startsWith("https://")) return s;
+
   if (s.startsWith("/media/http://") || s.startsWith("/media/https://")) {
     return s.replace(/^\/media\//, "");
   }
+
   if (s.startsWith("/")) return `${BACKEND}${s}`;
+
   return `${BACKEND}/${s}`;
+}
+
+function getMonthlyPrice(listing) {
+  const monthly = Number(listing?.price_per_month || 0);
+  const weekly = Number(listing?.price_per_week || 0);
+
+  if (monthly > 0) return monthly;
+  if (weekly > 0) return weekly * 4;
+
+  return 0;
 }
 
 export default function HomePublic() {
@@ -46,7 +62,10 @@ export default function HomePublic() {
     async function fetchData() {
       try {
         const res = await api.get("/public/listings/");
-        const data = Array.isArray(res.data) ? res.data : res.data?.results || [];
+        const data = Array.isArray(res.data)
+          ? res.data
+          : res.data?.results || [];
+
         const topListings = data.slice(0, 3);
         setFeaturedListings(topListings);
 
@@ -54,7 +73,10 @@ export default function HomePublic() {
           try {
             const reviewPromises = topListings.map(async (listing) => {
               try {
-                const reviewRes = await api.get(`listings/${listing.id}/reviews/`);
+                const reviewRes = await api.get(
+                  `listings/${listing.id}/reviews/`
+                );
+
                 const listingReviews = Array.isArray(reviewRes.data)
                   ? reviewRes.data
                   : reviewRes.data?.results || [];
@@ -65,7 +87,10 @@ export default function HomePublic() {
                   listing_title: listing.title,
                 }));
               } catch (err) {
-                console.log(`Error fetching reviews for listing ${listing.id}`, err);
+                console.log(
+                  `Error fetching reviews for listing ${listing.id}`,
+                  err
+                );
                 return [];
               }
             });
@@ -111,28 +136,30 @@ export default function HomePublic() {
       }`}
     >
       {/* Hero Section */}
-      <section className="relative flex min-h-[90vh] items-center overflow-hidden pt-32 pb-40 md:pt-48 md:pb-52">
+      <section className="relative flex h-[calc(100vh-72px)] min-h-[560px] max-h-[900px] items-center overflow-hidden pt-20 pb-24 sm:min-h-[620px] md:pt-24 md:pb-28 lg:min-h-[700px]">
         <div className="absolute inset-0 z-0">
           <img
             src="https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&q=80&w=2000"
             alt="Smart Rental Home"
-            className="h-full w-full object-cover"
+            className="h-full w-full object-cover object-center"
           />
+
           <div className="absolute inset-0 bg-gradient-to-r from-neutral-900/90 via-neutral-900/60 to-transparent"></div>
         </div>
 
         <div className="relative z-10 mx-auto w-full max-w-7xl px-6 md:px-12">
           <div className="max-w-2xl">
             <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-blue-400/30 bg-blue-500/20 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-blue-200">
-              <Star className="h-3.5 w-3.5 fill-blue-300" /> Smart Rental Platform
+              <Star className="h-3.5 w-3.5 fill-blue-300" />
+              Smart Rental Platform
             </div>
 
-            <h1 className="mb-6 text-5xl font-extrabold leading-[1.1] tracking-tight text-white md:text-7xl">
+            <h1 className="mb-6 text-[clamp(2.8rem,5vw,5.5rem)] font-extrabold leading-[1.05] tracking-tight text-white">
               Discover Your <br className="hidden md:block" />
               <span className="text-blue-400">Perfect Home</span> Today.
             </h1>
 
-            <p className="mb-10 max-w-xl text-lg leading-relaxed text-neutral-300 md:text-xl">
+            <p className="mb-10 max-w-xl text-[clamp(1rem,1.5vw,1.25rem)] leading-relaxed text-neutral-300">
               Smart Rental helps you find rooms, apartments, and houses more
               easily with modern search, trusted listings, and features tailored
               to your location, budget, and lifestyle.
@@ -141,7 +168,7 @@ export default function HomePublic() {
             <div className="flex flex-wrap gap-4">
               <Link
                 to="/listings"
-                className="rounded-full bg-blue-600 px-8 py-4 text-lg font-semibold text-white transition-all hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-500/30"
+                className="rounded-full bg-blue-600 px-8 py-4 text-base font-semibold text-white transition-all hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-500/30 md:text-lg"
               >
                 Explore Listings
               </Link>
@@ -152,7 +179,7 @@ export default function HomePublic() {
                     .getElementById("features")
                     ?.scrollIntoView({ behavior: "smooth" });
                 }}
-                className="rounded-full border border-white/20 bg-white/10 px-8 py-4 text-lg font-semibold text-white backdrop-blur-sm transition-all hover:bg-white/20"
+                className="rounded-full border border-white/20 bg-white/10 px-8 py-4 text-base font-semibold text-white backdrop-blur-sm transition-all hover:bg-white/20 md:text-lg"
               >
                 Learn More
               </button>
@@ -162,7 +189,7 @@ export default function HomePublic() {
       </section>
 
       {/* Advanced Search Bar */}
-      <section className="relative z-20 mx-auto -mt-24 max-w-5xl px-6 md:-mt-16">
+      <section className="relative z-20 mx-auto -mt-12 max-w-5xl px-6 sm:-mt-16 md:-mt-20">
         <div
           className={`flex flex-col gap-4 rounded-3xl p-4 shadow-2xl md:flex-row md:p-6 ${
             isDark
@@ -178,6 +205,7 @@ export default function HomePublic() {
             }`}
           >
             <MapPin className="h-6 w-6 shrink-0 text-blue-500" />
+
             <div className="flex w-full flex-1 flex-col">
               <span
                 className={`text-xs font-semibold uppercase tracking-wider ${
@@ -186,6 +214,7 @@ export default function HomePublic() {
               >
                 Location
               </span>
+
               <input
                 type="text"
                 placeholder="Where do you want to live?"
@@ -208,6 +237,7 @@ export default function HomePublic() {
             }`}
           >
             <Building className="h-6 w-6 shrink-0 text-blue-500" />
+
             <div className="flex w-full flex-1 flex-col">
               <span
                 className={`text-xs font-semibold uppercase tracking-wider ${
@@ -216,6 +246,7 @@ export default function HomePublic() {
               >
                 Property Type
               </span>
+
               <select
                 value={qType}
                 onChange={(e) => setQType(e.target.value)}
@@ -252,8 +283,14 @@ export default function HomePublic() {
             >
               Featured <span className="text-blue-600">Properties</span>
             </h2>
-            <p className={`text-lg ${isDark ? "text-slate-300" : "text-slate-600"}`}>
-              Browse our handpicked selection of rental properties, updated daily.
+
+            <p
+              className={`text-lg ${
+                isDark ? "text-slate-300" : "text-slate-600"
+              }`}
+            >
+              Browse our handpicked selection of rental properties, updated
+              daily.
             </p>
           </div>
 
@@ -284,99 +321,114 @@ export default function HomePublic() {
                 : "border border-[#dbeafe] bg-[#f4f9ff]"
             }`}
           >
-            <p className={`text-lg ${isDark ? "text-slate-300" : "text-slate-600"}`}>
+            <p
+              className={`text-lg ${
+                isDark ? "text-slate-300" : "text-slate-600"
+              }`}
+            >
               No properties found at the moment.
             </p>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
-            {featuredListings.map((l) => (
-              <div
-                key={l.id}
-                className={`group flex flex-col overflow-hidden rounded-3xl transition-all duration-300 hover:shadow-xl ${
-                  isDark
-                    ? "border border-white/10 bg-[#0b1b33] shadow-black/20"
-                    : "border border-[#dbeafe] bg-[#f8fbff] shadow-sm shadow-blue-100/40"
-                }`}
-              >
-                <div className="relative h-64 overflow-hidden">
-                  <img
-                    src={toImageSrc(l.image_url || l.image || l.pano_front_url)}
-                    alt={l.title}
-                    className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
-                  />
-                  <div className="absolute top-4 left-4 flex gap-2">
-                    <span className="rounded-full bg-white/90 px-3 py-1 text-xs font-bold uppercase tracking-wide text-blue-700 backdrop-blur">
-                      {l.property_type || "Rental"}
-                    </span>
-                    {(l.is_available === false || l.status === "booked") && (
-                      <span className="rounded-full bg-red-500/90 px-3 py-1 text-xs font-bold uppercase tracking-wide text-white backdrop-blur">
-                        Booked
+            {featuredListings.map((l) => {
+              const monthlyPrice = getMonthlyPrice(l);
+
+              return (
+                <div
+                  key={l.id}
+                  className={`group flex flex-col overflow-hidden rounded-3xl transition-all duration-300 hover:shadow-xl ${
+                    isDark
+                      ? "border border-white/10 bg-[#0b1b33] shadow-black/20"
+                      : "border border-[#dbeafe] bg-[#f8fbff] shadow-sm shadow-blue-100/40"
+                  }`}
+                >
+                  <div className="relative h-64 overflow-hidden">
+                    <img
+                      src={toImageSrc(l.image_url || l.image || l.pano_front_url)}
+                      alt={l.title}
+                      className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
+                    />
+
+                    <div className="absolute top-4 left-4 flex gap-2">
+                      <span className="rounded-full bg-white/90 px-3 py-1 text-xs font-bold uppercase tracking-wide text-blue-700 backdrop-blur">
+                        {l.property_type || "Rental"}
                       </span>
-                    )}
-                  </div>
-                </div>
 
-                <div className="flex flex-1 flex-col p-6">
-                  <div
-                    className={`mb-3 flex items-center gap-1 text-sm ${
-                      isDark ? "text-slate-300" : "text-slate-600"
-                    }`}
-                  >
-                    <MapPin className="h-4 w-4 text-blue-500" />
-                    {l.location || "Location not specified"}
-                  </div>
-
-                  <h3
-                    className={`mb-2 line-clamp-1 text-2xl font-bold transition-colors group-hover:text-blue-400 ${
-                      isDark ? "text-white" : "text-neutral-900 group-hover:text-blue-600"
-                    }`}
-                  >
-                    {l.title}
-                  </h3>
-
-                  <p
-                    className={`mb-6 line-clamp-2 flex-1 text-sm ${
-                      isDark ? "text-slate-300" : "text-slate-600"
-                    }`}
-                  >
-                    {l.description ||
-                      "A beautiful rental property available now. Contact us for more details."}
-                  </p>
-
-                  <div
-                    className={`flex items-center justify-between pt-4 ${
-                      isDark ? "border-t border-white/10" : "border-t border-[#dbeafe]"
-                    }`}
-                  >
-                    <div>
-                      <span className="text-2xl font-extrabold text-blue-600">
-                        Rs. {(l.price_per_month || l.price_per_week * 4 || 0).toLocaleString()}
-                      </span>
-                      <span
-                        className={`text-sm font-medium ${
-                          isDark ? "text-slate-300" : "text-slate-600"
-                        }`}
-                      >
-                        {" "}
-                        /mo
-                      </span>
+                      {(l.is_available === false || l.status === "booked") && (
+                        <span className="rounded-full bg-red-500/90 px-3 py-1 text-xs font-bold uppercase tracking-wide text-white backdrop-blur">
+                          Booked
+                        </span>
+                      )}
                     </div>
+                  </div>
 
-                    <button
-                      onClick={() => nav(`/listings/${l.id}`)}
-                      className={`flex h-10 w-10 items-center justify-center rounded-full transition-colors ${
-                        isDark
-                          ? "bg-[#10233f] text-slate-200 group-hover:bg-blue-600 group-hover:text-white"
-                          : "bg-[#eaf4ff] text-neutral-600 group-hover:bg-blue-600 group-hover:text-white"
+                  <div className="flex flex-1 flex-col p-6">
+                    <div
+                      className={`mb-3 flex items-center gap-1 text-sm ${
+                        isDark ? "text-slate-300" : "text-slate-600"
                       }`}
                     >
-                      <ChevronRight className="h-5 w-5" />
-                    </button>
+                      <MapPin className="h-4 w-4 text-blue-500" />
+                      {l.location || "Location not specified"}
+                    </div>
+
+                    <h3
+                      className={`mb-2 line-clamp-1 text-2xl font-bold transition-colors group-hover:text-blue-400 ${
+                        isDark
+                          ? "text-white"
+                          : "text-neutral-900 group-hover:text-blue-600"
+                      }`}
+                    >
+                      {l.title}
+                    </h3>
+
+                    <p
+                      className={`mb-6 line-clamp-2 flex-1 text-sm ${
+                        isDark ? "text-slate-300" : "text-slate-600"
+                      }`}
+                    >
+                      {l.description ||
+                        "A beautiful rental property available now. Contact us for more details."}
+                    </p>
+
+                    <div
+                      className={`flex items-center justify-between pt-4 ${
+                        isDark
+                          ? "border-t border-white/10"
+                          : "border-t border-[#dbeafe]"
+                      }`}
+                    >
+                      <div>
+                        <span className="text-2xl font-extrabold text-blue-600">
+                          Rs. {monthlyPrice.toLocaleString()}
+                        </span>
+
+                        <span
+                          className={`text-sm font-medium ${
+                            isDark ? "text-slate-300" : "text-slate-600"
+                          }`}
+                        >
+                          {" "}
+                          /mo
+                        </span>
+                      </div>
+
+                      <button
+                        onClick={() => nav(`/listings/${l.id}`)}
+                        className={`flex h-10 w-10 items-center justify-center rounded-full transition-colors ${
+                          isDark
+                            ? "bg-[#10233f] text-slate-200 group-hover:bg-blue-600 group-hover:text-white"
+                            : "bg-[#eaf4ff] text-neutral-600 group-hover:bg-blue-600 group-hover:text-white"
+                        }`}
+                      >
+                        <ChevronRight className="h-5 w-5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>
@@ -393,13 +445,14 @@ export default function HomePublic() {
 
         <div className="relative z-10 mx-auto max-w-7xl px-6 md:px-12">
           <div className="mx-auto mb-20 max-w-3xl text-center">
-          <h2 className="mb-6 text-center text-4xl font-extrabold tracking-tight text-white md:text-5xl">
-            Why Choose
-            <br />
-            <span className="bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
-              Smart Rental?
-            </span>
-          </h2>
+            <h2 className="mb-6 text-center text-4xl font-extrabold tracking-tight text-white md:text-5xl">
+              Why Choose
+              <br />
+              <span className="bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
+                Smart Rental?
+              </span>
+            </h2>
+
             <p className="text-lg text-neutral-300">
               We provide a seamless, secure, and modern experience for tenants,
               property owners, and service providers with smart features built
@@ -437,7 +490,9 @@ export default function HomePublic() {
                 <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-500/20 text-blue-400">
                   {item.icon}
                 </div>
+
                 <h3 className="mb-3 text-xl font-bold">{item.title}</h3>
+
                 <p className="text-sm leading-relaxed text-neutral-300">
                   {item.text}
                 </p>
@@ -457,7 +512,12 @@ export default function HomePublic() {
           >
             What Our <span className="text-blue-600">Users Say</span>
           </h2>
-          <p className={`text-lg ${isDark ? "text-slate-300" : "text-slate-600"}`}>
+
+          <p
+            className={`text-lg ${
+              isDark ? "text-slate-300" : "text-slate-600"
+            }`}
+          >
             Real feedback from tenants who gave highly rated reviews on Smart
             Rental.
           </p>
@@ -471,7 +531,11 @@ export default function HomePublic() {
                 : "border border-[#dbeafe] bg-[#f4f9ff]"
             }`}
           >
-            <p className={`text-lg ${isDark ? "text-slate-300" : "text-slate-600"}`}>
+            <p
+              className={`text-lg ${
+                isDark ? "text-slate-300" : "text-slate-600"
+              }`}
+            >
               No tenant reviews above 3 stars are available right now.
             </p>
           </div>
@@ -519,7 +583,9 @@ export default function HomePublic() {
 
                   <div
                     className={`mb-5 rounded-2xl px-4 py-3 text-sm ${
-                      isDark ? "bg-[#10233f] text-slate-300" : "bg-[#edf6ff] text-slate-600"
+                      isDark
+                        ? "bg-[#10233f] text-slate-300"
+                        : "bg-[#edf6ff] text-slate-600"
                     }`}
                   >
                     <span className="font-semibold">Property:</span>{" "}
@@ -530,12 +596,19 @@ export default function HomePublic() {
                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 font-bold text-blue-600">
                       {reviewerName.charAt(0).toUpperCase()}
                     </div>
+
                     <div>
-                      <h4 className={`font-bold ${isDark ? "text-white" : "text-neutral-900"}`}>
+                      <h4
+                        className={`font-bold ${
+                          isDark ? "text-white" : "text-neutral-900"
+                        }`}
+                      >
                         {reviewerName}
                       </h4>
+
                       <span className="mt-1 flex items-center gap-1 text-xs font-semibold uppercase tracking-widest text-green-600">
-                        <CheckCircle2 className="h-3 w-3" /> Verified Review
+                        <CheckCircle2 className="h-3 w-3" />
+                        Verified Review
                       </span>
                     </div>
                   </div>
@@ -555,6 +628,7 @@ export default function HomePublic() {
             <h2 className="mb-6 text-4xl font-extrabold tracking-tight text-white md:text-5xl">
               Ready to find your next rental?
             </h2>
+
             <p className="mb-10 text-xl text-blue-100">
               Join Smart Rental and explore modern rooms, apartments, and houses
               with features designed for a better rental experience.

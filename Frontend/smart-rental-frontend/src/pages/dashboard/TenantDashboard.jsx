@@ -55,7 +55,8 @@ const DEFAULT_NOTIFICATIONS = [
   {
     id: 3,
     title: "Roommate Request",
-    message: "A new roommate request has been received. Review the details and respond.",
+    message:
+      "A new roommate request has been received. Review the details and respond.",
     type: "roommate",
     read: false,
     actionPath: "/tenant/roommates/requests",
@@ -63,7 +64,8 @@ const DEFAULT_NOTIFICATIONS = [
   {
     id: 4,
     title: "Monthly Expense Tracking",
-    message: "Your monthly expense tracker summary is ready. Review the latest totals.",
+    message:
+      "Your monthly expense tracker summary is ready. Review the latest totals.",
     type: "expense",
     read: false,
     actionPath: "/tenant/expenses",
@@ -71,7 +73,8 @@ const DEFAULT_NOTIFICATIONS = [
   {
     id: 5,
     title: "Payment Completed",
-    message: "Your rent payment has been processed successfully. View payment details.",
+    message:
+      "Your rent payment has been processed successfully. View payment details.",
     type: "payment",
     read: false,
     actionPath: "/tenant/booking-payments",
@@ -79,7 +82,8 @@ const DEFAULT_NOTIFICATIONS = [
   {
     id: 6,
     title: "Rent Payment Reminder",
-    message: "Monthly rent is due on the 1st. Please pay on time to avoid penalties.",
+    message:
+      "Monthly rent is due on the 1st. Please pay on time to avoid penalties.",
     type: "rent",
     read: false,
     actionPath: "/tenant/booking-payments",
@@ -87,7 +91,8 @@ const DEFAULT_NOTIFICATIONS = [
   {
     id: 7,
     title: "Water Bill Due",
-    message: "Your water bill is due this month. Check your account for details and pay online.",
+    message:
+      "Your water bill is due this month. Check your account for details and pay online.",
     type: "water",
     read: false,
     actionPath: "/tenant/expenses",
@@ -111,10 +116,13 @@ function toImageSrc(value) {
   const s = String(value).trim();
 
   if (s.startsWith("http://") || s.startsWith("https://")) return s;
+
   if (s.startsWith("/media/http://") || s.startsWith("/media/https://")) {
     return s.replace(/^\/media\//, "");
   }
+
   if (s.startsWith("/")) return `${BACKEND}${s}`;
+
   return `${BACKEND}/${s}`;
 }
 
@@ -122,6 +130,7 @@ function loadTenantNotifications() {
   try {
     const raw = localStorage.getItem(TENANT_NOTIFICATIONS_KEY);
     if (!raw) return DEFAULT_NOTIFICATIONS;
+
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : DEFAULT_NOTIFICATIONS;
   } catch {
@@ -160,7 +169,9 @@ export default function TenantDashboard() {
     }
   });
 
-  const [notifications, setNotifications] = useState(() => loadTenantNotifications());
+  const [notifications, setNotifications] = useState(() =>
+    loadTenantNotifications()
+  );
   const [notifOpen, setNotifOpen] = useState(false);
 
   const [inboxUnreadCount, setInboxUnreadCount] = useState(() => {
@@ -180,19 +191,111 @@ export default function TenantDashboard() {
 
   useEffect(() => {
     try {
-      localStorage.setItem(TENANT_NOTIFICATIONS_KEY, JSON.stringify(notifications));
+      localStorage.setItem(
+        TENANT_NOTIFICATIONS_KEY,
+        JSON.stringify(notifications)
+      );
     } catch {}
   }, [notifications]);
+
+  useEffect(() => {
+    localStorage.setItem("tenant_favorites", JSON.stringify(favorites));
+  }, [favorites]);
+
+  useEffect(() => {
+    if (toast.msg) {
+      const timer = setTimeout(() => {
+        setToast({ type: "info", msg: "" });
+      }, 2600);
+
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    if (!isAuthed) {
+      nav("/auth", { replace: true });
+      return;
+    }
+
+    if (role !== "tenant") {
+      nav("/unauthorized", { replace: true });
+    }
+  }, [isAuthed, role, nav]);
+
+  const getId = (item) =>
+    item?.id ?? item?.pk ?? item?.listing_id ?? item?.property_id;
+
+  const getTitle = (item) =>
+    item?.title || item?.property_name || item?.name || "Property";
+
+  const getAddress = (item) =>
+    item?.address || item?.location || item?.city || item?.area || "Nepal";
+
+  const getRent = (item) => {
+    if (item?.price_per_month) return item.price_per_month;
+    if (item?.rent) return item.rent;
+    if (item?.price) return item.price;
+    if (item?.monthly_rent) return item.monthly_rent;
+    if (item?.price_per_week) return Number(item.price_per_week) * 4.345;
+    return null;
+  };
+
+  const getType = (item) => item?.property_type || item?.type || "House";
+
+  const getDescription = (item) =>
+    item?.description ||
+    item?.details ||
+    item?.about ||
+    "A premium rental property managed through the Smart Rental platform.";
+
+  const getImage = (item) =>
+    item?.image_url ||
+    item?.image ||
+    item?.cover ||
+    item?.thumbnail ||
+    item?.main_image ||
+    item?.photo ||
+    item?.pano_front_url ||
+    item?.front_image ||
+    null;
+
+  const isBooked = (item) => {
+    if (item?.is_available === false || item?.available === false) return true;
+
+    const status = String(
+      item?.status ??
+        item?.booking_status ??
+        item?.property_status ??
+        ""
+    ).toLowerCase();
+
+    return status === "booked" || status === "occupied" || status === "rented";
+  };
+
+  const currency = (value) => {
+    if (value === null || value === undefined || value === "") return "—";
+
+    const n = Number(value);
+
+    return Number.isNaN(n) ? String(value) : n.toLocaleString();
+  };
 
   const fetchRoommateUnread = async () => {
     try {
       const res = await api.get("tenant/roommates/chats/");
+
       const list = Array.isArray(res?.data?.results)
         ? res.data.results
         : Array.isArray(res?.data)
         ? res.data
         : [];
-      const total = list.reduce((sum, t) => sum + Number(t.unread_count || 0), 0);
+
+      const total = list.reduce(
+        (sum, thread) => sum + Number(thread.unread_count || 0),
+        0
+      );
+
       setUnreadRoommateCount(total);
     } catch (err) {
       console.log("Error fetching roommate unread count:", err);
@@ -202,6 +305,7 @@ export default function TenantDashboard() {
   const fetchInboxUnread = async () => {
     try {
       const res = await api.get("tenant/booking-requests/");
+
       const list = Array.isArray(res?.data?.results)
         ? res.data.results
         : Array.isArray(res?.data)
@@ -213,40 +317,47 @@ export default function TenantDashboard() {
       const newUnreadMap = {};
 
       await Promise.all(
-        list.map(async (b) => {
-          const bid = b.id || b.pk;
-          if (!bid) return;
-          try {
-            const mres = await api.get(`booking-requests/${bid}/messages/`);
-            const messages = Array.isArray(mres.data)
-              ? mres.data
-              : mres.data?.results || [];
+        list.map(async (booking) => {
+          const bookingId = booking.id || booking.pk;
+          if (!bookingId) return;
 
-            const ownerMsg = messages.filter(
-              (m) => (m.sender_role || "").toLowerCase() !== "tenant"
+          try {
+            const messageRes = await api.get(
+              `booking-requests/${bookingId}/messages/`
             );
 
-            if (ownerMsg.length === 0) {
-              newUnreadMap[bid] = 0;
+            const messages = Array.isArray(messageRes.data)
+              ? messageRes.data
+              : messageRes.data?.results || [];
+
+            const ownerMessages = messages.filter(
+              (message) =>
+                (message.sender_role || "").toLowerCase() !== "tenant"
+            );
+
+            if (ownerMessages.length === 0) {
+              newUnreadMap[bookingId] = 0;
               return;
             }
 
-            const latest = [...ownerMsg].sort(
-              (x, y) =>
-                new Date(y.created_at || 0).getTime() -
-                new Date(x.created_at || 0).getTime()
+            const latest = [...ownerMessages].sort(
+              (a, b) =>
+                new Date(b.created_at || 0).getTime() -
+                new Date(a.created_at || 0).getTime()
             )[0];
 
-            const seen = lastSeenMap[bid];
+            const seen = lastSeenMap[bookingId];
+
             const isNew =
               !seen ||
-              (latest.id && String(latest.id) !== String(seen.last_seen_id)) ||
+              (latest.id &&
+                String(latest.id) !== String(seen.last_seen_id)) ||
               (latest.created_at &&
                 String(latest.created_at) !== String(seen.last_seen_at));
 
-            newUnreadMap[bid] = isNew ? 1 : 0;
+            newUnreadMap[bookingId] = isNew ? 1 : 0;
           } catch {
-            newUnreadMap[bid] = 0;
+            newUnreadMap[bookingId] = 0;
           }
         })
       );
@@ -255,7 +366,12 @@ export default function TenantDashboard() {
         "tenant_inbox_unread_counts",
         JSON.stringify(newUnreadMap)
       );
-      const total = Object.values(newUnreadMap).reduce((s, c) => s + (c || 0), 0);
+
+      const total = Object.values(newUnreadMap).reduce(
+        (sum, count) => sum + Number(count || 0),
+        0
+      );
+
       setInboxUnreadCount(total);
     } catch (err) {
       console.log("Error fetching inbox unread count:", err);
@@ -263,18 +379,16 @@ export default function TenantDashboard() {
   };
 
   useEffect(() => {
-    localStorage.setItem("tenant_favorites", JSON.stringify(favorites));
-  }, [favorites]);
-
-  useEffect(() => {
     const handleStorageChange = () => {
       try {
         const saved = localStorage.getItem("tenant_inbox_unread_counts");
         const unreadMap = saved ? JSON.parse(saved) : {};
+
         const total = Object.values(unreadMap || {}).reduce(
           (sum, count) => sum + Number(count || 0),
           0
         );
+
         setInboxUnreadCount(total);
       } catch {}
     };
@@ -302,89 +416,39 @@ export default function TenantDashboard() {
     };
   }, []);
 
-  useEffect(() => {
-    if (toast.msg) {
-      const t = setTimeout(() => {
-        setToast({ type: "info", msg: "" });
-      }, 2600);
-      return () => clearTimeout(t);
-    }
-  }, [toast]);
-
-  useEffect(() => {
-    if (!isAuthed) {
-      nav("/auth", { replace: true });
-      return;
-    }
-    if (role !== "tenant") {
-      nav("/unauthorized", { replace: true });
-    }
-  }, [isAuthed, role, nav]);
-
-  const handleLogout = () => {
-    logout();
-    nav("/auth", { replace: true });
-  };
-
-  const safeArr = (data) =>
-    Array.isArray(data) ? data : Array.isArray(data?.results) ? data.results : [];
-
-  const getId = (item) => item?.id ?? item?.pk ?? item?.listing_id ?? item?.property_id;
-  const getTitle = (x) => x?.title || x?.property_name || x?.name || "Property";
-  const getAddress = (x) => x?.address || x?.location || x?.city || x?.area || "Nepal";
-
-  const getRent = (x) => {
-    if (x?.price_per_month) return x.price_per_month;
-    if (x?.rent) return x.rent;
-    if (x?.price) return x.price;
-    if (x?.monthly_rent) return x.monthly_rent;
-    if (x?.price_per_week) return Number(x.price_per_week) * 4.345;
-    return null;
-  };
-
-  const getType = (x) => x?.property_type || x?.type || "House";
-
-  const getDescription = (x) =>
-    x?.description ||
-    x?.details ||
-    x?.about ||
-    "A premium rental property managed through the Smart Rental platform.";
-
-  const getImage = (x) =>
-    x?.image_url ||
-    x?.image ||
-    x?.cover ||
-    x?.thumbnail ||
-    x?.main_image ||
-    x?.photo ||
-    x?.pano_front_url ||
-    x?.front_image ||
-    null;
-
-  const isBooked = (item) => {
-    if (item?.is_available === false || item?.available === false) return true;
-    const s = String(
-      item?.status ??
-      item?.booking_status ??
-      item?.property_status ??
-      ""
-    ).toLowerCase();
-    return s === "booked" || s === "occupied" || s === "rented";
-  };
-
-  const currency = (v) => {
-    if (v === null || v === undefined || v === "") return "—";
-    const n = Number(v);
-    return Number.isNaN(n) ? String(v) : n.toLocaleString();
-  };
-
   const fetchListings = async () => {
     setLoading(true);
     setError("");
+
     try {
-      const res = await api.get("public/listings/");
-      setListings(safeArr(res.data));
-    } catch {
+      let url = "public/listings/";
+      let allListings = [];
+
+      while (url) {
+        const res = await api.get(url);
+
+        if (Array.isArray(res.data)) {
+          allListings = res.data;
+          url = null;
+        } else {
+          allListings = [...allListings, ...(res.data?.results || [])];
+
+          if (res.data?.next) {
+            const nextUrl = new URL(res.data.next);
+
+            url =
+              nextUrl.pathname
+                .replace(/^\/api\//, "")
+                .replace(/^api\//, "") + nextUrl.search;
+          } else {
+            url = null;
+          }
+        }
+      }
+
+      setListings(allListings);
+    } catch (err) {
+      console.log("TENANT LISTINGS ERROR:", err?.response?.data || err);
       setError("Could not load listings. Please try again.");
     } finally {
       setLoading(false);
@@ -392,7 +456,9 @@ export default function TenantDashboard() {
   };
 
   useEffect(() => {
-    if (isAuthed && role === "tenant") fetchListings();
+    if (isAuthed && role === "tenant") {
+      fetchListings();
+    }
   }, [isAuthed, role]);
 
   const filteredListings = useMemo(() => {
@@ -400,43 +466,52 @@ export default function TenantDashboard() {
 
     const priceOk = (rent) => {
       const n = Number(rent);
+
       if (Number.isNaN(n) || priceFilter === "any") return true;
       if (priceFilter === "lt5000") return n < 5000;
       if (priceFilter === "5000_10000") return n >= 5000 && n <= 10000;
       if (priceFilter === "gt10000") return n > 10000;
+
       return true;
     };
 
-    return listings.filter((x) => {
-      const t = (getTitle(x) || "").toLowerCase();
-      const a = (getAddress(x) || "").toLowerCase();
-      const d = (getDescription(x) || "").toLowerCase();
+    return listings.filter((item) => {
+      const title = (getTitle(item) || "").toLowerCase();
+      const address = (getAddress(item) || "").toLowerCase();
+      const description = (getDescription(item) || "").toLowerCase();
 
       const matchQuery =
-        !query || t.includes(query) || a.includes(query) || d.includes(query);
+        !query ||
+        title.includes(query) ||
+        address.includes(query) ||
+        description.includes(query);
 
-      return matchQuery && priceOk(getRent(x));
+      return matchQuery && priceOk(getRent(item));
     });
   }, [listings, q, priceFilter]);
 
-  const featuredListings = useMemo(
-    () => filteredListings.slice(0, 8),
-    [filteredListings]
-  );
+  const featuredListings = useMemo(() => filteredListings, [filteredListings]);
 
-  const unreadNotifCount = notifications.filter((n) => !n.read).length;
+  const unreadNotifCount = notifications.filter((item) => !item.read).length;
+
+  const handleLogout = () => {
+    logout();
+    nav("/auth", { replace: true });
+  };
 
   const toggleFavorite = (item) => {
     const id = getId(item);
     if (!id) return;
 
     setFavorites((prev) => {
-      const has = prev.includes(id);
-      const next = has ? prev.filter((x) => x !== id) : [...prev, id];
+      const exists = prev.includes(id);
+      const next = exists ? prev.filter((x) => x !== id) : [...prev, id];
+
       setToast({
         type: "success",
-        msg: has ? "Removed from favorites." : "Saved to favorites.",
+        msg: exists ? "Removed from favorites." : "Saved to favorites.",
       });
+
       return next;
     });
   };
@@ -457,6 +532,7 @@ export default function TenantDashboard() {
     if (!listingId || !msg.trim()) return;
 
     setSending(true);
+
     try {
       const res = await api.post("tenant/booking-requests/create/", {
         listing_id: listingId,
@@ -487,12 +563,14 @@ export default function TenantDashboard() {
   };
 
   const markAllNotificationsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    setNotifications((prev) => prev.map((item) => ({ ...item, read: true })));
   };
 
   const handleNotificationToggle = () => {
     if (!notifOpen) {
-      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+      setNotifications((prev) =>
+        prev.map((item) => ({ ...item, read: true }))
+      );
       setNotifOpen(true);
     } else {
       setNotifOpen(false);
@@ -501,8 +579,11 @@ export default function TenantDashboard() {
 
   const handleNotificationClick = (item) => {
     setNotifications((prev) =>
-      prev.map((n) => (n.id === item.id ? { ...n, read: true } : n))
+      prev.map((notification) =>
+        notification.id === item.id ? { ...notification, read: true } : notification
+      )
     );
+
     setNotifOpen(false);
 
     if (item?.actionPath) {
@@ -534,8 +615,8 @@ export default function TenantDashboard() {
   const headingText = isDark ? "text-white" : "text-slate-900";
   const subText = isDark ? "text-slate-200" : "text-slate-600";
 
-  const softTextHeading = isDark ? "text-slate-900" : "text-slate-900";
-  const softTextSub = isDark ? "text-slate-700" : "text-slate-600";
+  const softTextHeading = "text-slate-900";
+  const softTextSub = "text-slate-600";
 
   const getSoftPanelClass = (tone = "blue") => {
     if (isDark) {
@@ -548,6 +629,7 @@ export default function TenantDashboard() {
         cyan: "border border-[#9fdef2]/55 bg-[linear-gradient(180deg,#f4fdff_0%,#dff7ff_100%)] shadow-[0_10px_25px_rgba(0,0,0,0.18)] hover:brightness-[0.98]",
         emerald: "border border-[#9ee6c1]/50 bg-[linear-gradient(180deg,#f3fff8_0%,#dcfcef_100%)] shadow-[0_10px_25px_rgba(0,0,0,0.18)] hover:brightness-[0.98]",
       };
+
       return darkMap[tone] || darkMap.blue;
     }
 
@@ -560,6 +642,7 @@ export default function TenantDashboard() {
       cyan: "border border-cyan-200 bg-[linear-gradient(180deg,#ffffff_0%,#dff7ff_100%)] hover:bg-[linear-gradient(180deg,#ffffff_0%,#d1f3ff_100%)]",
       emerald: "border border-emerald-200 bg-[linear-gradient(180deg,#ffffff_0%,#dcfcef_100%)] hover:bg-[linear-gradient(180deg,#ffffff_0%,#d2f8e8_100%)]",
     };
+
     return lightMap[tone] || lightMap.blue;
   };
 
@@ -573,6 +656,7 @@ export default function TenantDashboard() {
       cyan: "bg-cyan-100 text-cyan-700",
       emerald: "bg-emerald-100 text-emerald-700",
     };
+
     return colorMap[tone] || colorMap.blue;
   };
 
@@ -586,6 +670,7 @@ export default function TenantDashboard() {
     if (type === "water") return "cyan";
     if (type === "electricity") return "amber";
     if (type === "report") return "cyan";
+
     return "cyan";
   };
 
@@ -599,10 +684,18 @@ export default function TenantDashboard() {
     if (type === "water") return Droplets;
     if (type === "electricity") return Zap;
     if (type === "report") return BarChart3;
+
     return Bell;
   };
 
-  const QuickAction = ({ icon: Icon, label, subtitle, onClick, tone = "blue", badge = 0 }) => (
+  const QuickAction = ({
+    icon: Icon,
+    label,
+    subtitle,
+    onClick,
+    tone = "blue",
+    badge = 0,
+  }) => (
     <button
       onClick={onClick}
       className={`group relative flex h-full min-h-[128px] flex-col justify-between rounded-3xl p-5 text-left transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${getSoftPanelClass(
@@ -620,6 +713,7 @@ export default function TenantDashboard() {
 
         <div className="relative">
           <ArrowRight className="h-4 w-4 text-slate-500 transition-transform group-hover:translate-x-1" />
+
           {badge > 0 && (
             <span className="absolute -right-2 -top-3 inline-flex min-w-[22px] items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-extrabold text-white shadow">
               {badge}
@@ -632,40 +726,39 @@ export default function TenantDashboard() {
         <h3 className={`text-sm font-extrabold tracking-wide ${softTextHeading}`}>
           {label}
         </h3>
-        <p className={`mt-1 text-xs leading-5 ${softTextSub}`}>
-          {subtitle}
-        </p>
+
+        <p className={`mt-1 text-xs leading-5 ${softTextSub}`}>{subtitle}</p>
       </div>
     </button>
   );
 
-  const StatCard = ({ label, value, icon: Icon, accent }) => {
-    return (
-      <div
-        className={`rounded-3xl p-5 ${getSoftPanelClass(
-          accent
-        )}`}
-      >
-        <div className="flex items-center justify-between">
-          <div>
-            <p className={`text-[11px] font-extrabold uppercase tracking-[0.18em] ${softTextSub}`}>
-              {label}
-            </p>
-            <h3 className={`mt-2 text-3xl font-black tracking-tight ${softTextHeading}`}>
-              {value}
-            </h3>
-          </div>
-          <div
-            className={`flex h-12 w-12 items-center justify-center rounded-2xl ${getSoftIconClass(
-              accent
-            )}`}
+  const StatCard = ({ label, value, icon: Icon, accent }) => (
+    <div className={`rounded-3xl p-5 ${getSoftPanelClass(accent)}`}>
+      <div className="flex items-center justify-between">
+        <div>
+          <p
+            className={`text-[11px] font-extrabold uppercase tracking-[0.18em] ${softTextSub}`}
           >
-            <Icon className="h-5 w-5" />
-          </div>
+            {label}
+          </p>
+
+          <h3
+            className={`mt-2 text-3xl font-black tracking-tight ${softTextHeading}`}
+          >
+            {value}
+          </h3>
+        </div>
+
+        <div
+          className={`flex h-12 w-12 items-center justify-center rounded-2xl ${getSoftIconClass(
+            accent
+          )}`}
+        >
+          <Icon className="h-5 w-5" />
         </div>
       </div>
-    );
-  };
+    </div>
+  );
 
   return (
     <Shell
@@ -715,11 +808,16 @@ export default function TenantDashboard() {
                   <p className="mb-3 text-xs font-black uppercase tracking-[0.24em] text-blue-400">
                     Smart Rental House Finder
                   </p>
-                  <h1 className={`text-3xl font-black leading-tight xl:text-4xl ${headingText}`}>
+
+                  <h1
+                    className={`text-3xl font-black leading-tight xl:text-4xl ${headingText}`}
+                  >
                     Find the right room, faster and more professionally
                   </h1>
+
                   <p className={`mt-3 max-w-2xl text-sm leading-6 ${subText}`}>
-                    Search listings, message owners, manage saved properties, and access your tenant tools from one clean dashboard.
+                    Search listings, message owners, manage saved properties,
+                    and access your tenant tools from one clean dashboard.
                   </p>
                 </div>
 
@@ -756,6 +854,7 @@ export default function TenantDashboard() {
                 <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.5fr_1fr_220px]">
                   <div className="relative">
                     <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+
                     <input
                       value={q}
                       onChange={(e) => setQ(e.target.value)}
@@ -791,9 +890,26 @@ export default function TenantDashboard() {
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <StatCard label="Saved" value={favorites.length} icon={Heart} accent="pink" />
-              <StatCard label="All Listings" value={listings.length} icon={Home} accent="blue" />
-              <StatCard label="Visible" value={filteredListings.length} icon={Search} accent="green" />
+              <StatCard
+                label="Saved"
+                value={favorites.length}
+                icon={Heart}
+                accent="pink"
+              />
+
+              <StatCard
+                label="All Listings"
+                value={listings.length}
+                icon={Home}
+                accent="blue"
+              />
+
+              <StatCard
+                label="Visible"
+                value={filteredListings.length}
+                icon={Search}
+                accent="green"
+              />
             </div>
           </div>
 
@@ -803,6 +919,7 @@ export default function TenantDashboard() {
                 <p className="text-xs font-black uppercase tracking-[0.22em] text-blue-400">
                   Quick Access
                 </p>
+
                 <h2 className={`mt-1 text-2xl font-black tracking-tight ${headingText}`}>
                   Tenant Tools Hub
                 </h2>
@@ -833,6 +950,7 @@ export default function TenantDashboard() {
                 tone="blue"
                 onClick={() => nav("/map")}
               />
+
               <QuickAction
                 icon={Users}
                 label="Roommates"
@@ -840,6 +958,7 @@ export default function TenantDashboard() {
                 tone="violet"
                 onClick={() => nav("/tenant/roommates")}
               />
+
               <QuickAction
                 icon={MessageSquare}
                 label="Roommate Chat"
@@ -848,6 +967,7 @@ export default function TenantDashboard() {
                 onClick={() => nav("/tenant/roommates/chats")}
                 badge={unreadRoommateCount}
               />
+
               <QuickAction
                 icon={Sofa}
                 label="Virtual Furniture"
@@ -855,6 +975,7 @@ export default function TenantDashboard() {
                 tone="pink"
                 onClick={() => nav("/tenant/virtual-furniture")}
               />
+
               <QuickAction
                 icon={Calculator}
                 label="Budget Split"
@@ -862,7 +983,7 @@ export default function TenantDashboard() {
                 tone="amber"
                 onClick={() => nav("/tools/budget-split")}
               />
-              
+
               <QuickAction
                 icon={CreditCard}
                 label="Payments"
@@ -870,6 +991,7 @@ export default function TenantDashboard() {
                 tone="cyan"
                 onClick={() => nav("/tenant/booking-payments")}
               />
+
               <QuickAction
                 icon={Heart}
                 label="Saved Items"
@@ -882,6 +1004,7 @@ export default function TenantDashboard() {
                   })
                 }
               />
+
               <QuickAction
                 icon={Bell}
                 label="Notifications"
@@ -898,8 +1021,6 @@ export default function TenantDashboard() {
                 tone="green"
                 onClick={() => nav("/tenant/expenses")}
               />
-
-
 
               <QuickAction
                 icon={FileText}
@@ -922,7 +1043,9 @@ export default function TenantDashboard() {
             {notifOpen && (
               <div
                 className={`mt-6 rounded-[28px] border p-4 shadow-[0_10px_30px_rgba(15,23,42,0.06)] ${
-                  isDark ? "border-[#3b5f8e] bg-[#123159]" : "border-slate-200 bg-white"
+                  isDark
+                    ? "border-[#3b5f8e] bg-[#123159]"
+                    : "border-slate-200 bg-white"
                 }`}
               >
                 <div className="mb-4 flex items-center justify-between">
@@ -930,10 +1053,12 @@ export default function TenantDashboard() {
                     <p className="text-xs font-black uppercase tracking-[0.22em] text-blue-400">
                       Notifications Panel
                     </p>
+
                     <h3 className={`mt-1 text-xl font-black ${headingText}`}>
                       Tenant Notifications
                     </h3>
                   </div>
+
                   <button
                     onClick={markAllNotificationsRead}
                     className="rounded-xl bg-blue-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-blue-500"
@@ -954,6 +1079,7 @@ export default function TenantDashboard() {
                   ) : (
                     notifications.map((item) => {
                       const Icon = notificationIcon(item.type);
+
                       return (
                         <button
                           key={item.id}
@@ -972,15 +1098,18 @@ export default function TenantDashboard() {
                             >
                               <Icon className="h-4 w-4" />
                             </div>
+
                             <div className="min-w-0 flex-1">
                               <div className="flex items-start justify-between gap-3">
                                 <h4 className={`text-sm font-bold ${headingText}`}>
                                   {item.title}
                                 </h4>
+
                                 {!item.read && (
                                   <span className="mt-0.5 h-2.5 w-2.5 rounded-full bg-blue-500" />
                                 )}
                               </div>
+
                               <p className={`mt-1 text-xs leading-5 ${subText}`}>
                                 {item.message}
                               </p>
@@ -1001,6 +1130,7 @@ export default function TenantDashboard() {
                 <p className="text-xs font-black uppercase tracking-[0.22em] text-blue-400">
                   Property Listings
                 </p>
+
                 <h2 className={`mt-1 text-2xl font-black tracking-tight ${headingText}`}>
                   Available Residences
                 </h2>
@@ -1020,9 +1150,9 @@ export default function TenantDashboard() {
 
             {loading ? (
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                {[1, 2, 3, 4].map((i) => (
+                {[1, 2, 3, 4].map((item) => (
                   <div
-                    key={i}
+                    key={item}
                     className={`h-[430px] animate-pulse rounded-[28px] ${
                       isDark ? "bg-[#123159]" : "bg-slate-200"
                     }`}
@@ -1075,6 +1205,7 @@ export default function TenantDashboard() {
                             booked ? "grayscale-[15%]" : ""
                           }`}
                         />
+
                         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
 
                         <div className="absolute left-4 top-4 flex flex-wrap gap-2">
@@ -1090,6 +1221,7 @@ export default function TenantDashboard() {
                         </div>
 
                         <button
+                          type="button"
                           onClick={() => toggleFavorite(item)}
                           className={`absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full transition ${
                             isFav(item)
@@ -1097,13 +1229,18 @@ export default function TenantDashboard() {
                               : "bg-white/90 text-slate-700 hover:bg-white"
                           }`}
                         >
-                          <Heart className={`h-4 w-4 ${isFav(item) ? "fill-current" : ""}`} />
+                          <Heart
+                            className={`h-4 w-4 ${
+                              isFav(item) ? "fill-current" : ""
+                            }`}
+                          />
                         </button>
 
                         <div className="absolute bottom-4 left-4 right-4">
                           <h3 className="line-clamp-1 text-xl font-black text-white">
                             {getTitle(item)}
                           </h3>
+
                           <div className="mt-1 flex items-center gap-1 text-xs font-medium text-white/85">
                             <MapPin className="h-3.5 w-3.5" />
                             <span className="line-clamp-1">{getAddress(item)}</span>
@@ -1114,10 +1251,15 @@ export default function TenantDashboard() {
                       <div className="flex min-h-[230px] flex-col p-5">
                         <div className="mb-3 flex items-end justify-between gap-3">
                           <div>
-                            <div className={`text-2xl font-black tracking-tight ${headingText}`}>
+                            <div
+                              className={`text-2xl font-black tracking-tight ${headingText}`}
+                            >
                               Rs {currency(rent)}
                             </div>
-                            <div className={`text-xs font-bold uppercase tracking-[0.16em] ${subText}`}>
+
+                            <div
+                              className={`text-xs font-bold uppercase tracking-[0.16em] ${subText}`}
+                            >
                               Per month
                             </div>
                           </div>
@@ -1141,6 +1283,7 @@ export default function TenantDashboard() {
 
                         <div className="mt-auto space-y-3">
                           <button
+                            type="button"
                             onClick={() => nav(`/public/listings/${id}`)}
                             className={`w-full rounded-2xl py-3 text-sm font-bold transition ${
                               isDark
@@ -1153,6 +1296,7 @@ export default function TenantDashboard() {
 
                           <div className="grid grid-cols-2 gap-3">
                             <button
+                              type="button"
                               onClick={() => openMessageModal(item)}
                               className={`inline-flex items-center justify-center gap-2 rounded-2xl py-3 text-sm font-bold transition ${
                                 isDark
@@ -1165,6 +1309,7 @@ export default function TenantDashboard() {
                             </button>
 
                             <button
+                              type="button"
                               onClick={() => {
                                 if (!booked) nav(`/tenant/book/${id}`);
                               }}
@@ -1206,9 +1351,12 @@ export default function TenantDashboard() {
                 }`}
               >
                 <button
+                  type="button"
                   onClick={() => setOpen(false)}
                   className={`absolute right-6 top-6 ${
-                    isDark ? "text-slate-300 hover:text-white" : "text-slate-400 hover:text-slate-900"
+                    isDark
+                      ? "text-slate-300 hover:text-white"
+                      : "text-slate-400 hover:text-slate-900"
                   }`}
                 >
                   <X className="h-5 w-5" />
@@ -1217,25 +1365,37 @@ export default function TenantDashboard() {
                 <p className="mb-2 text-[11px] font-black uppercase tracking-[0.22em] text-blue-400">
                   Contact Property Owner
                 </p>
-                <h3 className={`text-2xl font-black ${headingText}`}>{getTitle(selected)}</h3>
-                <p className={`mt-1 text-sm ${subText}`}>{getAddress(selected)}</p>
+
+                <h3 className={`text-2xl font-black ${headingText}`}>
+                  {getTitle(selected)}
+                </h3>
+
+                <p className={`mt-1 text-sm ${subText}`}>
+                  {getAddress(selected)}
+                </p>
               </div>
 
               <div className="space-y-6 p-7">
                 <div className="grid grid-cols-2 gap-4">
                   <div className={`rounded-2xl p-4 ${mutedCardClass}`}>
-                    <p className={`text-[10px] font-black uppercase tracking-[0.18em] ${subText}`}>
+                    <p
+                      className={`text-[10px] font-black uppercase tracking-[0.18em] ${subText}`}
+                    >
                       Owner
                     </p>
+
                     <p className={`mt-2 text-sm font-bold ${headingText}`}>
                       {selected?.owner_name || "Verified Landlord"}
                     </p>
                   </div>
 
                   <div className={`rounded-2xl p-4 ${mutedCardClass}`}>
-                    <p className={`text-[10px] font-black uppercase tracking-[0.18em] ${subText}`}>
+                    <p
+                      className={`text-[10px] font-black uppercase tracking-[0.18em] ${subText}`}
+                    >
                       Monthly Rent
                     </p>
+
                     <p className="mt-2 text-sm font-bold text-blue-400">
                       Rs {currency(getRent(selected))}
                     </p>
@@ -1243,9 +1403,12 @@ export default function TenantDashboard() {
                 </div>
 
                 <div>
-                  <label className={`mb-2 block text-[10px] font-black uppercase tracking-[0.18em] ${subText}`}>
+                  <label
+                    className={`mb-2 block text-[10px] font-black uppercase tracking-[0.18em] ${subText}`}
+                  >
                     Your Message
                   </label>
+
                   <textarea
                     value={msg}
                     onChange={(e) => setMsg(e.target.value)}
@@ -1256,6 +1419,7 @@ export default function TenantDashboard() {
 
                 <div className="flex flex-col gap-3 sm:flex-row">
                   <button
+                    type="button"
                     onClick={sendMessage}
                     disabled={sending || !msg.trim()}
                     className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-3.5 text-sm font-bold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
@@ -1271,6 +1435,7 @@ export default function TenantDashboard() {
                   </button>
 
                   <button
+                    type="button"
                     onClick={() => {
                       if (!isBooked(selected)) {
                         nav(`/tenant/book/${getId(selected)}`);

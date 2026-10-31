@@ -1,5 +1,3 @@
-# myapp/view/roommate_views.py
-
 from datetime import date
 from django.utils import timezone
 

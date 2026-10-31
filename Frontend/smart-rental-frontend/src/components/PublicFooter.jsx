@@ -25,7 +25,7 @@ export default function PublicFooter() {
             </span>
             <span className="flex items-center gap-2">
               <MapPin className="w-4 h-4" />
-              Tarai, Nepal
+              Terai, Nepal
             </span>
           </div>
         </div>

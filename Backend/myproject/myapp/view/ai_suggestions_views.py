@@ -44,7 +44,7 @@ def _haversine_km(lat1, lon1, lat2, lon2):
     return R * c
 
 
-# ✅ REPLACE THIS FUNCTION
+#  REPLACE THIS FUNCTION
 def _geocode_place_nominatim(place_name: str):
     """
     Free geocoding using OpenStreetMap Nominatim.
@@ -56,15 +56,15 @@ def _geocode_place_nominatim(place_name: str):
     url = "https://nominatim.openstreetmap.org/search"
     params = {
         "q": place_name,
-        "format": "jsonv2",  # ✅ better format
+        "format": "jsonv2",  #  better format
         "limit": 1,
         "addressdetails": 0,
-        # ✅ use a real contact email (important for reliability)
-        "email": "kechan.shrestha@gmail.com",
+        #  use a real contact email (important for reliability)
+        "email": "shrestharabina446@gmail.com",
     }
     headers = {
-        # ✅ use real contact
-        "User-Agent": "SmartRentalHouseFinder/1.0 (contact: kechan.shrestha@gmail.com)",
+        #  use real contact
+        "User-Agent": "SmartRentalHouseFinder/1.0 (contact: shrestharabina446@gmail.com)",
         "Accept": "application/json",
         "Accept-Language": "en",
     }
@@ -91,7 +91,7 @@ def _geocode_place_nominatim(place_name: str):
         return lat, lon
 
     except Exception as e:
-        # ✅ helpful debug in terminal
+        # helpful debug in terminal
         print("GEOCODE ERROR:", type(e).__name__, str(e))
         return None
 

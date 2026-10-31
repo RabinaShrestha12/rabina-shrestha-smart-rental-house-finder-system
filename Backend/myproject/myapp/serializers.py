@@ -1,11 +1,15 @@
 from __future__ import annotations
+
 from io import BytesIO
+import json
+import os
+import uuid
+
 from django.contrib.auth import get_user_model
 from django.core.files.base import ContentFile
+from django.db.models import Q
 from PIL import Image, ImageOps
 from rest_framework import serializers
-from django.db.models import Q
-import json
 
 from .models import (
     Owner,
@@ -31,6 +35,7 @@ from .models import (
     RentalContract,
     OwnerPlatformAgreement,
     PropertyGalleryImage,
+    BookingPayment,
 )
 
 User = get_user_model()
@@ -76,7 +81,16 @@ class OwnerSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "user_id", "username", "email", "address", "phone", "created_at", "updated_at"]
+        read_only_fields = [
+            "id",
+            "user_id",
+            "username",
+            "email",
+            "address",
+            "phone",
+            "created_at",
+            "updated_at",
+        ]
 
 
 class TenantSerializer(serializers.ModelSerializer):
@@ -99,7 +113,16 @@ class TenantSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "user_id", "username", "email", "address", "phone", "created_at", "updated_at"]
+        read_only_fields = [
+            "id",
+            "user_id",
+            "username",
+            "email",
+            "address",
+            "phone",
+            "created_at",
+            "updated_at",
+        ]
 
 
 # SERVICE PROVIDER PROFILE SERIALIZER
@@ -123,7 +146,15 @@ class ServiceProviderProfileSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "user_id", "username", "email", "created_at", "updated_at"]
+        read_only_fields = [
+            "id",
+            "user_id",
+            "username",
+            "email",
+            "created_at",
+            "updated_at",
+        ]
+
 
 class PropertyGalleryImageSerializer(serializers.ModelSerializer):
     image_url = serializers.SerializerMethodField()
@@ -139,7 +170,24 @@ class PropertyGalleryImageSerializer(serializers.ModelSerializer):
         return None
 
 
-# LISTING SERIALIZER (+360 + owner info + lat/lng + optional distance_km)
+class ListingFacilitySerializer(serializers.ModelSerializer):
+    kind_display = serializers.CharField(source="get_kind_display", read_only=True)
+
+    class Meta:
+        model = ListingFacility
+        fields = [
+            "id",
+            "listing",
+            "kind",
+            "kind_display",
+            "name",
+            "distance_m",
+            "address",
+        ]
+        read_only_fields = ["id", "listing", "kind_display"]
+
+
+# LISTING SERIALIZER
 class ListingSerializer(serializers.ModelSerializer):
     owner_name = serializers.CharField(source="owner.username", read_only=True)
     owner_email = serializers.EmailField(source="owner.email", read_only=True, allow_blank=True)
@@ -160,6 +208,9 @@ class ListingSerializer(serializers.ModelSerializer):
 
     distance_km = serializers.SerializerMethodField()
     gallery_images = PropertyGalleryImageSerializer(many=True, read_only=True)
+
+    facilities = ListingFacilitySerializer(many=True, read_only=True)
+    facilities_data = serializers.CharField(write_only=True, required=False, allow_blank=True)
 
     def _abs(self, request, filefield):
         if not filefield:
@@ -263,6 +314,7 @@ class ListingSerializer(serializers.ModelSerializer):
     def _make_square(self, uploaded_file, size=1024):
         if not uploaded_file:
             return None
+
         img = Image.open(uploaded_file)
         img = ImageOps.exif_transpose(img)
         img = img.convert("RGB")
@@ -271,31 +323,123 @@ class ListingSerializer(serializers.ModelSerializer):
         side = min(w, h)
         left = (w - side) // 2
         top = (h - side) // 2
+
         img = img.crop((left, top, left + side, top + side))
         img = img.resize((size, size), Image.LANCZOS)
 
         buffer = BytesIO()
         img.save(buffer, format="JPEG", quality=90, optimize=True)
-        return ContentFile(buffer.getvalue(), name=uploaded_file.name)
+
+        ext = os.path.splitext(uploaded_file.name)[1].lower() or ".jpg"
+        safe_name = f"{uuid.uuid4().hex}{ext}"
+
+        return ContentFile(buffer.getvalue(), name=safe_name)
 
     def _normalize_uploads(self, validated_data):
         if validated_data.get("image"):
             validated_data["image"] = self._make_square(validated_data["image"], 1024)
 
-        face_fields = ["pano_front", "pano_back", "pano_left", "pano_right", "pano_up", "pano_down"]
+        face_fields = [
+            "pano_front",
+            "pano_back",
+            "pano_left",
+            "pano_right",
+            "pano_up",
+            "pano_down",
+        ]
+
         for f in face_fields:
             if validated_data.get(f):
                 validated_data[f] = self._make_square(validated_data[f], 1024)
 
         return validated_data
 
+    def _parse_facilities_data(self, facilities_data):
+        if not facilities_data:
+            return []
+
+        if isinstance(facilities_data, list):
+            return facilities_data
+
+        if isinstance(facilities_data, str):
+            try:
+                parsed = json.loads(facilities_data)
+                if isinstance(parsed, list):
+                    return parsed
+                return []
+            except Exception:
+                return []
+
+        return []
+
+    def _save_facilities(self, listing, facilities_data):
+        if facilities_data is None:
+            return
+
+        facilities = self._parse_facilities_data(facilities_data)
+
+        listing.facilities.all().delete()
+
+        allowed_kinds = {
+            "bus_stop",
+            "college",
+            "office",
+            "market",
+            "hospital",
+            "atm",
+            "other",
+        }
+
+        for item in facilities:
+            if not isinstance(item, dict):
+                continue
+
+            kind = str(item.get("kind") or "other").strip()
+            name = str(item.get("name") or "").strip()
+            address = str(item.get("address") or "").strip()
+            distance_m = item.get("distance_m", None)
+
+            if kind not in allowed_kinds:
+                kind = "other"
+
+            if not name:
+                continue
+
+            try:
+                distance_m = int(distance_m) if distance_m not in ("", None) else None
+            except Exception:
+                distance_m = None
+
+            ListingFacility.objects.create(
+                listing=listing,
+                kind=kind,
+                name=name,
+                distance_m=distance_m,
+                address=address,
+            )
+
     def create(self, validated_data):
+        facilities_data = validated_data.pop("facilities_data", None)
+
         validated_data = self._normalize_uploads(validated_data)
-        return super().create(validated_data)
+
+        listing = super().create(validated_data)
+
+        self._save_facilities(listing, facilities_data)
+
+        return listing
 
     def update(self, instance, validated_data):
+        facilities_data = validated_data.pop("facilities_data", None)
+
         validated_data = self._normalize_uploads(validated_data)
-        return super().update(instance, validated_data)
+
+        listing = super().update(instance, validated_data)
+
+        if facilities_data is not None:
+            self._save_facilities(listing, facilities_data)
+
+        return listing
 
     class Meta:
         model = Listing
@@ -338,7 +482,10 @@ class ListingSerializer(serializers.ModelSerializer):
             "status",
             "created_at",
             "gallery_images",
+            "facilities",
+            "facilities_data",
         ]
+
         read_only_fields = [
             "id",
             "owner",
@@ -346,10 +493,11 @@ class ListingSerializer(serializers.ModelSerializer):
             "owner_name",
             "owner_email",
             "distance_km",
+            "facilities",
         ]
 
 
-# Booking + Messages
+# BOOKING + MESSAGES
 class BookingRequestCreateSerializer(serializers.Serializer):
     listing_id = serializers.IntegerField()
     first_message = serializers.CharField(required=False, allow_blank=True)
@@ -388,10 +536,13 @@ class BookingRequestCreateSerializer(serializers.Serializer):
         )
 
         if first_text:
-            BookingMessage.objects.create(request=booking, sender=tenant, text=first_text)
+            BookingMessage.objects.create(
+                request=booking,
+                sender=tenant,
+                text=first_text,
+            )
 
         return booking
-
 
 
 class BookingMessageSerializer(serializers.ModelSerializer):
@@ -518,7 +669,8 @@ class RoommateChatMessageSerializer(serializers.ModelSerializer):
                 return request.build_absolute_uri(obj.image.url)
             return obj.image.url
         return None
-    
+
+
 class BookingRequestListSerializer(serializers.ModelSerializer):
     listing = ListingSerializer(read_only=True)
 
@@ -580,7 +732,8 @@ class BookingRequestListSerializer(serializers.ModelSerializer):
         contract = self._get_contract(obj)
         return getattr(contract, "status", "") if contract else ""
 
-# Reviews
+
+# REVIEWS
 class ReviewSerializer(serializers.ModelSerializer):
     listing_title = serializers.CharField(source="listing.title", read_only=True)
     tenant_username = serializers.CharField(source="tenant.username", read_only=True)
@@ -605,16 +758,20 @@ class ReviewSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "created_at", "owner", "tenant"]
 
 
-# ✅ Owner -> Provider Maintenance (listing optional)
 class MaintenanceRequestSerializer(serializers.ModelSerializer):
     listing_title = serializers.CharField(source="listing.title", read_only=True, default=None)
 
     assigned_provider_profile_id = serializers.IntegerField(
-        source="assigned_provider.id", read_only=True, default=None
+        source="assigned_provider.id",
+        read_only=True,
+        default=None,
     )
     assigned_provider_name = serializers.CharField(
-    source="assigned_provider.username", read_only=True, default=None
+        source="assigned_provider.username",
+        read_only=True,
+        default=None,
     )
+
     owner_username = serializers.CharField(source="owner.username", read_only=True)
     owner_email = serializers.EmailField(source="owner.email", read_only=True)
 
@@ -638,13 +795,17 @@ class MaintenanceRequestSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "created_at", "updated_at", "owner", "owner_username", "owner_email"]
+        read_only_fields = [
+            "id",
+            "created_at",
+            "updated_at",
+            "owner",
+            "owner_username",
+            "owner_email",
+        ]
 
 
-
-# =========================
-# Notification / Reminder / Facilities
-# =========================
+# NOTIFICATION / REMINDER
 class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notification
@@ -659,16 +820,7 @@ class ReminderSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "created_at", "user"]
 
 
-class ListingFacilitySerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ListingFacility
-        fields = "__all__"
-        read_only_fields = ["id"]
-
-
-# =========================
-# ✅ Roommate Finder Serializers
-# =========================
+# ROOMMATE FINDER SERIALIZERS
 class RoommateProfileSerializer(serializers.ModelSerializer):
     user_id = serializers.IntegerField(source="user.id", read_only=True)
     username = serializers.CharField(source="user.username", read_only=True)
@@ -677,18 +829,28 @@ class RoommateProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = RoommateProfile
         fields = [
-            "id", "user_id", "username", "email",
-            "gender", "preferred_gender",
-            "min_budget", "max_budget",
-            "city", "preferred_area",
-            "move_in_date", "stay_length_months",
-            "smoker", "pets_ok", "tidy_level", "quiet_level",
-            "bio", "is_active",
-            "created_at", "updated_at"
+            "id",
+            "user_id",
+            "username",
+            "email",
+            "gender",
+            "preferred_gender",
+            "min_budget",
+            "max_budget",
+            "city",
+            "preferred_area",
+            "move_in_date",
+            "stay_length_months",
+            "smoker",
+            "pets_ok",
+            "tidy_level",
+            "quiet_level",
+            "bio",
+            "is_active",
+            "created_at",
+            "updated_at",
         ]
 
-
-# ✅ Roommate Chat Serializers
 
 class RoommateChatThreadSerializer(serializers.ModelSerializer):
     other_user_id = serializers.SerializerMethodField()
@@ -698,7 +860,14 @@ class RoommateChatThreadSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = RoommateChatThread
-        fields = ["id", "created_at", "other_user_id", "other_username", "last_message", "unread_count"]
+        fields = [
+            "id",
+            "created_at",
+            "other_user_id",
+            "other_username",
+            "last_message",
+            "unread_count",
+        ]
 
     def get_unread_count(self, obj):
         user = self.context.get("request").user
@@ -732,21 +901,23 @@ class RoommateRequestSerializer(serializers.ModelSerializer):
     from_user_id = serializers.IntegerField(source="from_user.id", read_only=True)
     to_user_id = serializers.IntegerField(source="to_user.id", read_only=True)
 
-    # ✅ these are what you will show on UI
     from_username = serializers.CharField(source="from_user.username", read_only=True)
     to_username = serializers.CharField(source="to_user.username", read_only=True)
 
-    # ✅ for message button (works for multiple accepted tenants)
     thread_id = serializers.SerializerMethodField()
 
     class Meta:
         model = RoommateRequest
         fields = [
             "id",
-            "from_user_id", "to_user_id",
-            "from_username", "to_username",
-            "message", "status",
-            "created_at", "responded_at",
+            "from_user_id",
+            "to_user_id",
+            "from_username",
+            "to_username",
+            "message",
+            "status",
+            "created_at",
+            "responded_at",
             "thread_id",
         ]
         read_only_fields = ["created_at", "responded_at", "thread_id"]
@@ -754,12 +925,16 @@ class RoommateRequestSerializer(serializers.ModelSerializer):
     def get_thread_id(self, obj):
         if obj.status != "accepted":
             return None
+
         a, b = obj.from_user_id, obj.to_user_id
+
         thread = RoommateChatThread.objects.filter(
             Q(user1_id=a, user2_id=b) | Q(user1_id=b, user2_id=a)
         ).first()
+
         return thread.id if thread else None
-    
+
+
 class FurnitureItemSerializer(serializers.ModelSerializer):
     image_url = serializers.SerializerMethodField()
 
@@ -785,9 +960,6 @@ class FurnitureItemSerializer(serializers.ModelSerializer):
         if obj.image and request:
             return request.build_absolute_uri(obj.image.url)
         return obj.image.url if obj.image else ""
-    
-from rest_framework import serializers
-from .models import BookingPayment
 
 
 class BookingPaymentSerializer(serializers.ModelSerializer):
@@ -850,7 +1022,6 @@ class BookingPaymentSerializer(serializers.ModelSerializer):
 
     def get_listing_title(self, obj):
         return getattr(obj.listing, "title", f"Listing #{obj.listing_id}")
-    
 
 
 class TenantExpenseSerializer(serializers.ModelSerializer):
@@ -871,10 +1042,18 @@ class TenantExpenseSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "month", "year", "month_label", "created_at", "updated_at"]
+        read_only_fields = [
+            "id",
+            "month",
+            "year",
+            "month_label",
+            "created_at",
+            "updated_at",
+        ]
 
     def get_month_label(self, obj):
         import calendar
+
         return f"{calendar.month_abbr[obj.month]} {obj.year}"
 
     def validate_amount(self, value):
@@ -893,7 +1072,14 @@ class TenantRoomImageSaveSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = TenantRoomImageSave
-        fields = ["id", "image", "image_url", "image_name", "layout_data", "created_at"]
+        fields = [
+            "id",
+            "image",
+            "image_url",
+            "image_name",
+            "layout_data",
+            "created_at",
+        ]
         read_only_fields = ["id", "created_at", "image_url"]
 
     def get_image_url(self, obj):
@@ -908,7 +1094,15 @@ class TenantRoomImageSaveSerializer(serializers.ModelSerializer):
 class ContactMessageSerializer(serializers.ModelSerializer):
     class Meta:
         model = ContactMessage
-        fields = ["id", "name", "email", "phone", "subject", "message", "created_at"]
+        fields = [
+            "id",
+            "name",
+            "email",
+            "phone",
+            "subject",
+            "message",
+            "created_at",
+        ]
         read_only_fields = ["id", "created_at"]
 
 
@@ -916,10 +1110,14 @@ class RentalContractCreateSerializer(serializers.Serializer):
     booking_id = serializers.IntegerField()
     contract_title = serializers.CharField(required=False, allow_blank=True)
     rent_amount = serializers.DecimalField(
-        max_digits=10, decimal_places=2, required=False
+        max_digits=10,
+        decimal_places=2,
+        required=False,
     )
     security_deposit = serializers.DecimalField(
-        max_digits=10, decimal_places=2, required=False
+        max_digits=10,
+        decimal_places=2,
+        required=False,
     )
     payment_due_day = serializers.IntegerField(required=False, default=5)
     start_date = serializers.DateField(required=False, allow_null=True)
@@ -942,6 +1140,7 @@ class RentalContractCreateSerializer(serializers.Serializer):
             .filter(id=attrs["booking_id"], listing__owner=owner)
             .first()
         )
+
         if not booking:
             raise serializers.ValidationError(
                 {"booking_id": "Booking not found for this owner."}
@@ -949,6 +1148,7 @@ class RentalContractCreateSerializer(serializers.Serializer):
 
         allowed_statuses = {"accepted", "approved", "confirmed", "booked"}
         booking_status = str(getattr(booking, "status", "")).strip().lower()
+
         if booking_status not in allowed_statuses:
             raise serializers.ValidationError(
                 {"booking_id": "Only accepted bookings can be used to create a contract."}
@@ -961,6 +1161,7 @@ class RentalContractCreateSerializer(serializers.Serializer):
 
         start_date = attrs.get("start_date")
         end_date = attrs.get("end_date")
+
         if start_date and end_date and end_date <= start_date:
             raise serializers.ValidationError(
                 {"end_date": "End date must be after start date."}
@@ -989,7 +1190,8 @@ class RentalContractCreateSerializer(serializers.Serializer):
             tenant=tenant,
             contract_title=default_title,
             rent_amount=validated_data.get(
-                "rent_amount", getattr(listing, "price_per_month", 0) or 0
+                "rent_amount",
+                getattr(listing, "price_per_month", 0) or 0,
             ),
             security_deposit=validated_data.get("security_deposit", 0),
             payment_due_day=validated_data.get("payment_due_day", 5),
@@ -1000,6 +1202,7 @@ class RentalContractCreateSerializer(serializers.Serializer):
             special_terms=validated_data.get("special_terms", ""),
             status="draft",
         )
+
         return contract
 
 
@@ -1100,7 +1303,11 @@ class RentalContractDetailSerializer(serializers.ModelSerializer):
             return "Tenant"
 
     def get_listing_address(self, obj):
-        return getattr(obj.listing, "address", "") or getattr(obj.listing, "location", "") or ""
+        return (
+            getattr(obj.listing, "address", "")
+            or getattr(obj.listing, "location", "")
+            or ""
+        )
 
 
 class RentalContractOwnerUpdateSerializer(serializers.ModelSerializer):
@@ -1129,6 +1336,7 @@ class RentalContractOwnerUpdateSerializer(serializers.ModelSerializer):
 
         if start_date and end_date and end_date <= start_date:
             raise serializers.ValidationError("End date must be after start date.")
+
         return attrs
 
 

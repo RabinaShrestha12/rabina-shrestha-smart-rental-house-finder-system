@@ -19,7 +19,7 @@ export function roleToPath(role) {
   return "/unauthorized";
 }
 
-// ✅ Put MANY possible endpoints (so it matches your project even if names differ)
+//  Put MANY possible endpoints (so it matches your project even if names differ)
 export async function detectRoleByApi() {
   const checks = [
     // OWNER

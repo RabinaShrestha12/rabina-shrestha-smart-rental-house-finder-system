@@ -5,7 +5,7 @@ function normalizeRole(role) {
   const r = String(role || "").trim().toLowerCase();
   if (!r) return "";
 
-  // ✅ IMPORTANT normalizations
+  //  IMPORTANT normalizations
   if (r === "user") return "tenant";
   if (r === "service_provider") return "provider";
   if (r === "superadmin" || r === "super_admin") return "admin";

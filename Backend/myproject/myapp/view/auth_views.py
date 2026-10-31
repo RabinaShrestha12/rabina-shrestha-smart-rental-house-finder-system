@@ -19,7 +19,7 @@ User = get_user_model()
 ALLOWED_ROLES = ["owner", "tenant", "provider"]
 
 
-# ✅ IMPORTANT: normalize role from frontend
+#  IMPORTANT: normalize role from frontend
 # Accepts: service_provider / service provider / service-provider
 # Stores: provider
 def normalize_role(role_value: str) -> str:
@@ -98,7 +98,7 @@ def send_reset_otp_email(to_email, code):
 
 def ensure_role_profile(user):
     """
-    ✅ Create Tenant/Owner/Provider profile row linked to the user (if missing).
+     Create Tenant/Owner/Provider profile row linked to the user (if missing).
     IMPORTANT:
     - address/phone are stored in User model
     - Tenant/Owner only have: user + location
@@ -175,7 +175,7 @@ def register_user(request):
     email = (data.get("email") or "").strip().lower()
     password = data.get("password")
 
-    # ✅ FIX: normalize role so service_provider becomes provider
+    #  FIX: normalize role so service_provider becomes provider
     role = normalize_role(data.get("role"))
 
     address = data.get("address", "")
@@ -191,7 +191,7 @@ def register_user(request):
     if role not in ALLOWED_ROLES:
         return Response({"error": "role must be owner/tenant/provider"}, status=status.HTTP_400_BAD_REQUEST)
 
-    # ✅ MAKE USERNAME UNIQUE against real users + pending signups
+    #  MAKE USERNAME UNIQUE against real users + pending signups
     base_username = username or "user"
     i = 1
     while (
@@ -202,7 +202,7 @@ def register_user(request):
         i += 1
 
     # ==========================================================
-    # ✅ IMPORTANT FIX:
+    #  IMPORTANT FIX:
     # If a REAL user exists:
     # - If NOT verified -> resend OTP (DO NOT return 400)
     # - If verified -> return 400 "login"
@@ -233,7 +233,7 @@ def register_user(request):
 
         return Response({"error": "Email already exists. Please login."}, status=status.HTTP_400_BAD_REQUEST)
 
-    # ✅ If pending signup exists -> resend OTP (latest)
+    #  If pending signup exists -> resend OTP (latest)
     existing_pending = PendingSignup.objects.filter(email__iexact=email, is_used=False).order_by("-created_at").first()
     if existing_pending:
         try:
@@ -245,7 +245,7 @@ def register_user(request):
         except Exception as e:
             return Response({"error": f"OTP send failed: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    # ✅ Create NEW pending + OTP
+    #  Create NEW pending + OTP
     try:
         pending = PendingSignup.objects.create(
             email=email,

@@ -114,6 +114,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/owner/my-properties"
           element={
@@ -122,6 +123,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/owner/listing/:id"
           element={
@@ -130,6 +132,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/owner/listing/:id/edit"
           element={
@@ -138,6 +141,8 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
+        {/* Existing add property route */}
         <Route
           path="/owner/listings/create"
           element={
@@ -146,6 +151,17 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
+        {/* New add property route for agreement continue button */}
+        <Route
+          path="/owner/add-property"
+          element={
+            <ProtectedRoute allowRoles={["owner"]}>
+              <OwnerAddListing />
+            </ProtectedRoute>
+          }
+        />
+
         <Route
           path="/owner/messages"
           element={
@@ -154,6 +170,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/owner/maintenance"
           element={
@@ -162,6 +179,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/owner/booking-payments"
           element={
@@ -170,6 +188,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/owner/provider-chat"
           element={
@@ -178,6 +197,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/owner/provider-chat/:jobId"
           element={
@@ -186,6 +206,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/owner/contract"
           element={
@@ -194,6 +215,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/owner/contracts"
           element={
@@ -202,6 +224,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/owner/contracts/:id"
           element={
@@ -220,6 +243,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/tenant/dashboard"
           element={
@@ -228,6 +252,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/tenant/inbox"
           element={
@@ -236,6 +261,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/tenant/bookings"
           element={
@@ -244,6 +270,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/tenant/book/:listing_id"
           element={
@@ -252,6 +279,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/tenant/maintenance"
           element={
@@ -260,6 +288,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/tenant/ai"
           element={
@@ -268,6 +297,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/tenant/roommates"
           element={
@@ -276,6 +306,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/tenant/roommates/requests"
           element={
@@ -284,6 +315,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/tenant/roommates/chats"
           element={
@@ -292,6 +324,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/tenant/roommates/chats/:roomId"
           element={
@@ -300,6 +333,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/tenant/virtual-furniture"
           element={
@@ -308,6 +342,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/tenant/payment/:bookingId"
           element={
@@ -316,6 +351,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/tenant/esewa-pay"
           element={
@@ -324,6 +360,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/tenant/payment-success"
           element={
@@ -332,6 +369,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/tenant/payment-failed"
           element={
@@ -340,6 +378,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/tenant/my-booking-payments"
           element={
@@ -348,6 +387,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/tenant/booking-payments"
           element={
@@ -356,6 +396,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/tenant/expenses"
           element={
@@ -364,6 +405,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/tenant/contracts"
           element={
@@ -372,6 +414,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/tenant/contracts/:id"
           element={
@@ -390,6 +433,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/provider/messages"
           element={
@@ -398,6 +442,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/provider/chat/:jobId"
           element={
@@ -406,6 +451,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/provider/notifications"
           element={
@@ -414,6 +460,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/provider/otp"
           element={
@@ -432,6 +479,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/admin/email-broadcast"
           element={
@@ -440,6 +488,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/admin/furnitures"
           element={
@@ -448,6 +497,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/admin/booking-payments"
           element={

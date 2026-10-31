@@ -38,7 +38,7 @@ def _send_otp_email(to_email: str, code: str, purpose: str):
         f"This code will expire soon. If you did not request this, ignore this email."
     )
 
-    # ✅ If SEND_REAL_EMAIL is False -> print in terminal
+    #  If SEND_REAL_EMAIL is False -> print in terminal
     if not getattr(settings, "SEND_REAL_EMAIL", True):
         print("\n============================================================")
         print(f"[DEV OTP] purpose : {purpose}")
@@ -95,7 +95,7 @@ def create_and_send_signup_otp(pending: PendingSignup):
 
     ok, err = _send_otp_email(pending.email, code, "signup")
 
-    # ✅ IMPORTANT: if sending fails, delete OTP so you don't get stuck in 429
+    #  IMPORTANT: if sending fails, delete OTP so you don't get stuck in 429
     if not ok:
         otp.delete()
         return None, err
@@ -107,7 +107,7 @@ def create_and_send_signup_otp(pending: PendingSignup):
 # =========================================================
 # USER OTP (every login optional)
 # =========================================================
-def create_and_send_user_otp(user: User, purpose: str):
+def create_and_send_user_otp(user, purpose: str):
     ttl = int(getattr(settings, "EMAIL_OTP_TTL_SECONDS", 600))
     window = int(getattr(settings, "EMAIL_OTP_RESEND_WINDOW_SECONDS", 900))
     limit = int(getattr(settings, "EMAIL_OTP_RESEND_LIMIT", 3))

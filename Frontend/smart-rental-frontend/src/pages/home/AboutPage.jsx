@@ -22,7 +22,7 @@ export default function AboutPage() {
       style={{
         background: isDark
           ? "linear-gradient(180deg, #071120 0%, #0b1e36 45%, #0f2745 100%)"
-          : "linear-gradient(180deg, #f4f9ff 0%, #edf6ff 45%, #e8f3ff 100%)",
+          : "linear-gradient(180deg, #eaf2ff 0%, #e2edfc 45%, #dbe8fa 100%)",
         color: "var(--text-color)",
       }}
     >

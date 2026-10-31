@@ -36,14 +36,14 @@ api.interceptors.request.use(
 
     const token = getAccessToken();
 
-    // ✅ attach token only for private endpoints
+    //  attach token only for private endpoints
     if (!isPublicEndpoint && token) {
       config.headers.Authorization = `Bearer ${token}`;
     } else {
       delete config.headers.Authorization;
     }
 
-    // ✅ FormData support
+    //  FormData support
     const isFormData =
       typeof FormData !== "undefined" &&
       config.data instanceof FormData;
@@ -62,7 +62,7 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (res) => res,
   (err) => {
-    // ✅ auto logout on unauthorized
+    //  auto logout on unauthorized
     if (err?.response?.status === 401) {
       localStorage.removeItem("access");
       localStorage.removeItem("access_token");
